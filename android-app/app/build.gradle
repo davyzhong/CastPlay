@@ -1,0 +1,84 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.castplay.player'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.castplay.player"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // API 和 WebSocket URL 配置
+        buildConfigField "String", "API_BASE_URL", '"http://10.0.2.2:5001/api/"'
+        buildConfigField "String", "WS_URL", '"ws://10.0.2.2:5001/socket.io/"'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            buildConfigField "String", "API_BASE_URL", '"http://your-server-ip:5001/api"'
+            buildConfigField "String", "WS_URL", '"ws://your-server-ip:5001"'
+        }
+        debug {
+            buildConfigField "String", "API_BASE_URL", '"http://10.0.2.2:5001/api"'
+            buildConfigField "String", "WS_URL", '"ws://10.0.2.2:5001"'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+    }
+}
+
+dependencies {
+    // Android Core
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.10.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.webkit:webkit:1.8.0'
+
+    // ExoPlayer - 视频播放
+    implementation 'com.google.android.exoplayer:exoplayer:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-core:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-ui:2.19.1'
+
+    // Glide - 图片加载
+    implementation 'com.github.bumptech.glide:glide:4.16.0'
+    annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
+
+    // Retrofit - 网络请求
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
+
+    // Room - 本地数据库
+    implementation 'androidx.room:room-runtime:2.6.0'
+    annotationProcessor 'androidx.room:room-compiler:2.6.0'
+
+    // WorkManager - 后台任务
+    implementation 'androidx.work:work-runtime:2.9.0'
+
+    // Gson - JSON解析
+    implementation 'com.google.code.gson:gson:2.10.1'
+
+    // Testing
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}

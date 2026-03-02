@@ -1,0 +1,37 @@
+# Flask Core
+Flask==2.3.0
+Flask-SQLAlchemy==3.0.5
+Flask-Migrate==4.0.5
+Flask-CORS==4.0.0
+Flask-SocketIO==5.3.4
+
+# Database (SQLite built-in, PostgreSQL optional)
+SQLAlchemy==2.0.20
+# psycopg2-binary==2.9.7  # 仅生产环境需要PostgreSQL时启用
+
+# Task Queue
+celery==5.3.1
+redis==4.6.0
+
+# File Processing
+Pillow==10.0.0
+# python-magic==0.4.27  # macOS需要brew install libmagic
+
+# Utilities
+python-dotenv==1.0.0
+pytz==2023.3
+
+# WebSocket
+python-socketio==5.9.0
+gevent==24.2.1
+gevent-websocket==0.10.1
+
+# HTTP Client
+requests==2.31.0
+
+# Development
+pytest==7.4.0
+pytest-flask==1.2.0
+
+# Production
+gunicorn==21.2.0

@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CastPlay 网页播放器测试</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; margin-bottom: 20px; }
+        .player-area {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        .player-area img, .player-area video {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .status {
+            text-align: center;
+            padding: 20px;
+            color: #888;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #1976D2;
+            color: white;
+        }
+        button:hover { background: #1565C0; }
+        button:disabled { background: #444; cursor: not-allowed; }
+        .settings {
+            background: #111;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .settings h3 { margin-bottom: 15px; color: #888; }
+        .setting-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .setting-row label {
+            min-width: 100px;
+            color: #aaa;
+        }
+        select, input[type="number"] {
+            padding: 10px 15px;
+            font-size: 14px;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background: #222;
+            color: #fff;
+            min-width: 200px;
+        }
+        select:focus, input:focus {
+            outline: none;
+            border-color: #1976D2;
+        }
+        .playlist {
+            background: #111;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .playlist h3 { margin-bottom: 10px; color: #888; }
+        .playlist-item {
+            padding: 10px;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .playlist-item.active { background: #1976D2; border-radius: 4px; }
+        .playlist-item:last-child { border-bottom: none; }
+        .info { color: #666; font-size: 12px; }
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid #333;
+            border-top-color: #1976D2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+        .stats {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin-top: 10px;
+            color: #888;
+            font-size: 14px;
+        }
+        .stats span { color: #1976D2; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 CastPlay 网页播放器测试</h1>
+
+        <!-- 播放设置 -->
+        <div class="settings">
+            <h3>⚙️ 播放设置</h3>
+            <div class="setting-row">
+                <label>选择播放列表:</label>
+                <select id="playlistSelect" onchange="onPlaylistChange()">
+                    <option value="">-- 加载中 --</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <label>轮播次数:</label>
+                <select id="loopCount">
+                    <option value="1">1 次</option>
+                    <option value="2">2 次</option>
+                    <option value="3">3 次</option>
+                    <option value="5">5 次</option>
+                    <option value="10">10 次</option>
+                    <option value="0" selected>无限循环</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <label>播放间隔:</label>
+                <select id="intervalMode">
+                    <option value="normal">正常 (使用原设置)</option>
+                    <option value="fast">快速预览 (0.5秒)</option>
+                    <option value="custom">自定义</option>
+                </select>
+                <input type="number" id="customInterval" value="3" min="0.5" max="60" step="0.5"
+                       style="width:80px; display:none" /> 秒
+            </div>
+        </div>
+
+        <div class="player-area" id="playerArea">
+            <div class="overlay" id="loadingOverlay">
+                <div class="spinner"></div>
+                <p style="margin-top: 15px" id="statusText">正在加载...</p>
+            </div>
+            <img id="imagePlayer" class="hidden" />
+            <video id="videoPlayer" class="hidden" autoplay muted playsinline></video>
+        </div>
+
+        <div class="controls">
+            <button onclick="loadPlaylists()">🔄 刷新列表</button>
+            <button onclick="startAutoPlay()" id="playBtn" disabled>▶️ 开始播放</button>
+            <button onclick="stopAutoPlay()" id="stopBtn" disabled>⏹️ 停止</button>
+            <button onclick="playNext()">⏭️ 下一个</button>
+        </div>
+
+        <div class="status" id="currentStatus">请先选择播放列表</div>
+        <div class="stats">
+            <div>当前轮次: <span id="currentLoop">0</span> / <span id="totalLoops">0</span></div>
+            <div>当前项: <span id="currentItem">0</span> / <span id="totalItems">0</span></div>
+        </div>
+
+        <div class="playlist" id="playlistContainer">
+            <h3>📋 播放内容</h3>
+            <div id="playlistItems">请选择播放列表</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5001/api';
+        let playlists = [];
+        let currentPlaylist = null;
+        let currentIndex = 0;
+        let isPlaying = false;
+        let playTimer = null;
+        let currentLoop = 0;
+        let maxLoops = 0;
+
+        // 间隔模式切换
+        document.getElementById('intervalMode').onchange = function() {
+            document.getElementById('customInterval').style.display =
+                this.value === 'custom' ? 'inline-block' : 'none';
+        };
+
+        // 获取播放间隔
+        function getInterval(defaultDuration) {
+            const mode = document.getElementById('intervalMode').value;
+            if (mode === 'fast') return 500; // 0.5秒
+            if (mode === 'custom') {
+                return parseFloat(document.getElementById('customInterval').value) * 1000;
+            }
+            return defaultDuration * 1000; // 正常模式使用原设置
+        }
+
+        // 加载播放列表
+        async function loadPlaylists() {
+            try {
+                showLoading('正在加载播放列表...');
+                const resp = await fetch(`${API_BASE}/playlists`);
+                const data = await resp.json();
+                playlists = data.playlists || [];
+
+                const select = document.getElementById('playlistSelect');
+                if (playlists.length === 0) {
+                    select.innerHTML = '<option value="">暂无播放列表</option>';
+                    document.getElementById('playlistItems').innerHTML =
+                        '<p style="color:#888;padding:10px">请先在管理后台创建播放列表</p>';
+                    hideLoading();
+                    return;
+                }
+
+                select.innerHTML = playlists.map(p =>
+                    `<option value="${p.id}">${p.name} (${p.item_count || 0}项)</option>`
+                ).join('');
+
+                // 自动加载第一个
+                await loadPlaylistDetail(playlists[0].id);
+                hideLoading();
+            } catch (e) {
+                console.error(e);
+                document.getElementById('playlistSelect').innerHTML =
+                    '<option value="">加载失败</option>';
+                hideLoading();
+            }
+        }
+
+        // 切换播放列表
+        async function onPlaylistChange() {
+            const playlistId = document.getElementById('playlistSelect').value;
+            if (!playlistId) return;
+
+            stopAutoPlay();
+            showLoading('正在加载...');
+            await loadPlaylistDetail(parseInt(playlistId));
+            hideLoading();
+        }
+
+        // 加载播放列表详情
+        async function loadPlaylistDetail(playlistId) {
+            const resp = await fetch(`${API_BASE}/playlists/${playlistId}`);
+            currentPlaylist = await resp.json();
+            console.log('播放列表API响应:', JSON.stringify(currentPlaylist, null, 2));
+            currentIndex = 0;
+            currentLoop = 0;
+            renderPlaylist();
+            document.getElementById('playBtn').disabled = !currentPlaylist.items?.length;
+            updateStats();
+        }
+
+        // 渲染播放列表
+        function renderPlaylist() {
+            if (!currentPlaylist || !currentPlaylist.items) {
+                document.getElementById('playlistItems').innerHTML =
+                    '<p style="color:#888">该播放列表为空</p>';
+                return;
+            }
+
+            const items = currentPlaylist.items;
+            let html = items.map((item, index) => `
+                <div class="playlist-item ${index === currentIndex ? 'active' : ''}" onclick="playAt(${index})">
+                    <span>${index + 1}. ${item.media_name || item.media?.file_name || '未知'}
+                          (${item.media_type || item.media?.file_type || '未知'})</span>
+                    <span class="info">${item.display_duration}秒</span>
+                </div>
+            `).join('');
+
+            document.getElementById('playlistItems').innerHTML = html || '<p>播放列表为空</p>';
+            updateStatus(`播放列表: ${currentPlaylist.name} (${items.length} 项)`);
+        }
+
+        // 更新统计
+        function updateStats() {
+            const loopSelect = document.getElementById('loopCount');
+            maxLoops = parseInt(loopSelect.value);
+
+            document.getElementById('currentLoop').textContent = currentLoop + 1;
+            document.getElementById('totalLoops').textContent = maxLoops === 0 ? '∞' : maxLoops;
+            document.getElementById('currentItem').textContent = currentIndex + 1;
+            document.getElementById('totalItems').textContent = currentPlaylist?.items?.length || 0;
+        }
+
+        // 开始自动播放
+        function startAutoPlay() {
+            if (!currentPlaylist || !currentPlaylist.items.length) {
+                alert('没有可播放的内容');
+                return;
+            }
+            isPlaying = true;
+            currentLoop = 0;
+            currentIndex = 0;
+            document.getElementById('playBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            playAt(currentIndex);
+        }
+
+        // 停止播放
+        function stopAutoPlay() {
+            isPlaying = false;
+            clearTimeout(playTimer);
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('videoPlayer').pause();
+            updateStatus('已停止播放');
+        }
+
+        // 播放指定项
+        function playAt(index) {
+            if (!currentPlaylist || !currentPlaylist.items.length) return;
+
+            currentIndex = index;
+            renderPlaylist();
+            updateStats();
+
+            const item = currentPlaylist.items[index];
+            const mediaType = item.media_type || item.media?.file_type || 'image';
+            const mediaName = item.media_name || item.media?.file_name || '未知';
+            const mediaStatus = item.status || item.media?.status || 'ready';
+
+            // 根据媒体类型和状态确定正确的播放URL
+            let mediaUrl;
+            if (item.file_url) {
+                // 使用API返回的file_url
+                mediaUrl = `http://localhost:5001${item.file_url}`;
+            } else if (mediaType === 'ppt' && mediaStatus === 'ready') {
+                // PPT已转换，使用converted接口
+                mediaUrl = `${API_BASE}/player/media/${item.media_id}/converted`;
+            } else {
+                // 其他情况使用download接口
+                mediaUrl = `${API_BASE}/media/${item.media_id}/download`;
+            }
+
+            showLoading(`正在加载: ${mediaName}`);
+
+            // 调试信息
+            console.log('播放项信息:', {
+                mediaUrl,
+                mediaType,
+                mediaName,
+                mediaStatus,
+                item
+            });
+
+            const imgPlayer = document.getElementById('imagePlayer');
+            const videoPlayer = document.getElementById('videoPlayer');
+
+            if (mediaType === 'image') {
+                videoPlayer.classList.add('hidden');
+                videoPlayer.pause();
+                imgPlayer.classList.remove('hidden');
+                imgPlayer.src = mediaUrl;
+                imgPlayer.onload = () => {
+                    hideLoading();
+                    updateStatus(`▶️ 正在播放: ${mediaName}`);
+                    if (isPlaying) {
+                        const interval = getInterval(item.display_duration);
+                        playTimer = setTimeout(playNext, interval);
+                    }
+                };
+                imgPlayer.onerror = () => {
+                    hideLoading();
+                    updateStatus(`❌ 加载失败: ${mediaName}`);
+                    if (isPlaying) {
+                        playTimer = setTimeout(playNext, 1000);
+                    }
+                };
+            } else if (mediaType === 'video' || mediaType === 'ppt') {
+                // 视频和PPT都用video播放器（PPT转换后是视频）
+                imgPlayer.classList.add('hidden');
+                videoPlayer.classList.remove('hidden');
+
+                // 检查PPT是否已转换完成
+                if (mediaType === 'ppt' && mediaStatus !== 'ready') {
+                    // PPT未转换完成，显示占位图
+                    videoPlayer.classList.add('hidden');
+                    imgPlayer.classList.remove('hidden');
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 800;
+                    canvas.height = 450;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#2c3e50';
+                    ctx.fillRect(0, 0, 800, 450);
+                    ctx.fillStyle = '#ecf0f1';
+                    ctx.font = 'bold 48px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('📊 PPT', 400, 180);
+                    ctx.font = '24px Arial';
+                    ctx.fillText(mediaName, 400, 240);
+                    ctx.fillStyle = mediaStatus === 'processing' ? '#3498db' : '#e74c3c';
+                    ctx.font = '18px Arial';
+                    const statusText = mediaStatus === 'processing' ? '正在转换中...' : '转换失败';
+                    ctx.fillText(`(${statusText})`, 400, 290);
+                    imgPlayer.src = canvas.toDataURL();
+                    hideLoading();
+                    updateStatus(`📊 PPT ${statusText}: ${mediaName}`);
+                    if (isPlaying) {
+                        const interval = getInterval(item.display_duration);
+                        playTimer = setTimeout(playNext, interval);
+                    }
+                    return;
+                }
+
+                videoPlayer.src = mediaUrl;
+                videoPlayer.onloadeddata = () => {
+                    hideLoading();
+                    console.log('视频加载成功:', mediaUrl);
+                    updateStatus(`▶️ 正在播放: ${mediaName}`);
+                };
+                videoPlayer.onended = () => {
+                    if (isPlaying) playNext();
+                };
+                videoPlayer.onerror = (e) => {
+                    hideLoading();
+                    console.error('视频加载错误:', {
+                        url: mediaUrl,
+                        error: videoPlayer.error,
+                        networkState: videoPlayer.networkState,
+                        readyState: videoPlayer.readyState
+                    });
+                    // PPT未转换时显示占位画面
+                    if (mediaType === 'ppt') {
+                        videoPlayer.classList.add('hidden');
+                        imgPlayer.classList.remove('hidden');
+                        // 显示占位图（使用 data URI 生成简单占位图）
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 800;
+                        canvas.height = 450;
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#2c3e50';
+                        ctx.fillRect(0, 0, 800, 450);
+                        ctx.fillStyle = '#ecf0f1';
+                        ctx.font = 'bold 48px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('📊 PPT', 400, 180);
+                        ctx.font = '24px Arial';
+                        ctx.fillText(mediaName, 400, 240);
+                        ctx.fillStyle = '#f39c12';
+                        ctx.font = '18px Arial';
+                        ctx.fillText('(未转换 - 需要安装 LibreOffice + FFmpeg)', 400, 290);
+                        imgPlayer.src = canvas.toDataURL();
+                        updateStatus(`📊 PPT占位: ${mediaName}`);
+                        if (isPlaying) {
+                            const interval = getInterval(item.display_duration);
+                            playTimer = setTimeout(playNext, interval);
+                        }
+                    } else {
+                        updateStatus(`❌ 视频加载失败: ${mediaName}`);
+                        if (isPlaying) {
+                            playTimer = setTimeout(playNext, 1000);
+                        }
+                    }
+                };
+                videoPlayer.play().catch(() => {});
+            } else {
+                // 未知类型，跳过
+                hideLoading();
+                updateStatus(`⚠️ 不支持的类型: ${mediaType}`);
+                if (isPlaying) {
+                    playTimer = setTimeout(playNext, 1000);
+                }
+            }
+        }
+
+        // 播放下一个
+        function playNext() {
+            if (!currentPlaylist || !currentPlaylist.items.length) return;
+            clearTimeout(playTimer);
+
+            currentIndex++;
+
+            // 检查是否完成一轮
+            if (currentIndex >= currentPlaylist.items.length) {
+                currentIndex = 0;
+                currentLoop++;
+
+                // 检查是否达到最大轮次
+                if (maxLoops > 0 && currentLoop >= maxLoops) {
+                    stopAutoPlay();
+                    updateStatus('✅ 播放完成');
+                    return;
+                }
+            }
+
+            playAt(currentIndex);
+        }
+
+        // UI 辅助函数
+        function showLoading(msg) {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            document.getElementById('statusText').textContent = msg;
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        function updateStatus(msg) {
+            document.getElementById('currentStatus').textContent = msg;
+        }
+
+        // 页面加载时自动获取播放列表
+        window.onload = loadPlaylists;
+    </script>
+</body>
+</html>

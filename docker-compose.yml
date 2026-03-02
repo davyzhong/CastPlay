@@ -1,0 +1,148 @@
+# CastPlay Docker Compose Configuration
+# 生产就绪版本 - 包含安全配置和资源管理
+
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ./castplay-server
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///castplay.db}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required in production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-${SECRET_KEY}}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./castplay-server/storage:/app/storage
+      - ./castplay-server/instance:/app/instance
+    networks:
+      - castplay-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./castplay-admin
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:5001/api}
+        - VITE_WS_URL=${VITE_WS_URL:-ws://localhost:5001}
+    ports:
+      - "3000:80"
+    networks:
+      - castplay-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Redis (可选 - 用于 WebSocket 消息队列和 PPT 转换)
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 128mb
+      --maxmemory-policy volatile-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - castplay-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    profiles:
+      - full  # 仅在 --profile full 时启动
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+
+  # Celery Worker (可选 - 用于 PPT 转换)
+  celery:
+    build:
+      context: ./castplay-server
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      - CELERY_BROKER_URL=redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///castplay.db}
+    volumes:
+      - ./castplay-server/storage:/app/storage
+      - ./castplay-server/instance:/app/instance
+    networks:
+      - castplay-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - full  # 仅在 --profile full 时启动
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  castplay-network:
+    driver: bridge
+
+volumes:
+  redis_data:

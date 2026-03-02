@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主题色 -->
+    <color name="primary">#1976D2</color>
+    <color name="primary_dark">#1565C0</color>
+    <color name="primary_light">#42A5F5</color>
+    <color name="accent">#FF4081</color>
+    
+    <!-- 背景色 -->
+    <color name="background">#000000</color>
+    <color name="background_overlay">#80000000</color>
+    
+    <!-- 文本色 -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B0B0B0</color>
+    <color name="text_disabled">#606060</color>
+    
+    <!-- 状态色 -->
+    <color name="success">#4CAF50</color>
+    <color name="warning">#FF9800</color>
+    <color name="error">#F44336</color>
+    <color name="info">#2196F3</color>
+    
+    <!-- 进度条色 -->
+    <color name="progress_primary">#FFFFFF</color>
+    <color name="progress_background">#40FFFFFF</color>
+</resources>

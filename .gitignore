@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.pnp/
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Environment
+.env
+.env.local
+*.local
+venv/
+.venv/
+
+# Logs
+*.log
+logs/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+.nyc_output/
+
+# Database
+*.db
+*.sqlite
+instance/
+
+# Uploaded/Generated files
+castplay-server/storage/uploads/*
+castplay-server/storage/converted/*
+castplay-server/storage/thumbnails/*
+!castplay-server/storage/*/.gitkeep
+
+# Test artifacts
+.pytest_cache/
+.tox/
+
+# Android
+android-app/.gradle/
+android-app/build/
+android-app/app/build/
+*.apk
+*.aab
+local.properties

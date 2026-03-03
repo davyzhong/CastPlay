@@ -1,17 +1,22 @@
 import React from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Layout, Menu } from 'antd';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Layout, Menu, Button, Dropdown, Space, message } from 'antd';
 import {
   DashboardOutlined,
   MobileOutlined,
   FileImageOutlined,
   PlaySquareOutlined,
+  UserOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
+import { TokenManager } from '../api/client';
 
 const { Header, Sider, Content } = Layout;
 
 const MainLayout: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const user = TokenManager.getUser();
 
   // 根据当前路径获取菜单选中项
   const getSelectedKey = () => {
@@ -21,6 +26,21 @@ const MainLayout: React.FC = () => {
     if (path.startsWith('/playlists')) return 'playlists';
     return 'dashboard';
   };
+
+  const handleLogout = () => {
+    TokenManager.clearTokens();
+    message.success('已退出登录');
+    navigate('/login');
+  };
+
+  const userMenuItems = [
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      onClick: handleLogout,
+    },
+  ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -44,8 +64,22 @@ const MainLayout: React.FC = () => {
         </Menu>
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 24px' }}>
-          <h2>CastPlay 管理后台</h2>
+        <Header style={{
+          background: '#fff',
+          padding: '0 24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <h2 style={{ margin: 0 }}>CastPlay 管理后台</h2>
+          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+            <Button type="text">
+              <Space>
+                <UserOutlined />
+                {user?.username || '用户'}
+              </Space>
+            </Button>
+          </Dropdown>
         </Header>
         <Content style={{ margin: '24px 16px', padding: 24, background: '#fff' }}>
           <Outlet />

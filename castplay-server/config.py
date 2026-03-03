@@ -172,6 +172,9 @@ class Config:
     CELERY_RESULT_BACKEND: Optional[str] = os.environ.get(
         'CELERY_RESULT_BACKEND') or _get_redis_url()
 
+    # Redis URL - 用于 WebSocket 状态存储等
+    REDIS_URL: Optional[str] = os.environ.get('REDIS_URL') or _get_redis_url()
+
     # WebSocket
     SOCKETIO_MESSAGE_QUEUE: Optional[str] = os.environ.get(
         'SOCKETIO_MESSAGE_QUEUE')

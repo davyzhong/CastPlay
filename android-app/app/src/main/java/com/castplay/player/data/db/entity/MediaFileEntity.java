@@ -1,10 +1,16 @@
 package com.castplay.player.data.db.entity;
 
+import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
 /**
  * 媒体文件实体
+ * 
+ * 版本历史:
+ * - v1: 初始版本
+ * - v2: 添加 playbackSpeed 字段
+ * - v3: 添加 lastPlayedAt 字段
  */
 @Entity(tableName = "media_file")
 public class MediaFileEntity {
@@ -22,6 +28,14 @@ public class MediaFileEntity {
     private long fileSize;
     private String md5Hash;
     private boolean isDownloaded;
+    
+    // v2 新增: 播放速度
+    @ColumnInfo(name = "playback_speed", defaultValue = "1.0")
+    private float playbackSpeed = 1.0f;
+    
+    // v3 新增: 最后播放时间
+    @ColumnInfo(name = "last_played_at", defaultValue = "0")
+    private long lastPlayedAt = 0;
 
     // Getters and Setters
     public int getId() {
@@ -110,5 +124,23 @@ public class MediaFileEntity {
 
     public void setDownloaded(boolean downloaded) {
         isDownloaded = downloaded;
+    }
+    
+    // v2 新增
+    public float getPlaybackSpeed() {
+        return playbackSpeed;
+    }
+
+    public void setPlaybackSpeed(float playbackSpeed) {
+        this.playbackSpeed = playbackSpeed;
+    }
+    
+    // v3 新增
+    public long getLastPlayedAt() {
+        return lastPlayedAt;
+    }
+
+    public void setLastPlayedAt(long lastPlayedAt) {
+        this.lastPlayedAt = lastPlayedAt;
     }
 }

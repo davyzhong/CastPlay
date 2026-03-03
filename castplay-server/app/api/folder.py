@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 from flask import Blueprint, request, jsonify
 
 from app import db
+from app.auth import jwt_required
 from app.models import MediaFolder, MediaFile
 from app.api.validators import validate_json_data, max_length, is_list_of, positive_number
 
@@ -14,6 +15,7 @@ bp = Blueprint('folder', __name__)
 
 
 @bp.route('', methods=['POST'])
+@jwt_required
 @validate_json_data(
     required_fields=['name'],
     field_types={'name': str, 'parent_id': int},
@@ -52,6 +54,7 @@ def create_folder():
 
 
 @bp.route('', methods=['GET'])
+@jwt_required
 def list_folders():
     """获取文件夹列表"""
     parent_id = request.args.get('parent_id', type=int)
@@ -70,6 +73,7 @@ def list_folders():
 
 
 @bp.route('/tree', methods=['GET'])
+@jwt_required
 def get_folder_tree():
     """获取完整的文件夹树"""
     root_folders = MediaFolder.query.filter_by(
@@ -88,6 +92,7 @@ def get_folder_tree():
 
 
 @bp.route('/<int:folder_id>', methods=['GET'])
+@jwt_required
 def get_folder(folder_id):
     """获取文件夹详情"""
     folder = MediaFolder.query.get_or_404(folder_id)
@@ -100,6 +105,7 @@ def get_folder(folder_id):
 
 
 @bp.route('/<int:folder_id>', methods=['PUT'])
+@jwt_required
 @validate_json_data(
     field_types={'name': str, 'parent_id': int},
     field_validators={'name': max_length(128)}
@@ -150,6 +156,7 @@ def update_folder(folder_id: int):
 
 
 @bp.route('/<int:folder_id>', methods=['DELETE'])
+@jwt_required
 def delete_folder(folder_id):
     """删除文件夹"""
     folder = MediaFolder.query.get_or_404(folder_id)
@@ -169,6 +176,7 @@ def delete_folder(folder_id):
 
 
 @bp.route('/<int:folder_id>/move-files', methods=['POST'])
+@jwt_required
 @validate_json_data(
     required_fields=['file_ids'],
     field_types={'file_ids': list},

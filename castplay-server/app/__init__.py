@@ -59,7 +59,7 @@ def create_app(config_name: str = 'default') -> Flask:
         r"/api/*": {
             "origins": cors_origins,
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"]
+            "allow_headers": ["Content-Type", "Authorization", "X-API-Key"]
         }
     })
 
@@ -76,7 +76,8 @@ def create_app(config_name: str = 'default') -> Flask:
     _register_error_handlers(app)
 
     # Register blueprints
-    from app.api import device, media, playlist, player, folder
+    from app.api import device, media, playlist, player, folder, auth
+    app.register_blueprint(auth.bp, url_prefix='/api/auth')  # 认证 API
     app.register_blueprint(device.bp, url_prefix='/api/devices')
     app.register_blueprint(media.bp, url_prefix='/api/media')
     app.register_blueprint(playlist.bp, url_prefix='/api/playlists')

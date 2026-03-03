@@ -10,6 +10,7 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy.orm import joinedload
 
 from app import db
+from app.auth import jwt_required, jwt_optional
 from app.models import Device, DeviceSchedule
 from app.models.playlist import DevicePlaylist
 from config import DEFAULT_PAGE_SIZE
@@ -20,6 +21,7 @@ bp = Blueprint('device', __name__)
 
 
 @bp.route('', methods=['POST'])
+@jwt_required
 def create_device():
     """创建新设备"""
     data = request.get_json() or {}
@@ -107,6 +109,7 @@ def heartbeat(device_id):
 
 
 @bp.route('', methods=['GET'])
+@jwt_required
 def list_devices():
     """设备列表"""
     page = request.args.get('page', 1, type=int)
@@ -132,6 +135,7 @@ def list_devices():
 
 
 @bp.route('/<int:device_id>', methods=['GET'])
+@jwt_required
 def get_device(device_id: int):
     """获取设备详情
 
@@ -163,6 +167,7 @@ def get_device(device_id: int):
 
 
 @bp.route('/<int:device_id>', methods=['PUT'])
+@jwt_required
 def update_device(device_id):
     """更新设备信息"""
     device = Device.query.get_or_404(device_id)
@@ -185,6 +190,7 @@ def update_device(device_id):
 
 
 @bp.route('/<int:device_id>', methods=['DELETE'])
+@jwt_required
 def delete_device(device_id):
     """删除设备"""
     device = Device.query.get_or_404(device_id)
@@ -196,6 +202,7 @@ def delete_device(device_id):
 
 
 @bp.route('/<int:device_id>/schedule', methods=['POST', 'PUT'])
+@jwt_required
 def set_schedule(device_id):
     """设置定时配置"""
     device = Device.query.get_or_404(device_id)
@@ -245,6 +252,7 @@ def set_schedule(device_id):
 
 
 @bp.route('/<int:device_id>/schedule', methods=['GET'])
+@jwt_required
 def get_schedule(device_id):
     """查询定时配置"""
     device = Device.query.get_or_404(device_id)

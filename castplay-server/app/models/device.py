@@ -1,6 +1,7 @@
 """
 Device Model
 """
+import secrets
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from app import db
@@ -17,6 +18,7 @@ class Device(db.Model):
     device_id = db.Column(db.String(64), unique=True,
                           nullable=False, index=True)
     device_name = db.Column(db.String(128), index=True)
+    api_key = db.Column(db.String(64), unique=True, index=True)  # 设备认证 Key
     timezone = db.Column(db.String(64), default='Asia/Shanghai')
     last_online = db.Column(db.DateTime, index=True)
     status = db.Column(db.String(20), default='offline',
@@ -37,12 +39,32 @@ class Device(db.Model):
             'id': self.id,
             'device_id': self.device_id,
             'device_name': self.device_name,
+            'api_key': self.api_key,
             'timezone': self.timezone,
             'last_online': self.last_online.isoformat() if self.last_online else None,
             'status': self.status,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }
+
+    def generate_api_key(self) -> str:
+        """
+        生成设备 API Key
+
+        Returns:
+            新生成的 API Key
+        """
+        self.api_key = secrets.token_urlsafe(32)
+        return self.api_key
+
+    def regenerate_api_key(self) -> str:
+        """
+        重新生成 API Key（作废旧 Key）
+
+        Returns:
+            新生成的 API Key
+        """
+        return self.generate_api_key()
 
     def __repr__(self):
         return f'<Device {self.device_id}>'

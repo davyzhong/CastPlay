@@ -15,6 +15,38 @@ export const SERVER_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
 // 请求超时时间（毫秒）
 const REQUEST_TIMEOUT = 30000;
 
+// ============= Token 管理 =============
+const TOKEN_KEY = 'castplay_access_token';
+const REFRESH_TOKEN_KEY = 'castplay_refresh_token';
+const USER_KEY = 'castplay_user';
+
+export const TokenManager = {
+  getToken: (): string | null => localStorage.getItem(TOKEN_KEY),
+  getRefreshToken: (): string | null => localStorage.getItem(REFRESH_TOKEN_KEY),
+  getUser: (): { username: string; role: string } | null => {
+    const user = localStorage.getItem(USER_KEY);
+    return user ? JSON.parse(user) : null;
+  },
+
+  setTokens: (accessToken: string, refreshToken: string, user?: { username: string; role: string }) => {
+    localStorage.setItem(TOKEN_KEY, accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    if (user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+    }
+  },
+
+  clearTokens: () => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  },
+
+  isAuthenticated: (): boolean => {
+    return !!localStorage.getItem(TOKEN_KEY);
+  }
+};
+
 // 创建 axios 实例
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -24,14 +56,13 @@ const apiClient = axios.create({
   },
 });
 
-// 请求拦截器
+// 请求拦截器 - 添加认证 Token
 apiClient.interceptors.request.use(
   (config) => {
-    // 可以在这里添加认证 token
-    // const token = localStorage.getItem('token');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    const token = TokenManager.getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {
@@ -42,7 +73,38 @@ apiClient.interceptors.request.use(
 // 响应拦截器
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => response.data,
-  (error: AxiosError<{ error?: string; message?: string }>) => {
+  async (error: AxiosError<{ error?: string; message?: string }>) => {
+    const originalRequest = error.config as any;
+
+    // 401 错误处理 - 尝试刷新 Token
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      const refreshToken = TokenManager.getRefreshToken();
+      if (refreshToken) {
+        try {
+          const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
+            refresh_token: refreshToken
+          });
+
+          const { access_token } = response.data;
+          TokenManager.setTokens(access_token, refreshToken);
+
+          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+          return apiClient(originalRequest);
+        } catch (refreshError) {
+          // 刷新失败，清除 Token 并跳转登录
+          TokenManager.clearTokens();
+          window.location.href = '/login';
+          return Promise.reject(refreshError);
+        }
+      } else {
+        // 无刷新 Token，跳转登录
+        TokenManager.clearTokens();
+        window.location.href = '/login';
+      }
+    }
+
     // 统一错误处理
     const errorMessage = error.response?.data?.message
       || error.response?.data?.error

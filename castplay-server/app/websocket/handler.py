@@ -2,6 +2,10 @@
 WebSocket Event Handler
 
 处理设备与服务器之间的实时通信
+
+特性：
+- 支持 Redis 存储设备连接状态（多实例部署）
+- 无 Redis 时自动降级到内存存储
 """
 import logging
 from datetime import datetime
@@ -12,12 +16,9 @@ from flask_socketio import emit, join_room, leave_room
 
 from app import socketio, db
 from app.models import Device
+from app.services.redis_client import device_store
 
 logger = logging.getLogger(__name__)
-
-# 存储设备连接信息 (device_id -> session_id)
-# 注意: 多实例部署时应使用 Redis 存储
-connected_devices: Dict[int, str] = {}
 
 
 @socketio.on('connect')
@@ -30,15 +31,17 @@ def handle_connect() -> None:
 def handle_disconnect() -> None:
     """客户端断开连接"""
     # 查找断开的设备
-    device_id: Optional[int] = None
-    for did, sid in connected_devices.items():
-        if sid == request.sid:
-            device_id = did
-            break
+    device_id = device_store.find_device_by_session(request.sid)
 
     if device_id:
-        del connected_devices[device_id]
+        device_store.remove_connected(device_id)
         logger.info(f"Device {device_id} disconnected")
+
+        # 更新设备状态
+        device = Device.query.get(device_id)
+        if device:
+            device.status = 'offline'
+            db.session.commit()
     else:
         logger.debug(f"Client disconnected: {request.sid}")
 
@@ -62,8 +65,8 @@ def handle_device_register(data):
     # 加入设备房间
     join_room(f"device_{device.id}")
 
-    # 记录连接
-    connected_devices[device.id] = request.sid
+    # 记录连接（使用 Redis 或内存存储）
+    device_store.set_connected(device.id, request.sid)
 
     # 更新设备在线状态
     device.last_online = datetime.utcnow()
@@ -98,10 +101,13 @@ def handle_heartbeat(data):
     else:
         device = Device.query.filter_by(device_id=str(device_id_input)).first()
 
-    if device and device.id in connected_devices:
+    if device and device_store.is_connected(device.id):
         device.last_online = datetime.utcnow()
         device.status = 'online'
         db.session.commit()
+
+        # 刷新心跳时间
+        device_store.refresh_heartbeat(device.id)
 
         emit('heartbeat_ack', {
             'event': 'heartbeat_ack',

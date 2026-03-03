@@ -11,6 +11,7 @@ from flask import Blueprint, request, jsonify, send_file, current_app
 from werkzeug.utils import secure_filename
 
 from app import db
+from app.auth import jwt_required
 from app.models import MediaFile, MediaFolder
 from app.utils.path import resolve_file_path, PathSecurityError, get_relative_path
 from config import DEFAULT_PAGE_SIZE, DEFAULT_IMAGE_DISPLAY_DURATION, BASE_DIR
@@ -33,6 +34,7 @@ def allowed_file(filename, file_type):
 
 
 @bp.route('/upload', methods=['POST'])
+@jwt_required
 def upload_media():
     """上传媒体文件"""
     if 'file' not in request.files:
@@ -103,6 +105,7 @@ def upload_media():
 
 
 @bp.route('', methods=['GET'])
+@jwt_required
 def list_media():
     """媒体文件列表"""
     page = request.args.get('page', 1, type=int)
@@ -143,6 +146,7 @@ def list_media():
 
 
 @bp.route('/<int:media_id>', methods=['GET'])
+@jwt_required
 def get_media(media_id):
     """获取媒体文件详情"""
     media = MediaFile.query.get_or_404(media_id)
@@ -150,6 +154,7 @@ def get_media(media_id):
 
 
 @bp.route('/<int:media_id>', methods=['PUT'])
+@jwt_required
 def update_media(media_id):
     """更新媒体文件信息"""
     media = MediaFile.query.get_or_404(media_id)
@@ -170,6 +175,7 @@ def update_media(media_id):
 
 
 @bp.route('/<int:media_id>', methods=['DELETE'])
+@jwt_required
 def delete_media(media_id):
     """删除媒体文件"""
     media = MediaFile.query.get_or_404(media_id)
@@ -212,6 +218,7 @@ def delete_media(media_id):
 
 
 @bp.route('/<int:media_id>/download', methods=['GET'])
+@jwt_required
 def download_media(media_id):
     """下载媒体文件"""
     media = MediaFile.query.get_or_404(media_id)
@@ -233,6 +240,7 @@ def download_media(media_id):
 
 
 @bp.route('/<int:media_id>/thumbnail', methods=['GET'])
+@jwt_required
 def get_thumbnail(media_id):
     """获取缩略图 - 支持自动 fallback"""
     media = MediaFile.query.get_or_404(media_id)

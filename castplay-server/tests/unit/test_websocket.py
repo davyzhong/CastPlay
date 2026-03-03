@@ -88,19 +88,20 @@ class TestWebSocketEvents:
     """WebSocket 事件测试"""
 
     def test_connected_devices_storage(self, app):
-        """测试连接设备存储"""
+        """测试连接设备存储（使用 device_store）"""
         with app.app_context():
-            from app.websocket import handler
+            from app.services.redis_client import device_store
 
-            # 清空连接设备
-            handler.connected_devices.clear()
+            # 清空连接设备（内存 fallback）
+            device_store._local_cache.clear()
 
             # 添加设备
-            handler.connected_devices['device-1'] = 'sid-1'
-            handler.connected_devices['device-2'] = 'sid-2'
+            device_store.set_connected(1, 'sid-1')
+            device_store.set_connected(2, 'sid-2')
 
-            assert len(handler.connected_devices) == 2
-            assert handler.connected_devices['device-1'] == 'sid-1'
+            assert device_store.is_connected(1)
+            assert device_store.is_connected(2)
+            assert device_store.get_session_id(1) == 'sid-1'
 
     def test_handle_device_register_missing_device_id(self, app):
         """测试设备注册缺少 device_id"""
@@ -146,10 +147,11 @@ class TestWebSocketEvents:
             device_db_id = device.id
 
             with patch('app.websocket.handler.emit') as mock_emit:
+                from app.services.redis_client import device_store
                 from app.websocket import handler
 
-                # 模拟设备已连接
-                handler.connected_devices[device_db_id] = 'hb-sid-001'
+                # 模拟设备已连接（使用 device_store）
+                device_store.set_connected(device_db_id, 'hb-sid-001')
 
                 handler.handle_heartbeat({'device_id': device_db_id})
 
@@ -157,15 +159,19 @@ class TestWebSocketEvents:
                 mock_emit.assert_called_once()
                 call_args = mock_emit.call_args
                 assert call_args[0][0] == 'heartbeat_ack'
+                
+                # 清理
+                device_store.remove_connected(device_db_id)
 
     def test_handle_heartbeat_device_not_connected(self, app):
         """测试心跳处理设备未连接"""
         with app.app_context():
             with patch('app.websocket.handler.emit') as mock_emit:
+                from app.services.redis_client import device_store
                 from app.websocket import handler
 
                 # 清空连接设备
-                handler.connected_devices.clear()
+                device_store._local_cache.clear()
 
                 handler.handle_heartbeat({'device_id': 999})
 

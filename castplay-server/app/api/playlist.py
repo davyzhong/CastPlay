@@ -9,6 +9,7 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy.orm import joinedload
 
 from app import db
+from app.auth import jwt_required
 from app.models import Playlist, PlaylistItem, DevicePlaylist, MediaFile
 from app.api.validators import (
     validate_json_data, max_length, is_list_of, positive_number, non_negative
@@ -21,6 +22,7 @@ bp = Blueprint('playlist', __name__)
 
 
 @bp.route('', methods=['POST'])
+@jwt_required
 @validate_json_data(
     required_fields=['name'],
     field_types={'name': str, 'description': str},
@@ -49,6 +51,7 @@ def create_playlist():
 
 
 @bp.route('', methods=['GET'])
+@jwt_required
 def list_playlists():
     """播放列表列表"""
     page = request.args.get('page', 1, type=int)
@@ -68,6 +71,7 @@ def list_playlists():
 
 
 @bp.route('/<int:playlist_id>', methods=['GET'])
+@jwt_required
 def get_playlist(playlist_id: int):
     """获取播放列表详情
 
@@ -136,6 +140,7 @@ def get_playlist(playlist_id: int):
 
 
 @bp.route('/<int:playlist_id>', methods=['PUT'])
+@jwt_required
 @validate_json_data(
     field_types={'name': str, 'description': str},
     field_validators={'name': max_length(128)}
@@ -160,6 +165,7 @@ def update_playlist(playlist_id: int):
 
 
 @bp.route('/<int:playlist_id>', methods=['DELETE'])
+@jwt_required
 def delete_playlist(playlist_id):
     """删除播放列表"""
     playlist = Playlist.query.get_or_404(playlist_id)
@@ -171,6 +177,7 @@ def delete_playlist(playlist_id):
 
 
 @bp.route('/<int:playlist_id>/items', methods=['POST'])
+@jwt_required
 @validate_json_data(
     required_fields=['media_id'],
     field_types={'media_id': int, 'display_duration': int},
@@ -210,6 +217,7 @@ def add_media_to_playlist(playlist_id: int):
 
 
 @bp.route('/<int:playlist_id>/items/<int:item_id>', methods=['DELETE'])
+@jwt_required
 def remove_media_from_playlist(playlist_id, item_id):
     """从播放列表移除媒体"""
     item = PlaylistItem.query.filter_by(
@@ -224,6 +232,7 @@ def remove_media_from_playlist(playlist_id, item_id):
 
 
 @bp.route('/<int:playlist_id>/items/reorder', methods=['PUT'])
+@jwt_required
 @validate_json_data(
     required_fields=['items'],
     field_types={'items': list}
@@ -246,6 +255,7 @@ def reorder_playlist_items(playlist_id: int):
 
 
 @bp.route('/<int:playlist_id>/devices/<int:device_id>', methods=['POST'])
+@jwt_required
 def assign_playlist_to_device(playlist_id, device_id):
     """分配播放列表到设备"""
     from app.models import Device
@@ -282,6 +292,7 @@ def assign_playlist_to_device(playlist_id, device_id):
 
 
 @bp.route('/<int:playlist_id>/devices/<int:device_id>', methods=['DELETE'])
+@jwt_required
 def unassign_playlist_from_device(playlist_id, device_id):
     """取消分配播放列表"""
     device_playlist = DevicePlaylist.query.filter_by(
@@ -296,6 +307,7 @@ def unassign_playlist_from_device(playlist_id, device_id):
 
 
 @bp.route('/<int:playlist_id>/devices/<int:device_id>/activate', methods=['PUT'])
+@jwt_required
 @validate_json_data(
     field_types={'is_active': bool}
 )

@@ -1,5 +1,7 @@
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'kotlin-kapt'
 }
 
 android {
@@ -20,12 +22,10 @@ android {
         buildConfigField "String", "WS_URL", '"ws://10.0.2.2:5001/socket.io/"'
 
         // Room schema 导出配置 - 用于迁移测试
-        javaCompileOptions {
-            annotationProcessorOptions {
-                arguments += [
-                    "room.schemaLocation": "$projectDir/schemas",
-                    "room.incremental": "true"
-                ]
+        kapt {
+            arguments {
+                arg("room.schemaLocation", "$projectDir/schemas")
+                arg("room.incremental", "true")
             }
         }
     }
@@ -45,8 +45,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
     }
 
     buildFeatures {
@@ -61,11 +65,18 @@ android {
 }
 
 dependencies {
+    // Kotlin
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
+
     // Android Core
+    implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.10.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.webkit:webkit:1.8.0'
+    implementation 'androidx.activity:activity-ktx:1.8.2'
 
     // Media3 - 视频播放（替代已废弃的 ExoPlayer）
     implementation 'androidx.media3:media3-exoplayer:1.2.0'
@@ -75,7 +86,7 @@ dependencies {
 
     // Glide - 图片加载
     implementation 'com.github.bumptech.glide:glide:4.16.0'
-    annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
+    kapt 'com.github.bumptech.glide:compiler:4.16.0'
 
     // Retrofit - 网络请求
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
@@ -88,25 +99,26 @@ dependencies {
         exclude group: 'org.json', module: 'json'
     }
 
-    // Room - 本地数据库
+    // Room - 本地数据库 (KTX 支持 Coroutines)
     implementation 'androidx.room:room-runtime:2.6.0'
-    annotationProcessor 'androidx.room:room-compiler:2.6.0'
+    implementation 'androidx.room:room-ktx:2.6.0'
+    kapt 'androidx.room:room-compiler:2.6.0'
     androidTestImplementation 'androidx.room:room-testing:2.6.0'
 
-    // Lifecycle - ViewModel + LiveData (MVVM 架构)
-    implementation 'androidx.lifecycle:lifecycle-viewmodel:2.6.2'
-    implementation 'androidx.lifecycle:lifecycle-livedata:2.6.2'
-    implementation 'androidx.lifecycle:lifecycle-runtime:2.6.2'
-    implementation 'androidx.lifecycle:lifecycle-common-java8:2.6.2'
+    // Lifecycle - ViewModel + LiveData (Kotlin 扩展)
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
 
     // WorkManager - 后台任务
-    implementation 'androidx.work:work-runtime:2.9.0'
+    implementation 'androidx.work:work-runtime-ktx:2.9.0'
 
     // Gson - JSON解析
     implementation 'com.google.code.gson:gson:2.10.1'
 
     // Testing
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }

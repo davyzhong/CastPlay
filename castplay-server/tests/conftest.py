@@ -1,175 +1,103 @@
 """
-Pytest Configuration and Fixtures
+Pytest Configuration for FastAPI Tests
 """
-from app.models import Device, DeviceSchedule, MediaFile, Playlist, PlaylistItem, DevicePlaylist
-from app import create_app, db
-import pytest
+from app.core.config import settings
+from app.database import Base, get_db
 import os
-import tempfile
+import sys
+import asyncio
+from typing import AsyncGenerator, Generator
 
-# 设置测试环境标志
-os.environ['TESTING'] = 'true'
+import pytest
+import pytest_asyncio
+from httpx import AsyncClient, ASGITransport
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.pool import StaticPool
 
-
-@pytest.fixture(scope='session')
-def app():
-    """创建测试应用实例"""
-    # 创建临时数据库文件
-    db_fd, db_path = tempfile.mkstemp()
-
-    # 创建测试应用
-    app = create_app('testing')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-    app.config['TESTING'] = True
-
-    # 创建数据库表
-    with app.app_context():
-        db.create_all()
-
-    yield app
-
-    # 清理
-    with app.app_context():
-        db.drop_all()
-
-    os.close(db_fd)
-    os.unlink(db_path)
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-@pytest.fixture
-def client(app):
+# 使用内存数据库进行测试
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+
+@pytest.fixture(scope="session")
+def event_loop() -> Generator:
+    """创建事件循环"""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_engine():
+    """创建测试数据库引擎"""
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        echo=False,
+    )
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    yield engine
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_db(test_engine) -> AsyncGenerator[AsyncSession, None]:
+    """创建测试数据库会话"""
+    async_session = async_sessionmaker(
+        test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async with async_session() as session:
+        yield session
+
+
+@pytest_asyncio.fixture(scope="function")
+async def client(test_engine) -> AsyncGenerator[AsyncClient, None]:
     """创建测试客户端"""
-    return app.test_client()
+    from app.main import create_app
+
+    # 创建测试会话工厂
+    async_session = async_sessionmaker(
+        test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    # 覆盖数据库依赖
+    async def override_get_db():
+        async with async_session() as session:
+            yield session
+
+    # 由于 create_app 返回 Socket.IO ASGI 应用，我们需要获取内部的 FastAPI 应用
+    # 这里简化处理，直接创建一个基础的 FastAPI 应用用于测试
+    from fastapi import FastAPI
+    from app.api.v1 import api_router
+
+    app = FastAPI()
+    app.include_router(api_router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = override_get_db
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
 
 
-@pytest.fixture
-def runner(app):
-    """创建 CLI 测试运行器"""
-    return app.test_cli_runner()
-
-
-@pytest.fixture(autouse=True)
-def _db_session(app):
-    """为每个测试创建新的数据库会话"""
-    with app.app_context():
-        # 清空所有表
-        for table in reversed(db.metadata.sorted_tables):
-            db.session.execute(table.delete())
-        db.session.commit()
-
-        yield db.session
-
-        # 测试后回滚
-        db.session.rollback()
-
-
-@pytest.fixture
-def sample_device(app):
-    """创建示例设备"""
-    with app.app_context():
-        device = Device(
-            device_id='test-device-001',
-            device_name='Test Device',
-            timezone='Asia/Shanghai',
-            status='online'
-        )
-        db.session.add(device)
-        db.session.commit()
-
-        # 返回 device.id 而不是对象，避免 session 问题
-        device_id = device.id
-
-    # 重新查询以在新 session 中获取
-    with app.app_context():
-        return Device.query.get(device_id)
-
-
-@pytest.fixture
-def sample_media(app):
-    """创建示例媒体文件"""
-    with app.app_context():
-        media = MediaFile(
-            file_name='test_image.jpg',
-            file_type='image',
-            file_path='/storage/uploads/test_image.jpg',
-            file_size=1024000,
-            status='ready'
-        )
-        db.session.add(media)
-        db.session.commit()
-
-        media_id = media.id
-
-    with app.app_context():
-        return MediaFile.query.get(media_id)
-
-
-@pytest.fixture
-def sample_playlist(app, sample_media):
-    """创建示例播放列表"""
-    with app.app_context():
-        playlist = Playlist(
-            name='Test Playlist',
-            description='A test playlist'
-        )
-        db.session.add(playlist)
-        db.session.commit()
-
-        # 添加播放项
-        item = PlaylistItem(
-            playlist_id=playlist.id,
-            media_id=sample_media.id,
-            display_order=1,
-            display_duration=5
-        )
-        db.session.add(item)
-        db.session.commit()
-
-        playlist_id = playlist.id
-
-    with app.app_context():
-        return Playlist.query.get(playlist_id)
-
-
-@pytest.fixture
-def auth_headers():
-    """返回认证头（预留 JWT）"""
-    return {
-        'Content-Type': 'application/json'
-    }
-
-
-@pytest.fixture(autouse=True)
-def mock_socketio(monkeypatch):
-    """Mock Flask-SocketIO 以避免 Redis 依赖"""
-    from unittest.mock import Mock
-
-    # Mock socketio emit 方法
-    mock_socketio_instance = Mock()
-    mock_socketio_instance.emit = Mock()
-
-    # 替换 websocket handler 中的 socketio
-    try:
-        monkeypatch.setattr('app.websocket.handler.socketio',
-                            mock_socketio_instance)
-    except Exception:
-        pass  # 如果模块未导入，跳过
-
-    return mock_socketio_instance
-
-
-@pytest.fixture(autouse=True)
-def mock_celery(monkeypatch):
-    """Mock Celery 任务"""
-    from unittest.mock import Mock
-
-    try:
-        # Mock convert_ppt_to_video 任务
-        mock_task = Mock()
-        mock_task.delay = Mock(return_value=Mock(id='test-task-id'))
-        monkeypatch.setattr(
-            'app.tasks.convert.convert_ppt_to_video', mock_task)
-    except Exception:
-        pass  # 如果模块未导入，跳过
-
-    return mock_task
+# 设置 pytest-asyncio 模式
+def pytest_configure(config):
+    """配置 pytest"""
+    config.addinivalue_line(
+        "markers", "asyncio: mark test as async"
+    )

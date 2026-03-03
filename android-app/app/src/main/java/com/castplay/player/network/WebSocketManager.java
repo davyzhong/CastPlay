@@ -6,48 +6,45 @@ import android.util.Log;
 
 import com.castplay.player.BuildConfig;
 
-import okhttp3.*;
 import org.json.JSONObject;
 
+import java.net.URI;
 import java.util.Random;
 
+import io.socket.client.IO;
+import io.socket.client.Socket;
+import io.socket.emitter.Emitter;
+
 /**
- * WebSocket 连接管理器
+ * WebSocket 连接管理器 (Socket.IO 版本)
+ *
+ * 使用 Socket.IO 协议与后端 Flask-SocketIO 通信，确保协议一致性。
  *
  * 功能：
- * - 自动重连（指数退避）
- * - 心跳保活
- * - 连接状态管理
+ * - Socket.IO 协议支持（自动重连、心跳）
+ * - 事件驱动通信
+ * - 房间加入/离开
  */
 public class WebSocketManager {
     private static final String TAG = "WebSocketManager";
     private static WebSocketManager instance;
 
     // 重连配置
-    private static final int INITIAL_RETRY_DELAY_MS = 1000;  // 初始重连延迟 1秒
-    private static final int MAX_RETRY_DELAY_MS = 60000;     // 最大重连延迟 60秒
-    private static final int MAX_RETRY_COUNT = 10;           // 最大重试次数
-    private static final double JITTER_FACTOR = 0.3;         // 随机抖动因子 30%
+    private static final int INITIAL_RETRY_DELAY_MS = 1000;
+    private static final int MAX_RETRY_DELAY_MS = 60000;
+    private static final int MAX_RETRY_COUNT = 10;
 
-    private OkHttpClient client;
-    private WebSocket webSocket;
+    private Socket socket;
     private String deviceId;
     private WebSocketListener listener;
     private Handler mainHandler;
-    private Random random;
 
     // 连接状态
     private int retryCount = 0;
-    private int currentRetryDelay = INITIAL_RETRY_DELAY_MS;
-    private boolean isConnecting = false;
-    private boolean shouldReconnect = true;  // 是否应该重连
+    private boolean isConnected = false;
 
     private WebSocketManager() {
-        client = new OkHttpClient.Builder()
-                .retryOnConnectionFailure(true)
-                .build();
         mainHandler = new Handler(Looper.getMainLooper());
-        random = new Random();
     }
 
     public static synchronized WebSocketManager getInstance() {
@@ -58,108 +55,158 @@ public class WebSocketManager {
     }
 
     /**
-     * 连接 WebSocket
+     * 连接 Socket.IO 服务器
      */
     public void connect(String deviceId, WebSocketListener listener) {
-        if (isConnecting) {
-            Log.d(TAG, "Already connecting, skip");
+        this.deviceId = deviceId;
+        this.listener = listener;
+
+        if (socket != null && socket.connected()) {
+            Log.d(TAG, "Already connected");
             return;
         }
 
-        this.deviceId = deviceId;
-        this.listener = listener;
-        this.shouldReconnect = true;
-        this.isConnecting = true;
+        try {
+            // 构建 Socket.IO URL (移除 /socket.io/ 后缀，Socket.IO 客户端会自动添加)
+            String baseUrl = BuildConfig.WS_URL
+                    .replace("/socket.io/", "")
+                    .replace("/socket.io", "")
+                    .replace("ws://", "http://")
+                    .replace("wss://", "https://");
 
-        Request request = new Request.Builder()
-                .url(BuildConfig.WS_URL)
-                .build();
+            IO.Options options = new IO.Options();
+            options.transports = new String[]{"websocket"};  // 仅使用 WebSocket 传输
+            options.reconnection = true;
+            options.reconnectionAttempts = MAX_RETRY_COUNT;
+            options.reconnectionDelay = INITIAL_RETRY_DELAY_MS;
+            options.reconnectionDelayMax = MAX_RETRY_DELAY_MS;
+            options.timeout = 20000;
 
-        webSocket = client.newWebSocket(request, new okhttp3.WebSocketListener() {
-            @Override
-            public void onOpen(WebSocket webSocket, Response response) {
-                Log.d(TAG, "WebSocket connected");
-                isConnecting = false;
+            socket = IO.socket(URI.create(baseUrl), options);
+            setupEventListeners();
+            socket.connect();
 
-                // 连接成功，重置重试计数器
-                resetRetryState();
+            Log.d(TAG, "Connecting to: " + baseUrl);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to create socket", e);
+        }
+    }
 
-                // 发送设备注册消息
-                try {
-                    JSONObject register = new JSONObject();
-                    register.put("device_id", deviceId);
-                    webSocket.send(register.toString());
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed to send register", e);
+    /**
+     * 设置事件监听器
+     */
+    private void setupEventListeners() {
+        // 连接成功
+        socket.on(Socket.EVENT_CONNECT, args -> {
+            Log.d(TAG, "Socket.IO connected");
+            isConnected = true;
+            retryCount = 0;
+
+            // 发送设备注册事件
+            registerDevice();
+        });
+
+        // 连接断开
+        socket.on(Socket.EVENT_DISCONNECT, args -> {
+            Log.d(TAG, "Socket.IO disconnected");
+            isConnected = false;
+        });
+
+        // 连接错误
+        socket.on(Socket.EVENT_CONNECT_ERROR, args -> {
+            Log.e(TAG, "Socket.IO connection error: " + (args.length > 0 ? args[0] : "unknown"));
+            isConnected = false;
+            retryCount++;
+
+            if (retryCount >= MAX_RETRY_COUNT && listener != null) {
+                mainHandler.post(() -> listener.onConnectionFailed());
+            }
+        });
+
+        // 重连尝试
+        socket.on(Socket.EVENT_RECONNECT_ATTEMPT, args -> {
+            int attempt = (int) args[0];
+            Log.d(TAG, "Reconnect attempt: " + attempt);
+        });
+
+        // 重连成功
+        socket.on(Socket.EVENT_RECONNECT, args -> {
+            Log.d(TAG, "Socket.IO reconnected");
+            isConnected = true;
+            retryCount = 0;
+            registerDevice();
+        });
+
+        // === 业务事件 ===
+
+        // 设备注册确认
+        socket.on("registered", args -> {
+            Log.d(TAG, "Device registered confirmation");
+            if (listener != null) {
+                mainHandler.post(() -> listener.onRegistered());
+            }
+        });
+
+        // 播放列表更新
+        socket.on("playlist_update", args -> {
+            try {
+                JSONObject data = (JSONObject) args[0];
+                int playlistId = data.optInt("playlist_id");
+                Log.d(TAG, "Playlist update: " + playlistId);
+
+                if (listener != null) {
+                    mainHandler.post(() -> listener.onPlaylistUpdate(playlistId));
                 }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to handle playlist_update", e);
             }
+        });
 
-            @Override
-            public void onMessage(WebSocket webSocket, String text) {
-                Log.d(TAG, "Received message: " + text);
-                handleMessage(text);
+        // 定时配置更新
+        socket.on("schedule_update", args -> {
+            Log.d(TAG, "Schedule update");
+            if (listener != null) {
+                mainHandler.post(() -> listener.onScheduleUpdate());
             }
+        });
 
-            @Override
-            public void onClosing(WebSocket webSocket, int code, String reason) {
-                Log.d(TAG, "WebSocket closing: " + reason);
-                isConnecting = false;
+        // 强制同步
+        socket.on("force_sync", args -> {
+            Log.d(TAG, "Force sync");
+            if (listener != null) {
+                mainHandler.post(() -> listener.onForceSync());
             }
+        });
 
-            @Override
-            public void onClosed(WebSocket webSocket, int code, String reason) {
-                Log.d(TAG, "WebSocket closed: " + code + " - " + reason);
-                isConnecting = false;
-
-                // 非正常关闭时重连
-                if (code != 1000 && shouldReconnect) {
-                    scheduleReconnect();
-                }
+        // 重启命令
+        socket.on("reboot", args -> {
+            Log.d(TAG, "Reboot command");
+            if (listener != null) {
+                mainHandler.post(() -> listener.onReboot());
             }
+        });
 
-            @Override
-            public void onFailure(WebSocket webSocket, Throwable t, Response response) {
-                Log.e(TAG, "WebSocket error", t);
-                isConnecting = false;
-
-                // 自动重连
-                if (shouldReconnect) {
-                    scheduleReconnect();
-                }
-            }
+        // 心跳响应
+        socket.on("heartbeat_ack", args -> {
+            Log.d(TAG, "Heartbeat acknowledged");
         });
     }
 
     /**
-     * 处理收到的消息
+     * 发送设备注册事件
      */
-    private void handleMessage(String message) {
-        try {
-            JSONObject json = new JSONObject(message);
-            String event = json.optString("event");
+    private void registerDevice() {
+        if (socket == null || !socket.connected()) {
+            return;
+        }
 
-            if (listener != null) {
-                switch (event) {
-                    case "registered":
-                        listener.onRegistered();
-                        break;
-                    case "playlist_update":
-                        int playlistId = json.optInt("playlist_id");
-                        listener.onPlaylistUpdate(playlistId);
-                        break;
-                    case "schedule_update":
-                        listener.onScheduleUpdate();
-                        break;
-                    case "force_sync":
-                        listener.onForceSync();
-                        break;
-                    case "reboot":
-                        listener.onReboot();
-                        break;
-                }
-            }
+        try {
+            JSONObject data = new JSONObject();
+            data.put("device_id", deviceId);
+            socket.emit("device_register", data);
+            Log.d(TAG, "Sent device_register: " + deviceId);
         } catch (Exception e) {
-            Log.e(TAG, "Failed to handle message", e);
+            Log.e(TAG, "Failed to register device", e);
         }
     }
 
@@ -167,75 +214,38 @@ public class WebSocketManager {
      * 发送心跳
      */
     public void sendHeartbeat() {
-        if (webSocket != null) {
-            try {
-                JSONObject heartbeat = new JSONObject();
-                heartbeat.put("device_id", deviceId);
-                webSocket.send(heartbeat.toString());
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to send heartbeat", e);
-            }
-        }
-    }
-
-    /**
-     * 重置重试状态
-     */
-    private void resetRetryState() {
-        retryCount = 0;
-        currentRetryDelay = INITIAL_RETRY_DELAY_MS;
-    }
-
-    /**
-     * 调度重连（指数退避 + 随机抖动）
-     */
-    private void scheduleReconnect() {
-        if (!shouldReconnect) {
-            Log.d(TAG, "Reconnect disabled, skip");
+        if (socket == null || !socket.connected()) {
             return;
         }
 
-        if (retryCount >= MAX_RETRY_COUNT) {
-            Log.w(TAG, "Max retry count reached (" + MAX_RETRY_COUNT + "), giving up");
-            if (listener != null) {
-                mainHandler.post(() -> listener.onConnectionFailed());
-            }
-            return;
+        try {
+            JSONObject data = new JSONObject();
+            data.put("device_id", deviceId);
+            socket.emit("heartbeat", data);
+            Log.d(TAG, "Sent heartbeat");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to send heartbeat", e);
         }
-
-        retryCount++;
-
-        // 计算延迟：指数退避 + 随机抖动
-        int baseDelay = Math.min(currentRetryDelay, MAX_RETRY_DELAY_MS);
-        int jitter = (int) (baseDelay * JITTER_FACTOR * (random.nextDouble() * 2 - 1));  // +/- 30%
-        int actualDelay = Math.max(baseDelay + jitter, INITIAL_RETRY_DELAY_MS);
-
-        Log.d(TAG, "Scheduling reconnect #" + retryCount + " in " + actualDelay + "ms");
-
-        mainHandler.postDelayed(() -> {
-            if (shouldReconnect) {
-                connect(deviceId, listener);
-            }
-        }, actualDelay);
-
-        // 下次延迟加倍（指数退避）
-        currentRetryDelay = Math.min(currentRetryDelay * 2, MAX_RETRY_DELAY_MS);
     }
 
     /**
      * 断开连接
      */
     public void disconnect() {
-        shouldReconnect = false;  // 阻止自动重连
-        mainHandler.removeCallbacksAndMessages(null);  // 取消待定重连
-
-        if (webSocket != null) {
-            webSocket.close(1000, "Client disconnect");
-            webSocket = null;
+        if (socket != null) {
+            socket.disconnect();
+            socket.off();  // 移除所有监听器
+            socket = null;
         }
+        isConnected = false;
+        retryCount = 0;
+    }
 
-        isConnecting = false;
-        resetRetryState();
+    /**
+     * 是否已连接
+     */
+    public boolean isConnected() {
+        return socket != null && socket.connected();
     }
 
     /**

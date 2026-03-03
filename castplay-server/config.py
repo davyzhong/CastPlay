@@ -220,7 +220,7 @@ class ProductionConfig(Config):
     生产环境必须通过环境变量设置以下配置：
     - SECRET_KEY: 应用密钥
     - JWT_SECRET_KEY: JWT 签名密钥
-    - DATABASE_URL: 数据库连接字符串
+    - DATABASE_URL: PostgreSQL 数据库连接字符串
     """
     DEBUG: bool = False
     TESTING: bool = False
@@ -230,12 +230,20 @@ class ProductionConfig(Config):
     SECRET_KEY: str = os.environ.get('SECRET_KEY', '')
     JWT_SECRET_KEY: str = os.environ.get('JWT_SECRET_KEY', '')
 
+    # 生产环境数据库连接池优化
+    SQLALCHEMY_ENGINE_OPTIONS: Dict = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'pool_size': 10,
+        'max_overflow': 20,
+    }
+
     @classmethod
     def init_app(cls, app) -> None:
         Config.init_app(app)
 
         # 检查必需的环境变量
-        required_vars = ['SECRET_KEY', 'JWT_SECRET_KEY']
+        required_vars = ['SECRET_KEY', 'JWT_SECRET_KEY', 'DATABASE_URL']
         missing_vars = [
             var for var in required_vars if not os.environ.get(var)]
 
@@ -248,7 +256,14 @@ class ProductionConfig(Config):
         if len(cls.SECRET_KEY) < 32:
             logger.warning("SECRET_KEY 长度小于32字符，建议使用更长的密钥")
 
-        logger.info("Running in PRODUCTION mode")
+        # 生产环境强制使用 PostgreSQL
+        db_url = os.environ.get('DATABASE_URL', '')
+        if not db_url.startswith('postgresql'):
+            error_msg = "生产环境必须使用 PostgreSQL 数据库，请设置 DATABASE_URL=postgresql://..."
+            logger.critical(error_msg)
+            raise ValueError(error_msg)
+
+        logger.info("Running in PRODUCTION mode with PostgreSQL")
 
 
 class TestingConfig(Config):

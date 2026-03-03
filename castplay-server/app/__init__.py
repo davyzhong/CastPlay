@@ -72,17 +72,43 @@ def create_app(config_name: str = 'default') -> Flask:
         engineio_logger=True if app.config.get('DEBUG') else False
     )
 
+    # 初始化限流器
+    from app.utils.rate_limit import init_limiter
+    init_limiter(app)
+
+    # 初始化结构化日志
+    from app.utils.logging_config import setup_logging, register_logging_hooks
+    setup_logging(app)
+    register_logging_hooks(app)
+
+    # 初始化 Prometheus 监控指标
+    from app.utils.metrics import init_metrics
+    init_metrics(app)
+
     # 注册全局异常处理器
     _register_error_handlers(app)
 
-    # Register blueprints
+    # Register blueprints - API v1
     from app.api import device, media, playlist, player, folder, auth
-    app.register_blueprint(auth.bp, url_prefix='/api/auth')  # 认证 API
-    app.register_blueprint(device.bp, url_prefix='/api/devices')
-    app.register_blueprint(media.bp, url_prefix='/api/media')
-    app.register_blueprint(playlist.bp, url_prefix='/api/playlists')
-    app.register_blueprint(player.bp, url_prefix='/api/player')
-    app.register_blueprint(folder.bp, url_prefix='/api/folders')
+    app.register_blueprint(auth.bp, url_prefix='/api/v1/auth')  # 认证 API
+    app.register_blueprint(device.bp, url_prefix='/api/v1/devices')
+    app.register_blueprint(media.bp, url_prefix='/api/v1/media')
+    app.register_blueprint(playlist.bp, url_prefix='/api/v1/playlists')
+    app.register_blueprint(player.bp, url_prefix='/api/v1/player')
+    app.register_blueprint(folder.bp, url_prefix='/api/v1/folders')
+
+    # 兼容旧版 API（无版本前缀）- 建议在后续版本中废弃
+    app.register_blueprint(auth.bp, url_prefix='/api/auth', name='auth_legacy')
+    app.register_blueprint(
+        device.bp, url_prefix='/api/devices', name='device_legacy')
+    app.register_blueprint(
+        media.bp, url_prefix='/api/media', name='media_legacy')
+    app.register_blueprint(
+        playlist.bp, url_prefix='/api/playlists', name='playlist_legacy')
+    app.register_blueprint(
+        player.bp, url_prefix='/api/player', name='player_legacy')
+    app.register_blueprint(
+        folder.bp, url_prefix='/api/folders', name='folder_legacy')
 
     # Import WebSocket handlers (auto-registered via decorators)
     from app.websocket import handler  # noqa: F401

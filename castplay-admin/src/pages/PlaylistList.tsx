@@ -45,11 +45,208 @@ import { playlistApi, Playlist, PlaylistDetail } from '../api/playlist';
 import { mediaApi, MediaFile } from '../api/media';
 import { deviceApi, Device } from '../api/device';
 import { getMediaUrl } from '../api/client';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import dayjs from 'dayjs';
 import type { UploadFile } from 'antd';
 
 const { Dragger } = Upload;
+
+// 可拖拽的媒体项组件
+interface SortableItemProps {
+  item: PlaylistDetail['items'][0];
+  index: number;
+  onMoveUp: (index: number) => void;
+  onMoveDown: (index: number) => void;
+  onInsertAfter: (index: number) => void;
+  onPreview: (item: PlaylistDetail['items'][0]) => void;
+  onRemove: (itemId: number) => void;
+  isLast: boolean;
+  getMediaIcon: (type: string) => React.ReactNode;
+  formatFileSize: (bytes: number) => string;
+}
+
+const SortableMediaItem: React.FC<SortableItemProps> = ({
+  item,
+  index,
+  onMoveUp,
+  onMoveDown,
+  onInsertAfter,
+  onPreview,
+  onRemove,
+  isLast,
+  getMediaIcon,
+  formatFileSize,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    padding: 12,
+    marginBottom: 8,
+    border: '1px solid #d9d9d9',
+    borderRadius: 6,
+    background: isDragging ? '#f0f7ff' : '#fff',
+    opacity: isDragging ? 0.8 : 1,
+    cursor: 'grab',
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <Row gutter={12} align="middle">
+        <Col span={1}>
+          <Tag color="blue">{item.display_order}</Tag>
+        </Col>
+        <Col span={3}>
+          {item.media?.id ? (
+            <Image
+              src={getMediaUrl(item.media.id, 'thumbnail')}
+              width={100}
+              height={100}
+              style={{ objectFit: 'cover', borderRadius: 4 }}
+              preview={false}
+              fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAI0lEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAIC3AR8AADjSAWsAAAAASUVORK5CYII="
+            />
+          ) : (
+            <div
+              style={{
+                width: 100,
+                height: 100,
+                background: '#f5f5f5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 4,
+              }}
+            >
+              {getMediaIcon(item.media?.file_type || item.media_type || '')}
+            </div>
+          )}
+        </Col>
+        <Col span={8}>
+          <div style={{ fontWeight: 500, marginBottom: 4 }}>
+            {item.media?.file_name || item.media_name}
+          </div>
+          <Space size="small">
+            <Tag
+              color={
+                (item.media?.file_type || item.media_type) === 'image'
+                  ? 'blue'
+                  : (item.media?.file_type || item.media_type) === 'video'
+                  ? 'green'
+                  : 'orange'
+              }
+            >
+              {(item.media?.file_type || item.media_type) === 'image'
+                ? '图片'
+                : (item.media?.file_type || item.media_type) === 'video'
+                ? '视频'
+                : 'PPT'}
+            </Tag>
+            {item.media?.file_size ? (
+              <span style={{ color: '#888', fontSize: 12 }}>
+                {formatFileSize(item.media.file_size)}
+              </span>
+            ) : null}
+          </Space>
+        </Col>
+        <Col span={2}>
+          <Tag
+            color="purple"
+            title={
+              (item.media?.file_type || item.media_type) === 'ppt'
+                ? '每页时长'
+                : '播放时长'
+            }
+          >
+            {item.display_duration}秒
+            {(item.media?.file_type || item.media_type) === 'ppt' ? '/页' : ''}
+          </Tag>
+        </Col>
+        <Col span={10} style={{ textAlign: 'right' }}>
+          <Space size={4}>
+            <Button
+              size="small"
+              type="text"
+              icon={<ArrowUpOutlined />}
+              disabled={index === 0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveUp(index);
+              }}
+              title="上移"
+            />
+            <Button
+              size="small"
+              type="text"
+              icon={<ArrowDownOutlined />}
+              disabled={isLast}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveDown(index);
+              }}
+              title="下移"
+            />
+            <Button
+              size="small"
+              type="text"
+              icon={<InsertRowBelowOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                onInsertAfter(index);
+              }}
+              title="在此后插入"
+            />
+            <Button
+              size="small"
+              type="link"
+              icon={<EyeOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPreview(item);
+              }}
+            >
+              预览
+            </Button>
+            <Button
+              size="small"
+              danger
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(item.id);
+              }}
+            >
+              移除
+            </Button>
+          </Space>
+        </Col>
+      </Row>
+    </div>
+  );
+};
 
 const PlaylistList: React.FC = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -488,12 +685,16 @@ const PlaylistList: React.FC = () => {
     }
   };
 
-  const handleDragEnd = async (result: DropResult) => {
-    if (!result.destination || !currentPlaylist) return;
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !currentPlaylist) return;
 
-    const items = Array.from(currentPlaylist.items);
-    const [removed] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, removed);
+    const oldIndex = currentPlaylist.items.findIndex((item) => item.id === active.id);
+    const newIndex = currentPlaylist.items.findIndex((item) => item.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const items = arrayMove(currentPlaylist.items, oldIndex, newIndex);
 
     // 更新顺序
     const reorderedItems = items.map((item, index) => ({
@@ -680,142 +881,49 @@ const PlaylistList: React.FC = () => {
                 </Button>
               }
             >
-              <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId="playlist-items">
-                  {(provided) => (
-                    <div {...provided.droppableProps} ref={provided.innerRef}>
-                      {currentPlaylist.items?.map((item, index) => (
-                        <Draggable
-                          key={item.id}
-                          draggableId={String(item.id)}
-                          index={index}
-                        >
-                          {(provided) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              style={{
-                                padding: 12,
-                                marginBottom: 8,
-                                border: '1px solid #d9d9d9',
-                                borderRadius: 6,
-                                background: '#fff',
-                                ...provided.draggableProps.style,
-                              }}
-                            >
-                              <Row gutter={12} align="middle">
-                                <Col span={1}>
-                                  <Tag color="blue">{item.display_order}</Tag>
-                                </Col>
-                                <Col span={3}>
-                                  {item.media?.id ? (
-                                    <Image
-                                      src={getMediaUrl(item.media.id, 'thumbnail')}
-                                      width={100}
-                                      height={100}
-                                      style={{ objectFit: 'cover', borderRadius: 4 }}
-                                      preview={false}
-                                      fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAI0lEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAIC3AR8AADjSAWsAAAAASUVORK5CYII="
-                                    />
-                                  ) : (
-                                    <div style={{
-                                      width: 100,
-                                      height: 100,
-                                      background: '#f5f5f5',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      borderRadius: 4,
-                                    }}>
-                                      {getMediaIcon(item.media?.file_type || item.media_type || '')}
-                                    </div>
-                                  )}
-                                </Col>
-                                <Col span={8}>
-                                  <div style={{ fontWeight: 500, marginBottom: 4 }}>
-                                    {item.media?.file_name || item.media_name}
-                                  </div>
-                                  <Space size="small">
-                                    <Tag color={(item.media?.file_type || item.media_type) === 'image' ? 'blue' :
-                                               (item.media?.file_type || item.media_type) === 'video' ? 'green' : 'orange'}>
-                                      {(item.media?.file_type || item.media_type) === 'image' ? '图片' :
-                                       (item.media?.file_type || item.media_type) === 'video' ? '视频' : 'PPT'}
-                                    </Tag>
-                                    {item.media?.file_size ? (
-                                      <span style={{ color: '#888', fontSize: 12 }}>
-                                        {formatFileSize(item.media.file_size)}
-                                      </span>
-                                    ) : null}
-                                  </Space>
-                                </Col>
-                                <Col span={2}>
-                                  <Tag color="purple" title={(item.media?.file_type || item.media_type) === 'ppt' ? '每页时长' : '播放时长'}>
-                                    {item.display_duration}秒{(item.media?.file_type || item.media_type) === 'ppt' ? '/页' : ''}
-                                  </Tag>
-                                </Col>
-                                <Col span={10} style={{ textAlign: 'right' }}>
-                                  <Space size={4}>
-                                    <Button
-                                      size="small"
-                                      type="text"
-                                      icon={<ArrowUpOutlined />}
-                                      disabled={index === 0}
-                                      onClick={() => handleMoveUp(index)}
-                                      title="上移"
-                                    />
-                                    <Button
-                                      size="small"
-                                      type="text"
-                                      icon={<ArrowDownOutlined />}
-                                      disabled={index === (currentPlaylist.items?.length || 0) - 1}
-                                      onClick={() => handleMoveDown(index)}
-                                      title="下移"
-                                    />
-                                    <Button
-                                      size="small"
-                                      type="text"
-                                      icon={<InsertRowBelowOutlined />}
-                                      onClick={() => handleInsertAfter(index)}
-                                      title="在此后插入"
-                                    />
-                                    <Button
-                                      size="small"
-                                      type="link"
-                                      icon={<EyeOutlined />}
-                                      onClick={() => {
-                                        const previewData = item.media ? item.media : {
-                                          id: item.media_id,
-                                          file_name: item.media_name || '',
-                                          file_type: item.media_type || '',
-                                          file_size: 0,
-                                          thumbnail_path: null,
-                                        };
-                                        setPreviewMedia(previewData as MediaFile);
-                                        setPreviewVisible(true);
-                                      }}
-                                    >
-                                      预览
-                                    </Button>
-                                    <Button
-                                      size="small"
-                                      danger
-                                      onClick={() => handleRemoveMedia(item.id)}
-                                    >
-                                      移除
-                                    </Button>
-                                  </Space>
-                                </Col>
-                              </Row>
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </DragDropContext>
+              <DndContext
+                sensors={useSensors(
+                  useSensor(PointerSensor),
+                  useSensor(KeyboardSensor, {
+                    coordinateGetter: sortableKeyboardCoordinates,
+                  })
+                )}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={currentPlaylist.items?.map((item) => item.id) || []}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {currentPlaylist.items?.map((item, index) => (
+                    <SortableMediaItem
+                      key={item.id}
+                      item={item}
+                      index={index}
+                      onMoveUp={handleMoveUp}
+                      onMoveDown={handleMoveDown}
+                      onInsertAfter={handleInsertAfter}
+                      onPreview={(item) => {
+                        const previewData = item.media
+                          ? item.media
+                          : {
+                              id: item.media_id,
+                              file_name: item.media_name || '',
+                              file_type: item.media_type || '',
+                              file_size: 0,
+                              thumbnail_path: null,
+                            };
+                        setPreviewMedia(previewData as MediaFile);
+                        setPreviewVisible(true);
+                      }}
+                      onRemove={handleRemoveMedia}
+                      isLast={index === (currentPlaylist.items?.length || 0) - 1}
+                      getMediaIcon={getMediaIcon}
+                      formatFileSize={formatFileSize}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
               {currentPlaylist.items?.length === 0 && (
                 <div style={{ textAlign: 'center', color: '#999', padding: 20 }}>
                   暂无媒体，请添加

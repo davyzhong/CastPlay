@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace 'com.castplay.player'
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.castplay.player"
         minSdk 21
-        targetSdk 33
+        targetSdk 34
         versionCode 1
         versionName "1.0"
 
@@ -67,10 +67,11 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.webkit:webkit:1.8.0'
 
-    // ExoPlayer - 视频播放
-    implementation 'com.google.android.exoplayer:exoplayer:2.19.1'
-    implementation 'com.google.android.exoplayer:exoplayer-core:2.19.1'
-    implementation 'com.google.android.exoplayer:exoplayer-ui:2.19.1'
+    // Media3 - 视频播放（替代已废弃的 ExoPlayer）
+    implementation 'androidx.media3:media3-exoplayer:1.2.0'
+    implementation 'androidx.media3:media3-exoplayer-dash:1.2.0'
+    implementation 'androidx.media3:media3-ui:1.2.0'
+    implementation 'androidx.media3:media3-session:1.2.0'
 
     // Glide - 图片加载
     implementation 'com.github.bumptech.glide:glide:4.16.0'
@@ -82,10 +83,21 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
 
+    // Socket.IO - 实时通信（与后端 Flask-SocketIO 协议统一）
+    implementation('io.socket:socket.io-client:2.1.0') {
+        exclude group: 'org.json', module: 'json'
+    }
+
     // Room - 本地数据库
     implementation 'androidx.room:room-runtime:2.6.0'
     annotationProcessor 'androidx.room:room-compiler:2.6.0'
     androidTestImplementation 'androidx.room:room-testing:2.6.0'
+
+    // Lifecycle - ViewModel + LiveData (MVVM 架构)
+    implementation 'androidx.lifecycle:lifecycle-viewmodel:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-livedata:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-runtime:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-common-java8:2.6.2'
 
     // WorkManager - 后台任务
     implementation 'androidx.work:work-runtime:2.9.0'

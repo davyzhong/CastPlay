@@ -12,10 +12,12 @@ import android.widget.TextView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.castplay.player.data.model.MediaItem;
-import com.google.android.exoplayer2.ExoPlayer;
-import com.google.android.exoplayer2.PlaybackException;
-import com.google.android.exoplayer2.Player;
-import com.google.android.exoplayer2.ui.StyledPlayerView;
+
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.PlayerView;
 
 import java.io.File;
 import java.util.List;
@@ -40,7 +42,7 @@ public class PlaybackEngine {
 
     // UI 组件
     private ImageView imageView;
-    private StyledPlayerView playerView;
+    private PlayerView playerView;
     private ProgressBar progressBar;
     private TextView statusText;
 
@@ -52,7 +54,7 @@ public class PlaybackEngine {
     // 回调接口
     private PlaybackCallback callback;
 
-    public PlaybackEngine(Context context, ImageView imageView, StyledPlayerView playerView) {
+    public PlaybackEngine(Context context, ImageView imageView, PlayerView playerView) {
         this.context = context;
         this.imageView = imageView;
         this.playerView = playerView;
@@ -216,8 +218,8 @@ public class PlaybackEngine {
         playerView.setVisibility(View.VISIBLE);
 
         // 加载视频
-        com.google.android.exoplayer2.MediaItem mediaItem =
-                com.google.android.exoplayer2.MediaItem.fromUri("file://" + item.getFilePath());
+        androidx.media3.common.MediaItem mediaItem =
+                androidx.media3.common.MediaItem.fromUri("file://" + item.getFilePath());
         exoPlayer.setMediaItem(mediaItem);
         exoPlayer.prepare();
         exoPlayer.play();

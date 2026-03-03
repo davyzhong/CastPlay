@@ -76,9 +76,12 @@ const PlaylistList: React.FC = () => {
   const [playPreviewIndex, setPlayPreviewIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [previewProgress, setPreviewProgress] = useState(0);
+  const [previewSpeed, setPreviewSpeed] = useState<number>(1); // 轮播预览速度倍数
+  const [singlePreviewSpeed, setSinglePreviewSpeed] = useState<number>(1); // 单个媒体预览速度
   const playTimerRef = useRef<NodeJS.Timeout | null>(null);
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const PREVIEW_INTERVAL = 500; // 0.5秒间隔
+  const videoPreviewRef = useRef<HTMLVideoElement>(null); // 轮播预览视频ref
+  const singleVideoRef = useRef<HTMLVideoElement>(null);   // 单个预览视频ref
 
   // 插入位置状态
   const [insertAfterIndex, setInsertAfterIndex] = useState<number | null>(null);
@@ -306,25 +309,26 @@ const PlaylistList: React.FC = () => {
   // 播放计时器效果
   useEffect(() => {
     if (isPlaying && playPreviewVisible && currentPlaylist?.items?.length) {
+      const interval = 1000 / previewSpeed; // 1X=1s, 2X=0.5s, 4X=0.25s, 8X=0.125s
       // 进度条更新
       progressTimerRef.current = setInterval(() => {
         setPreviewProgress(prev => {
           if (prev >= 100) return 100;
-          return prev + (100 / (PREVIEW_INTERVAL / 50));
+          return prev + (100 / (interval / 50));
         });
       }, 50);
 
       // 切换到下一个
       playTimerRef.current = setTimeout(() => {
         playNext();
-      }, PREVIEW_INTERVAL);
+      }, interval);
     }
 
     return () => {
       if (playTimerRef.current) clearTimeout(playTimerRef.current);
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     };
-  }, [isPlaying, playPreviewVisible, playPreviewIndex, currentPlaylist, playNext]);
+  }, [isPlaying, playPreviewVisible, playPreviewIndex, currentPlaylist, playNext, previewSpeed]);
 
   // 当前预览的媒体项
   const currentPreviewItem = currentPlaylist?.items?.[playPreviewIndex];
@@ -705,28 +709,19 @@ const PlaylistList: React.FC = () => {
                                   <Tag color="blue">{item.display_order}</Tag>
                                 </Col>
                                 <Col span={3}>
-                                  {item.media?.thumbnail_path ? (
+                                  {item.media?.id ? (
                                     <Image
                                       src={getMediaUrl(item.media.id, 'thumbnail')}
-                                      width={60}
-                                      height={60}
-                                      style={{ objectFit: 'cover', borderRadius: 4 }}
-                                      preview={false}
-                                      fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAI0lEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAIC3AR8AADjSAWsAAAAASUVORK5CYII="
-                                    />
-                                  ) : item.media?.file_type === 'image' && item.media?.id ? (
-                                    <Image
-                                      src={getMediaUrl(item.media.id, 'download')}
-                                      width={60}
-                                      height={60}
+                                      width={100}
+                                      height={100}
                                       style={{ objectFit: 'cover', borderRadius: 4 }}
                                       preview={false}
                                       fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAI0lEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAIC3AR8AADjSAWsAAAAASUVORK5CYII="
                                     />
                                   ) : (
                                     <div style={{
-                                      width: 60,
-                                      height: 60,
+                                      width: 100,
+                                      height: 100,
                                       background: '#f5f5f5',
                                       display: 'flex',
                                       alignItems: 'center',
@@ -961,27 +956,14 @@ const PlaylistList: React.FC = () => {
                                   />
                                 </Col>
                                 <Col span={3}>
-                                  {media.thumbnail_path ? (
-                                    <Image
+                                  <Image
                                       src={getMediaUrl(media.id, 'thumbnail')}
-                                      width={50}
-                                      height={50}
+                                      width={90}
+                                      height={90}
                                       style={{ objectFit: 'cover', borderRadius: 4 }}
                                       preview={false}
                                       fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAI0lEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAIC3AR8AADjSAWsAAAAASUVORK5CYII="
                                     />
-                                  ) : media.file_type === 'image' ? (
-                                    <Image
-                                      src={getMediaUrl(media.id, 'download')}
-                                      width={50}
-                                      height={50}
-                                      style={{ objectFit: 'cover', borderRadius: 4 }}
-                                      preview={false}
-                                      fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAI0lEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAIC3AR8AADjSAWsAAAAASUVORK5CYII="
-                                    />
-                                  ) : (
-                                    getMediaIcon(media.file_type)
-                                  )}
                                 </Col>
                                 <Col span={9}>
                                   <div style={{ fontWeight: 500 }}>{media.file_name}</div>
@@ -1157,6 +1139,7 @@ const PlaylistList: React.FC = () => {
         onCancel={() => {
           setPreviewVisible(false);
           setPreviewMedia(null);
+          setSinglePreviewSpeed(1);
         }}
         width={800}
       >
@@ -1167,36 +1150,47 @@ const PlaylistList: React.FC = () => {
             style={{ width: '100%' }}
           />
         )}
-        {previewMedia?.file_type === 'video' && (
-          <video
-            src={getMediaUrl(previewMedia.id, 'download')}
-            controls
-            style={{ width: '100%' }}
-          />
-        )}
-        {previewMedia?.file_type === 'ppt' && (
-          <div style={{ textAlign: 'center', padding: 20 }}>
-            {/* PPT已转换为视频，可以播放 */}
+        {(previewMedia?.file_type === 'video' || previewMedia?.file_type === 'ppt') && (
+          <div>
             <video
+              ref={singleVideoRef}
               src={getMediaUrl(previewMedia.id, 'download')}
               controls
+              autoPlay
+              muted
               style={{ width: '100%' }}
+              onLoadedData={() => { if (singleVideoRef.current) singleVideoRef.current.playbackRate = singlePreviewSpeed; }}
               onError={(e) => {
-                // 如果视频加载失败，显示提示
-                const target = e.currentTarget;
-                target.style.display = 'none';
-                const fallback = target.nextElementSibling as HTMLElement;
-                if (fallback) fallback.style.display = 'block';
+                if (previewMedia.file_type === 'ppt') {
+                  e.currentTarget.style.display = 'none';
+                  const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                  if (fallback) fallback.style.display = 'block';
+                }
               }}
             />
-            <div style={{ display: 'none', padding: 40 }}>
-              <FileOutlined style={{ fontSize: 64, color: '#faad14' }} />
-              <p style={{ marginTop: 16, color: '#888' }}>
-                PPT 文件暂未转换，无法预览
-              </p>
-              <p style={{ fontSize: 12, color: '#999' }}>
-                请稍后刷新或检查 Celery 转换服务是否运行
-              </p>
+            {previewMedia.file_type === 'ppt' && (
+              <div style={{ display: 'none', textAlign: 'center', padding: 40 }}>
+                <FileOutlined style={{ fontSize: 64, color: '#faad14' }} />
+                <p style={{ marginTop: 16, color: '#888' }}>PPT 文件暂未转换，无法预览</p>
+                <p style={{ fontSize: 12, color: '#999' }}>请稍后刷新或检查 Celery 转换服务是否运行</p>
+              </div>
+            )}
+            {/* 速度控制 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+              <span style={{ color: '#888', fontSize: 13 }}>播放速度:</span>
+              {([1, 1.5, 2, 4] as const).map(s => (
+                <Button
+                  key={s}
+                  size="small"
+                  type={singlePreviewSpeed === s ? 'primary' : 'default'}
+                  onClick={() => {
+                    setSinglePreviewSpeed(s);
+                    if (singleVideoRef.current) singleVideoRef.current.playbackRate = s;
+                  }}
+                >
+                  {s}X
+                </Button>
+              ))}
             </div>
           </div>
         )}
@@ -1237,7 +1231,6 @@ const PlaylistList: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <PlayCircleOutlined />
             <span>播放预览 - {currentPlaylist?.name}</span>
-            <Tag color="orange">快速模式 (0.5秒/项)</Tag>
           </div>
         }
         open={playPreviewVisible}
@@ -1270,24 +1263,25 @@ const PlaylistList: React.FC = () => {
               )}
               {(currentPreviewItem.media?.file_type || currentPreviewItem.media_type) === 'video' && (
                 <video
+                  ref={videoPreviewRef}
                   key={currentPreviewItem.id}
                   src={getMediaUrl(currentPreviewItem.media_id, 'download')}
                   autoPlay
                   muted
                   style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                  onLoadedData={() => { if (videoPreviewRef.current) videoPreviewRef.current.playbackRate = previewSpeed; }}
                 />
               )}
               {(currentPreviewItem.media?.file_type || currentPreviewItem.media_type) === 'ppt' && (
                 <video
+                  ref={videoPreviewRef}
                   key={`ppt-${currentPreviewItem.id}`}
                   src={getMediaUrl(currentPreviewItem.media_id, 'download')}
                   autoPlay
                   muted
                   style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                  onError={(e) => {
-                    // PPT未转换时显示图标
-                    e.currentTarget.style.display = 'none';
-                  }}
+                  onLoadedData={() => { if (videoPreviewRef.current) videoPreviewRef.current.playbackRate = previewSpeed; }}
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
               )}
 
@@ -1318,7 +1312,7 @@ const PlaylistList: React.FC = () => {
               size="small"
             />
 
-            {/* 控制栏 */}
+            {/* 控制条 */}
             <div
               style={{
                 display: 'flex',
@@ -1327,6 +1321,7 @@ const PlaylistList: React.FC = () => {
                 padding: '16px',
                 background: '#1a1a1a',
                 gap: 16,
+                flexWrap: 'wrap',
               }}
             >
               <Button
@@ -1350,6 +1345,28 @@ const PlaylistList: React.FC = () => {
                 icon={<StepForwardOutlined style={{ fontSize: 24, color: '#fff' }} />}
                 onClick={playNext}
               />
+              {/* 速度按鈕 */}
+              <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
+                {([1, 2, 4, 8] as const).map(s => (
+                  <Button
+                    key={s}
+                    size="small"
+                    type={previewSpeed === s ? 'primary' : 'default'}
+                    onClick={() => {
+                      setPreviewSpeed(s);
+                      if (videoPreviewRef.current) videoPreviewRef.current.playbackRate = s;
+                    }}
+                    style={{
+                      minWidth: 40,
+                      background: previewSpeed === s ? '#1890ff' : '#333',
+                      borderColor: previewSpeed === s ? '#1890ff' : '#555',
+                      color: '#fff',
+                    }}
+                  >
+                    {s}X
+                  </Button>
+                ))}
+              </div>
             </div>
 
             {/* 当前媒体信息 */}
@@ -1368,9 +1385,10 @@ const PlaylistList: React.FC = () => {
                 <Tag color="blue" style={{ marginLeft: 8 }}>
                   {currentPreviewItem.media?.file_type || currentPreviewItem.media_type}
                 </Tag>
+                {previewSpeed > 1 && <Tag color="orange" style={{ marginLeft: 4 }}>{previewSpeed}X 快进</Tag>}
               </div>
               <div style={{ color: '#888' }}>
-                原始时长: {currentPreviewItem.display_duration}秒
+                切换间隔: {(1000 / previewSpeed / 1000).toFixed(2)}s
               </div>
             </div>
           </div>

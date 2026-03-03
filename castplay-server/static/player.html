@@ -128,6 +128,24 @@
             font-size: 14px;
         }
         .stats span { color: #1976D2; font-weight: bold; }
+        .speed-btns { display: flex; gap: 8px; }
+        .speed-btn {
+            padding: 8px 18px;
+            font-size: 14px;
+            border: 2px solid #333;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #222;
+            color: #aaa;
+            min-width: unset;
+        }
+        .speed-btn.active {
+            background: #1976D2;
+            border-color: #1976D2;
+            color: #fff;
+            font-weight: bold;
+        }
+        .speed-btn:hover:not(.active) { background: #2a2a2a; border-color: #555; }
     </style>
 </head>
 <body>
@@ -153,6 +171,15 @@
                     <option value="10">10 次</option>
                     <option value="0" selected>无限循环</option>
                 </select>
+            </div>
+            <div class="setting-row">
+                <label>播放速度:</label>
+                <div class="speed-btns">
+                    <button class="speed-btn active" onclick="setSpeed(1)" id="speed1x">1X</button>
+                    <button class="speed-btn" onclick="setSpeed(2)" id="speed2x">2X</button>
+                    <button class="speed-btn" onclick="setSpeed(4)" id="speed4x">4X</button>
+                    <button class="speed-btn" onclick="setSpeed(8)" id="speed8x">8X</button>
+                </div>
             </div>
             <div class="setting-row">
                 <label>播放间隔:</label>
@@ -203,6 +230,22 @@
         let playTimer = null;
         let currentLoop = 0;
         let maxLoops = 0;
+        let playbackSpeed = 1; // 当前播放速度倍数
+
+        // 设置播放速度
+        function setSpeed(speed) {
+            playbackSpeed = speed;
+            // 更新按钮状态
+            [1, 2, 4, 8].forEach(s => {
+                const btn = document.getElementById(`speed${s}x`);
+                if (btn) btn.classList.toggle('active', s === speed);
+            });
+            // 立即应用到当前视频
+            const videoPlayer = document.getElementById('videoPlayer');
+            if (!videoPlayer.paused && !videoPlayer.classList.contains('hidden')) {
+                videoPlayer.playbackRate = speed;
+            }
+        }
 
         // 间隔模式切换
         document.getElementById('intervalMode').onchange = function() {
@@ -210,14 +253,14 @@
                 this.value === 'custom' ? 'inline-block' : 'none';
         };
 
-        // 获取播放间隔
+        // 获取播放间隔（受速度倍数影响）
         function getInterval(defaultDuration) {
             const mode = document.getElementById('intervalMode').value;
-            if (mode === 'fast') return 500; // 0.5秒
-            if (mode === 'custom') {
-                return parseFloat(document.getElementById('customInterval').value) * 1000;
-            }
-            return defaultDuration * 1000; // 正常模式使用原设置
+            let ms;
+            if (mode === 'fast') ms = 500;
+            else if (mode === 'custom') ms = parseFloat(document.getElementById('customInterval').value) * 1000;
+            else ms = defaultDuration * 1000;
+            return ms / playbackSpeed; // 速度越快，等待时间越短
         }
 
         // 加载播放列表
@@ -428,10 +471,12 @@
                 }
 
                 videoPlayer.src = mediaUrl;
+                videoPlayer.playbackRate = playbackSpeed; // 应用当前速度
                 videoPlayer.onloadeddata = () => {
+                    videoPlayer.playbackRate = playbackSpeed; // onloadeddata后再次确保速度生效
                     hideLoading();
-                    console.log('视频加载成功:', mediaUrl);
-                    updateStatus(`▶️ 正在播放: ${mediaName}`);
+                    console.log('视频加载成功:', mediaUrl, '速度:', playbackSpeed + 'x');
+                    updateStatus(`▶️ 正在播放: ${mediaName}${ playbackSpeed > 1 ? ` (${playbackSpeed}X)` : ''}`);
                 };
                 videoPlayer.onended = () => {
                     if (isPlaying) playNext();

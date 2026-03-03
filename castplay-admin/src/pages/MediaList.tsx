@@ -440,31 +440,16 @@ const MediaList: React.FC = () => {
       title: '缩略图',
       dataIndex: 'thumbnail_path',
       key: 'thumbnail',
-      width: 80,
-      render: (thumbnail: string | null, record: MediaFile) => (
-        thumbnail ? (
-          <Image
-            src={getMediaUrl(record.id, 'thumbnail')}
-            alt={record.file_name}
-            width={50}
-            height={50}
-            style={{ objectFit: 'cover' }}
-            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAI0lEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAIC3AR8AADjSAWsAAAAASUVORK5CYII="
-          />
-        ) : record.file_type === 'image' ? (
-          <Image
-            src={getMediaUrl(record.id, 'download')}
-            alt={record.file_name}
-            width={50}
-            height={50}
-            style={{ objectFit: 'cover' }}
-            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAI0lEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAIC3AR8AADjSAWsAAAAASUVORK5CYII="
-          />
-        ) : (
-          <div style={{ width: 50, height: 50, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            无
-          </div>
-        )
+      width: 150,
+      render: (_thumbnail: string | null, record: MediaFile) => (
+        <Image
+          src={getMediaUrl(record.id, 'thumbnail')}
+          alt={record.file_name}
+          width={120}
+          height={120}
+          style={{ objectFit: 'cover' }}
+          fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAI0lEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAIC3AR8AADjSAWsAAAAASUVORK5CYII="
+        />
       ),
     },
     {

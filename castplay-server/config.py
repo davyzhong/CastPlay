@@ -100,8 +100,9 @@ class Config:
 
     # PPT Conversion
     LIBREOFFICE_PATH: str = os.environ.get(
-        'LIBREOFFICE_PATH') or '/usr/bin/soffice'
-    FFMPEG_PATH: str = os.environ.get('FFMPEG_PATH') or '/usr/bin/ffmpeg'
+        'LIBREOFFICE_PATH') or '/opt/homebrew/bin/soffice'
+    FFMPEG_PATH: str = os.environ.get(
+        'FFMPEG_PATH') or '/opt/homebrew/bin/ffmpeg'
     PPT_FRAME_DURATION: int = DEFAULT_PPT_FRAME_DURATION
 
     # CORS - 支持逗号分隔的多个源

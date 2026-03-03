@@ -225,15 +225,59 @@ def download_media(media_id):
 
 @bp.route('/<int:media_id>/thumbnail', methods=['GET'])
 def get_thumbnail(media_id):
-    """获取缩略图"""
+    """获取缩略图 - 支持自动 fallback"""
     media = MediaFile.query.get_or_404(media_id)
 
-    if not media.thumbnail_path:
-        return jsonify({'error': 'Thumbnail not found'}), 404
+    # 1. 优先使用已生成的缩略图
+    if media.thumbnail_path:
+        thumbnail_path = resolve_file_path(media.thumbnail_path)
+        if os.path.exists(thumbnail_path):
+            return send_file(thumbnail_path, mimetype='image/jpeg')
 
-    thumbnail_path = resolve_file_path(media.thumbnail_path)
+    # 2. 图片类型：直接返回原图
+    if media.file_type == 'image':
+        file_path = resolve_file_path(media.file_path)
+        if os.path.exists(file_path):
+            ext = os.path.splitext(media.file_name)[1].lower()
+            mime_map = {
+                '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                '.png': 'image/png', '.gif': 'image/gif',
+                '.bmp': 'image/bmp', '.webp': 'image/webp'
+            }
+            mime = mime_map.get(ext, 'image/jpeg')
+            return send_file(file_path, mimetype=mime)
 
-    if not os.path.exists(thumbnail_path):
-        return jsonify({'error': 'Thumbnail not found'}), 404
+    # 3. PPT/视频类型：从视频实时截图
+    if media.file_type in ('ppt', 'video'):
+        if media.file_type == 'ppt' and media.converted_path:
+            source_path = resolve_file_path(media.converted_path)
+        elif media.file_type == 'video':
+            source_path = resolve_file_path(media.file_path)
+        else:
+            return jsonify({'error': 'No source for thumbnail'}), 404
 
-    return send_file(thumbnail_path, mimetype='image/jpeg')
+        if not os.path.exists(source_path):
+            return jsonify({'error': 'Source file not found'}), 404
+
+        try:
+            from config import BASE_DIR
+            import subprocess
+            thumbnail_dir = os.path.join(BASE_DIR, 'storage/thumbnails')
+            os.makedirs(thumbnail_dir, exist_ok=True)
+            thumb_path = os.path.join(thumbnail_dir, f'thumb_{media_id}.jpg')
+            ffmpeg_path = current_app.config.get(
+                'FFMPEG_PATH', '/usr/bin/ffmpeg')
+            cmd = [ffmpeg_path, '-y', '-i', source_path,
+                   '-ss', '00:00:01', '-vframes', '1',
+                   '-vf', 'scale=1280:-1', thumb_path]
+            result = subprocess.run(cmd, capture_output=True, timeout=30)
+            if result.returncode == 0 and os.path.exists(thumb_path):
+                rel_path = os.path.relpath(thumb_path, BASE_DIR)
+                media.thumbnail_path = rel_path
+                db.session.commit()
+                return send_file(thumb_path, mimetype='image/jpeg')
+        except Exception as e:
+            current_app.logger.error(
+                f'Failed to generate thumbnail for media {media_id}: {e}')
+
+    return jsonify({'error': 'Thumbnail not available'}), 404

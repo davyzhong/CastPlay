@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="100%" style="stop-color:#161b22"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1976D2"/>
+      <stop offset="100%" style="stop-color:#42A5F5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="1280" height="720" fill="url(#bg)"/>
+
+  <!-- 顶部装饰线 -->
+  <rect x="0" y="0" width="1280" height="4" fill="url(#accent)"/>
+
+  <!-- 中央图标圆 -->
+  <circle cx="640" cy="290" r="80" fill="none" stroke="url(#accent)" stroke-width="3" opacity="0.6"/>
+  <circle cx="640" cy="290" r="60" fill="#1976D2" opacity="0.15"/>
+
+  <!-- 播放三角 -->
+  <polygon points="620,262 620,318 672,290" fill="url(#accent)"/>
+
+  <!-- 主标题 -->
+  <text x="640" y="430" font-family="Arial,sans-serif" font-size="56" font-weight="bold"
+        fill="#ffffff" text-anchor="middle" letter-spacing="4">CastPlay</text>
+
+  <!-- 副标题 -->
+  <text x="640" y="490" font-family="Arial,sans-serif" font-size="22"
+        fill="#8b949e" text-anchor="middle" letter-spacing="2">智能数字标牌播放系统</text>
+
+  <!-- 分隔线 -->
+  <line x1="540" y1="520" x2="740" y2="520" stroke="#30363d" stroke-width="1"/>
+
+  <!-- 提示文字 -->
+  <text x="640" y="560" font-family="Arial,sans-serif" font-size="16"
+        fill="#484f58" text-anchor="middle">正在等待管理后台配置播放内容...</text>
+
+  <!-- 底部装饰线 -->
+  <rect x="0" y="716" width="1280" height="4" fill="url(#accent)" opacity="0.3"/>
+</svg>

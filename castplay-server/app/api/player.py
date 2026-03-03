@@ -1,32 +1,16 @@
 """
 Player API Routes - Android 播放端专用接口
 """
-from flask import Blueprint, request, jsonify, send_file, current_app
-from datetime import datetime
 import os
+from datetime import datetime
+
+from flask import Blueprint, request, jsonify, send_file, current_app
+
 from app import db
 from app.models import Device, Playlist, MediaFile
+from app.utils.path import resolve_file_path, PathSecurityError
 
 bp = Blueprint('player', __name__)
-
-
-def resolve_file_path(relative_path: str) -> str:
-    """
-    解析文件路径，将相对路径转换为绝对路径
-
-    Args:
-        relative_path: 数据库中存储的路径（可能是相对路径）
-
-    Returns:
-        绝对路径
-    """
-    if os.path.isabs(relative_path):
-        return relative_path
-
-    # 使用 castplay-server 目录作为基准
-    from config import BASE_DIR
-    full_path = os.path.join(BASE_DIR, relative_path)
-    return os.path.normpath(full_path)
 
 
 @bp.route('/init', methods=['POST'])
@@ -212,8 +196,23 @@ def report_player_status():
 
 @bp.route('/debug/media/<int:media_id>', methods=['GET'])
 def debug_media_path(media_id):
-    """调试：检查媒体文件路径"""
+    """
+    调试：检查媒体文件路径
+
+    WARNING: 此端点仅在 DEBUG 模式下可用，生产环境自动禁用
+    """
+    # 安全检查：仅 DEBUG 模式可用
+    if not current_app.config.get('DEBUG', False):
+        return jsonify({'error': 'Debug endpoint disabled in production'}), 403
+
     media = MediaFile.query.get_or_404(media_id)
+
+    try:
+        resolved_path = resolve_file_path(media.file_path)
+        file_exists = os.path.exists(resolved_path)
+    except PathSecurityError as e:
+        resolved_path = f'BLOCKED: {e}'
+        file_exists = False
 
     result = {
         'id': media.id,
@@ -221,15 +220,20 @@ def debug_media_path(media_id):
         'file_type': media.file_type,
         'status': media.status,
         'file_path': media.file_path,
-        'resolved_file_path': resolve_file_path(media.file_path),
-        'file_exists': os.path.exists(resolve_file_path(media.file_path)),
+        'resolved_file_path': resolved_path,
+        'file_exists': file_exists,
     }
 
     if media.converted_path:
+        try:
+            conv_resolved = resolve_file_path(media.converted_path)
+            conv_exists = os.path.exists(conv_resolved)
+        except PathSecurityError as e:
+            conv_resolved = f'BLOCKED: {e}'
+            conv_exists = False
+
         result['converted_path'] = media.converted_path
-        result['resolved_converted_path'] = resolve_file_path(
-            media.converted_path)
-        result['converted_exists'] = os.path.exists(
-            resolve_file_path(media.converted_path))
+        result['resolved_converted_path'] = conv_resolved
+        result['converted_exists'] = conv_exists
 
     return jsonify(result), 200

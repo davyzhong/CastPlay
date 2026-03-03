@@ -22,7 +22,13 @@ import java.util.List;
 
 /**
  * 播放引擎 - 混合媒体播放（图片+视频）
+ *
+ * @deprecated 此类已废弃。新架构使用 WebView + player_local.html 实现播放功能。
+ *             保留此文件仅供参考，将在未来版本中删除。
+ *             请使用 MainActivity + player_local.html 替代。
+ * @see com.castplay.player.MainActivity
  */
+@Deprecated
 public class PlaybackEngine {
     private static final String TAG = "PlaybackEngine";
 
@@ -194,10 +200,10 @@ public class PlaybackEngine {
         if (duration <= 0) {
             duration = 5000; // 默认5秒
         }
-        
+
         nextRunnable = this::playNext;
         handler.postDelayed(nextRunnable, duration);
-        
+
         Log.d(TAG, "Image will display for " + duration + "ms");
     }
 
@@ -210,12 +216,12 @@ public class PlaybackEngine {
         playerView.setVisibility(View.VISIBLE);
 
         // 加载视频
-        com.google.android.exoplayer2.MediaItem mediaItem = 
+        com.google.android.exoplayer2.MediaItem mediaItem =
                 com.google.android.exoplayer2.MediaItem.fromUri("file://" + item.getFilePath());
         exoPlayer.setMediaItem(mediaItem);
         exoPlayer.prepare();
         exoPlayer.play();
-        
+
         Log.d(TAG, "Video playback started: " + item.getFilePath());
     }
 
@@ -261,10 +267,10 @@ public class PlaybackEngine {
         if (!isPaused) {
             return;
         }
-        
+
         isPaused = false;
         MediaItem currentItem = getCurrentItem();
-        
+
         if (currentItem != null) {
             String fileType = currentItem.getFileType();
             if ("video".equals(fileType) || "ppt".equals(fileType)) {
@@ -279,7 +285,7 @@ public class PlaybackEngine {
                 handler.postDelayed(nextRunnable, remaining);
             }
         }
-        
+
         Log.d(TAG, "Playback resumed");
     }
 
@@ -299,13 +305,13 @@ public class PlaybackEngine {
     public void stop() {
         isPlaying = false;
         isPaused = false;
-        
+
         if (exoPlayer != null) {
             exoPlayer.stop();
         }
         cancelNextTimer();
         currentIndex = 0;
-        
+
         Log.d(TAG, "Playback stopped");
     }
 
@@ -315,14 +321,14 @@ public class PlaybackEngine {
     public void release() {
         isPlaying = false;
         isPaused = false;
-        
+
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;
         }
         cancelNextTimer();
         handler.removeCallbacksAndMessages(null);
-        
+
         Log.d(TAG, "PlaybackEngine released");
     }
 
@@ -357,7 +363,7 @@ public class PlaybackEngine {
     private void showEmptyState() {
         imageView.setVisibility(View.GONE);
         playerView.setVisibility(View.GONE);
-        
+
         if (statusText != null) {
             statusText.setText("暂无播放内容");
             statusText.setVisibility(View.VISIBLE);

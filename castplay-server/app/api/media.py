@@ -3,6 +3,7 @@ Media API Routes
 """
 import logging
 import os
+import subprocess
 from datetime import datetime
 from typing import Optional, Set
 
@@ -11,21 +12,8 @@ from werkzeug.utils import secure_filename
 
 from app import db
 from app.models import MediaFile, MediaFolder
-from config import DEFAULT_PAGE_SIZE, DEFAULT_IMAGE_DISPLAY_DURATION
-
-
-def resolve_file_path(relative_path: str) -> str:
-    """
-    解析文件路径，将相对路径转换为绝对路径
-    """
-    if os.path.isabs(relative_path):
-        return relative_path
-
-    # 使用 castplay-server 目录作为基准
-    from config import BASE_DIR
-    full_path = os.path.join(BASE_DIR, relative_path)
-    return os.path.normpath(full_path)
-
+from app.utils.path import resolve_file_path, PathSecurityError, get_relative_path
+from config import DEFAULT_PAGE_SIZE, DEFAULT_IMAGE_DISPLAY_DURATION, BASE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -186,15 +174,36 @@ def delete_media(media_id):
     """删除媒体文件"""
     media = MediaFile.query.get_or_404(media_id)
 
-    # 删除物理文件
-    if os.path.exists(media.file_path):
-        os.remove(media.file_path)
+    # 删除物理文件（使用安全路径解析）
+    try:
+        file_path = resolve_file_path(media.file_path)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            logger.info(f"Deleted file: {file_path}")
+    except PathSecurityError as e:
+        logger.warning(f"Cannot delete file due to security check: {e}")
+    except Exception as e:
+        logger.error(f"Error deleting file: {e}")
 
-    if media.converted_path and os.path.exists(media.converted_path):
-        os.remove(media.converted_path)
+    # 删除转换后的文件
+    if media.converted_path:
+        try:
+            converted_path = resolve_file_path(media.converted_path)
+            if os.path.exists(converted_path):
+                os.remove(converted_path)
+                logger.info(f"Deleted converted file: {converted_path}")
+        except (PathSecurityError, Exception) as e:
+            logger.warning(f"Cannot delete converted file: {e}")
 
-    if media.thumbnail_path and os.path.exists(media.thumbnail_path):
-        os.remove(media.thumbnail_path)
+    # 删除缩略图
+    if media.thumbnail_path:
+        try:
+            thumbnail_path = resolve_file_path(media.thumbnail_path)
+            if os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)
+                logger.info(f"Deleted thumbnail: {thumbnail_path}")
+        except (PathSecurityError, Exception) as e:
+            logger.warning(f"Cannot delete thumbnail: {e}")
 
     db.session.delete(media)
     db.session.commit()

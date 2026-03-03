@@ -81,20 +81,32 @@ def handle_device_register(data):
 
 @socketio.on('heartbeat')
 def handle_heartbeat(data):
-    """心跳"""
-    device_id = data.get('device_id')
+    """
+    心跳
 
-    if device_id and device_id in connected_devices:
-        device = Device.query.get(device_id)
-        if device:
-            device.last_online = datetime.utcnow()
-            device.status = 'online'
-            db.session.commit()
+    注意: device_id 可能是字符串(device_id)或整数(数据库ID)
+    """
+    device_id_input = data.get('device_id')
+    if not device_id_input:
+        return
 
-            emit('heartbeat_ack', {
-                'event': 'heartbeat_ack',
-                'timestamp': datetime.utcnow().isoformat()
-            })
+    # 处理两种情况：
+    # 1. 如果是数字（数据库 ID），直接查询
+    # 2. 如果是字符串（设备 device_id），按字段查询
+    if isinstance(device_id_input, int):
+        device = Device.query.get(device_id_input)
+    else:
+        device = Device.query.filter_by(device_id=str(device_id_input)).first()
+
+    if device and device.id in connected_devices:
+        device.last_online = datetime.utcnow()
+        device.status = 'online'
+        db.session.commit()
+
+        emit('heartbeat_ack', {
+            'event': 'heartbeat_ack',
+            'timestamp': datetime.utcnow().isoformat()
+        })
 
 
 def notify_playlist_update(device_id, playlist_id):

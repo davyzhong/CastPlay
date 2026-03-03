@@ -8,6 +8,8 @@
 import os
 import secrets
 import logging
+import platform
+import shutil
 from typing import Dict, Set, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -55,6 +57,84 @@ def _generate_dev_secret() -> str:
     return secrets.token_hex(32)
 
 
+def _detect_libreoffice_path() -> str:
+    """跨平台检测 LibreOffice 路径"""
+    # 优先使用环境变量
+    if os.environ.get('LIBREOFFICE_PATH'):
+        return os.environ['LIBREOFFICE_PATH']
+
+    system = platform.system()
+
+    # 平台特定的常见路径
+    platform_paths = {
+        'Darwin': [  # macOS
+            '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+            '/opt/homebrew/bin/soffice',
+            '/usr/local/bin/soffice',
+        ],
+        'Linux': [
+            '/usr/bin/libreoffice',
+            '/usr/bin/soffice',
+            '/usr/lib/libreoffice/program/soffice',
+            '/opt/libreoffice/program/soffice',
+        ],
+        'Windows': [
+            r'C:\Program Files\LibreOffice\program\soffice.exe',
+            r'C:\Program Files (x86)\LibreOffice\program\soffice.exe',
+        ],
+    }
+
+    # 检查平台特定路径
+    for path in platform_paths.get(system, []):
+        if os.path.exists(path):
+            return path
+
+    # 尝试使用 shutil.which 查找 PATH 中的命令
+    for cmd in ['soffice', 'libreoffice']:
+        found = shutil.which(cmd)
+        if found:
+            return found
+
+    # 默认值（可能不存在，但避免启动崩溃）
+    logger.warning("LibreOffice not found, PPT conversion may fail")
+    return 'soffice'
+
+
+def _detect_ffmpeg_path() -> str:
+    """跨平台检测 FFmpeg 路径"""
+    # 优先使用环境变量
+    if os.environ.get('FFMPEG_PATH'):
+        return os.environ['FFMPEG_PATH']
+
+    system = platform.system()
+
+    platform_paths = {
+        'Darwin': [
+            '/opt/homebrew/bin/ffmpeg',
+            '/usr/local/bin/ffmpeg',
+        ],
+        'Linux': [
+            '/usr/bin/ffmpeg',
+            '/usr/local/bin/ffmpeg',
+        ],
+        'Windows': [
+            r'C:\ffmpeg\bin\ffmpeg.exe',
+            r'C:\Program Files\ffmpeg\bin\ffmpeg.exe',
+        ],
+    }
+
+    for path in platform_paths.get(system, []):
+        if os.path.exists(path):
+            return path
+
+    found = shutil.which('ffmpeg')
+    if found:
+        return found
+
+    logger.warning("FFmpeg not found, video conversion may fail")
+    return 'ffmpeg'
+
+
 class Config:
     """Base configuration"""
     # 安全配置 - 开发环境使用随机生成的密钥
@@ -98,11 +178,9 @@ class Config:
     WEBSOCKET_URL: str = os.environ.get(
         'WEBSOCKET_URL') or 'ws://localhost:5001'
 
-    # PPT Conversion
-    LIBREOFFICE_PATH: str = os.environ.get(
-        'LIBREOFFICE_PATH') or '/opt/homebrew/bin/soffice'
-    FFMPEG_PATH: str = os.environ.get(
-        'FFMPEG_PATH') or '/opt/homebrew/bin/ffmpeg'
+    # PPT Conversion - 使用跨平台检测
+    LIBREOFFICE_PATH: str = _detect_libreoffice_path()
+    FFMPEG_PATH: str = _detect_ffmpeg_path()
     PPT_FRAME_DURATION: int = DEFAULT_PPT_FRAME_DURATION
 
     # CORS - 支持逗号分隔的多个源

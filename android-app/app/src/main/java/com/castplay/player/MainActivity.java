@@ -24,29 +24,31 @@ import androidx.webkit.WebViewAssetLoader;
 import com.castplay.player.data.model.InitResponse;
 import com.castplay.player.network.WebSocketManager;
 import com.castplay.player.service.DefaultPlaylistManager;
+import com.castplay.player.service.DeviceRegistrationManager;
 import com.castplay.player.service.ScheduleManager;
 import com.castplay.player.service.SyncManager;
 
 import java.io.File;
-import java.util.UUID;
 
 /**
  * 主活动 - WebView 全屏播放器
  *
  * 启动流程：
  *  1. 显示加载覆盖层，初始化 WebView
- *  2. 获取 / 创建设备 ID
- *  3. 联网调用 /api/player/init，同步播放列表并下载媒体文件
+ *  2. 向服务器注册设备，获取/恢复唯一设备 ID
+ *  3. 显示设备 ID（启动时显示，播放时自动隐藏）
+ *  4. 联网调用 /api/player/init，同步播放列表并下载媒体文件
  *     → 成功：将服务器播放列表 JSON 注入 WebView，开始播放
  *     → 失败：使用 DefaultPlaylistManager 中缓存的列表（或内置默认列表），开始播放
- *  4. WebView 加载 assets/player_local.html，播放器自动循环
- *  5. WebSocket 监听服务器推送，收到更新时重新同步
+ *  5. WebView 加载 assets/player_local.html，播放器自动循环
+ *  6. WebSocket 监听服务器推送，收到更新时重新同步
  */
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
-    private static final String PREFS_NAME   = "CastPlayPrefs";
-    private static final String KEY_DEVICE_ID = "device_id";
+
+    /** 设备 ID 显示时间（毫秒） */
+    private static final long DEVICE_ID_DISPLAY_DURATION = 10_000;
 
     // ─── UI ──────────────────────────────────────────
     private WebView          webView;
@@ -56,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView         deviceIdText;
 
     // ─── 管理器 ───────────────────────────────────────
+    private DeviceRegistrationManager registrationManager;
     private SyncManager             syncManager;
     private DefaultPlaylistManager  defaultPlaylistManager;
     private ScheduleManager         scheduleManager;
@@ -65,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
     private String  deviceId;
     private boolean isSyncing     = false;
     private boolean webViewReady  = false;  // player_local.html 已加载完毕
+    private boolean isPlaying     = false;  // 是否正在播放
 
     /** 记录同步结果（在页面加载完成前到达时暂存）*/
     private String pendingPlaylistJson = null;
@@ -85,24 +89,15 @@ public class MainActivity extends AppCompatActivity {
         hideSystemUI();
         initViews();
 
-        deviceId = getOrCreateDeviceId();
-
-        // 调试模式显示设备 ID
-        if (BuildConfig.DEBUG) {
-            deviceIdText.setText("ID: " + deviceId.substring(0, 8));
-            deviceIdText.setVisibility(View.VISIBLE);
-        }
-
+        // 初始化管理器
+        registrationManager = new DeviceRegistrationManager(this);
         defaultPlaylistManager = new DefaultPlaylistManager(this);
-        syncManager            = new SyncManager(this, deviceId);
-        scheduleManager        = new ScheduleManager(this);
+        scheduleManager = new ScheduleManager(this);
 
         showLoading("正在初始化...", 0);
 
-        initWebView();
-        initWebSocket();
-        performSync();
-        startHeartbeat();
+        // 步骤 1: 注册设备
+        performDeviceRegistration();
     }
 
     @Override
@@ -141,6 +136,105 @@ public class MainActivity extends AppCompatActivity {
         progressBar      = findViewById(R.id.progressBar);
         statusText       = findViewById(R.id.statusText);
         deviceIdText     = findViewById(R.id.deviceIdText);
+
+        // 点击屏幕显示设备 ID
+        webView.setOnClickListener(v -> showDeviceIdTemporarily());
+    }
+
+    // ─────────────────────────────────────────────────
+    //  设备注册
+    // ─────────────────────────────────────────────────
+
+    /**
+     * 执行设备注册
+     */
+    private void performDeviceRegistration() {
+        showLoading("正在注册设备...", 5);
+
+        registrationManager.register(new DeviceRegistrationManager.RegistrationCallback() {
+            @Override
+            public void onRegistrationSuccess(String registeredDeviceId, boolean isNew) {
+                deviceId = registeredDeviceId;
+                Log.d(TAG, "Device registered: " + deviceId + " (new=" + isNew + ")");
+
+                uiHandler.post(() -> {
+                    // 显示设备 ID
+                    updateDeviceIdDisplay();
+                    showDeviceIdTemporarily();
+
+                    // 初始化同步管理器
+                    syncManager = new SyncManager(MainActivity.this, deviceId);
+
+                    // 继续启动流程
+                    initWebView();
+                    initWebSocket();
+                    performSync();
+                    startHeartbeat();
+                });
+            }
+
+            @Override
+            public void onRegistrationFailed(String error) {
+                Log.e(TAG, "Device registration failed: " + error);
+
+                uiHandler.post(() -> {
+                    // 注册失败，使用缓存的 ID 或生成临时 ID
+                    deviceId = registrationManager.getCachedDeviceId();
+                    if (deviceId == null) {
+                        // 首次启动且网络不可用，生成临时 ID
+                        deviceId = "OFFLINE-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+                        Log.w(TAG, "Using temporary offline ID: " + deviceId);
+                    }
+
+                    updateDeviceIdDisplay();
+                    showDeviceIdTemporarily();
+
+                    // 继续启动流程
+                    syncManager = new SyncManager(MainActivity.this, deviceId);
+                    initWebView();
+                    initWebSocket();
+                    performSync();
+                    startHeartbeat();
+                });
+            }
+        });
+    }
+
+    /**
+     * 更新设备 ID 显示文本
+     */
+    private void updateDeviceIdDisplay() {
+        if (deviceIdText != null && deviceId != null) {
+            deviceIdText.setText("设备 ID: " + deviceId);
+        }
+    }
+
+    /**
+     * 临时显示设备 ID（显示后自动隐藏）
+     */
+    private void showDeviceIdTemporarily() {
+        if (deviceIdText == null) return;
+
+        deviceIdText.setVisibility(View.VISIBLE);
+
+        // 如果正在播放，延迟后隐藏
+        uiHandler.removeCallbacksAndMessages("hideDeviceId");
+        if (isPlaying) {
+            uiHandler.postDelayed(() -> {
+                if (isPlaying) {
+                    deviceIdText.setVisibility(View.GONE);
+                }
+            }, DEVICE_ID_DISPLAY_DURATION);
+        }
+    }
+
+    /**
+     * 隐藏设备 ID（播放开始时调用）
+     */
+    private void hideDeviceId() {
+        if (deviceIdText != null) {
+            deviceIdText.setVisibility(View.GONE);
+        }
     }
 
     // ─────────────────────────────────────────────────
@@ -340,6 +434,11 @@ public class MainActivity extends AppCompatActivity {
         String js = "window.loadPlaylistJson('" + escaped + "');";
         webView.evaluateJavascript(js, null);
         hideLoading();
+
+        // 标记开始播放，隐藏设备 ID
+        isPlaying = true;
+        hideDeviceId();
+
         Log.d(TAG, "Playlist injected into WebView");
     }
 
@@ -384,24 +483,17 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // ─────────────────────────────────────────────────
-    //  辅助方法
-    // ─────────────────────────────────────────────────
-
-    private String getOrCreateDeviceId() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String id = prefs.getString(KEY_DEVICE_ID, null);
-        if (id == null) {
-            id = UUID.randomUUID().toString();
-            prefs.edit().putString(KEY_DEVICE_ID, id).apply();
-            Log.d(TAG, "Created device ID: " + id);
-        } else {
-            Log.d(TAG, "Existing device ID: " + id);
+    private void restartApp() {
+        android.content.Intent intent =
+                getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (intent != null) {
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
+            finish();
+            System.exit(0);
         }
-        return id;
     }
-
-    private void hideSystemUI() {
+}
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                         | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -419,6 +511,9 @@ public class MainActivity extends AppCompatActivity {
         if (progressBar != null && progress >= 0) {
             progressBar.setProgress(progress);
         }
+        // 加载时显示设备 ID
+        isPlaying = false;
+        showDeviceIdTemporarily();
     }
 
     private void hideLoading() {
@@ -436,13 +531,3 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void restartApp() {
-        android.content.Intent intent =
-                getPackageManager().getLaunchIntentForPackage(getPackageName());
-        if (intent != null) {
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(intent);
-            finish();
-            System.exit(0);
-        }
-    }
-}

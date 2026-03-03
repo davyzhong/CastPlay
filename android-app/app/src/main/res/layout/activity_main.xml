@@ -43,17 +43,18 @@
 
     </LinearLayout>
 
-    <!-- 设备 ID 标签（调试构建可见） -->
+    <!-- 设备 ID 标签（启动时显示，播放时自动隐藏，点击屏幕可重新显示） -->
     <TextView
         android:id="@+id/deviceIdText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
         android:layout_margin="16dp"
-        android:padding="6dp"
+        android:padding="8dp"
         android:background="@color/background_overlay"
-        android:textColor="@color/text_secondary"
-        android:textSize="10sp"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold"
         android:visibility="gone" />
 
 </FrameLayout>

@@ -1,6 +1,7 @@
 package com.castplay.player.network;
 
 import com.castplay.player.data.model.InitResponse;
+import com.castplay.player.data.model.RegisterResponse;
 import com.castplay.player.data.model.StatusRequest;
 
 import okhttp3.ResponseBody;
@@ -11,6 +12,12 @@ import retrofit2.http.*;
  * API 服务接口
  */
 public interface ApiService {
+
+    /**
+     * 设备注册
+     */
+    @POST("devices/register")
+    Call<RegisterResponse> registerDevice(@Body RegisterRequest request);
 
     /**
      * 播放端初始化
@@ -50,6 +57,36 @@ public interface ApiService {
 
         public String getDeviceId() {
             return device_id;
+        }
+    }
+
+    /**
+     * 设备注册请求
+     */
+    class RegisterRequest {
+        private String device_id;     // 已有设备 ID（首次注册不传）
+        private String hardware_id;   // 硬件标识（Android ID）
+        private String device_name;   // 设备名称
+        private String timezone;      // 时区
+
+        public RegisterRequest() {
+            this.timezone = "Asia/Shanghai";
+        }
+
+        public void setDeviceId(String deviceId) {
+            this.device_id = deviceId;
+        }
+
+        public void setHardwareId(String hardwareId) {
+            this.hardware_id = hardwareId;
+        }
+
+        public void setDeviceName(String deviceName) {
+            this.device_name = deviceName;
+        }
+
+        public void setTimezone(String timezone) {
+            this.timezone = timezone;
         }
     }
 }

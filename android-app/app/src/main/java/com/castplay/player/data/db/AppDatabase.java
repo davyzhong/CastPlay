@@ -14,7 +14,7 @@ import com.castplay.player.data.db.entity.*;
 
 /**
  * Room 数据库
- * 
+ *
  * 版本历史:
  * - v1: 初始版本，包含 DeviceEntity, MediaFileEntity, PlaylistEntity
  * - v2: MediaFileEntity 添加 playback_speed 字段

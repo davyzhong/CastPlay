@@ -54,31 +54,62 @@ def create_device():
 
 @bp.route('/register', methods=['POST'])
 def register_device():
-    """设备注册"""
-    data = request.get_json()
+    """设备注册
+
+    支持两种模式：
+    1. 首次注册：不传 device_id，后台自动生成唯一 ID（如 CAS-A1B2）
+    2. 重新注册：传入已有 device_id，更新设备信息
+
+    请求体：
+    {
+        "device_id": "CAS-XXXX" (可选，不传则自动生成),
+        "hardware_id": "xxx" (可选，硬件标识用于匹配已注册设备),
+        "device_name": "xxx" (可选),
+        "timezone": "Asia/Shanghai" (可选)
+    }
+
+    返回：
+    {
+        "message": "Device registered successfully",
+        "device": {...},
+        "is_new": true/false  // 是否为新注册设备
+    }
+    """
+    data = request.get_json() or {}
 
     device_id = data.get('device_id')
-
-    if not device_id:
-        return jsonify({'error': 'device_id is required'}), 400
-
-    device_name = data.get('device_name', f'Device-{device_id[:8]}')
+    hardware_id = data.get('hardware_id')  # Android ID 或其他硬件标识
     timezone = data.get('timezone', 'Asia/Shanghai')
+    is_new = False
 
-    # 检查设备是否已存在
-    device = Device.query.filter_by(device_id=device_id).first()
+    # 1. 尝试通过 device_id 查找已有设备
+    device = None
+    if device_id:
+        device = Device.query.filter_by(device_id=device_id).first()
+
+    # 2. 如果没找到且有 hardware_id，尝试通过 hardware_id 查找
+    if not device and hardware_id:
+        device = Device.query.filter_by(hardware_id=hardware_id).first()
 
     if device:
-        # 更新设备信息
-        device.device_name = device_name
+        # 更新已有设备信息
+        if data.get('device_name'):
+            device.device_name = data['device_name']
         device.timezone = timezone
         device.last_online = datetime.utcnow()
         device.status = 'online'
+        if hardware_id and not device.hardware_id:
+            device.hardware_id = hardware_id
     else:
-        # 创建新设备
+        # 创建新设备，自动生成唯一 ID
+        is_new = True
+        device_id = _generate_unique_device_id()
+        device_name = data.get('device_name') or f'设备-{device_id}'
+
         device = Device(
             device_id=device_id,
             device_name=device_name,
+            hardware_id=hardware_id,
             timezone=timezone,
             last_online=datetime.utcnow(),
             status='online'
@@ -86,11 +117,35 @@ def register_device():
         db.session.add(device)
 
     db.session.commit()
+    logger.info(f"Device registered: {device.device_id} (new={is_new})")
 
     return jsonify({
         'message': 'Device registered successfully',
-        'device': device.to_dict()
+        'device': device.to_dict(),
+        'is_new': is_new
     }), 200
+
+
+def _generate_unique_device_id() -> str:
+    """生成唯一的设备 ID
+
+    格式: CAS-XXXX (4位大写字母数字)
+    如果冲突则增加长度直到唯一
+    """
+    import random
+    import string
+
+    chars = string.ascii_uppercase + string.digits
+
+    for length in range(4, 8):  # 4-7 位
+        for _ in range(10):  # 每个长度尝试 10 次
+            suffix = ''.join(random.choices(chars, k=length))
+            candidate = f'CAS-{suffix}'
+            if not Device.query.filter_by(device_id=candidate).first():
+                return candidate
+
+    # 极端情况：使用 UUID 前 8 位
+    return f'CAS-{str(uuid.uuid4())[:8].upper()}'
 
 
 @bp.route('/<int:device_id>/heartbeat', methods=['PUT'])

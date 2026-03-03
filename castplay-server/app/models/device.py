@@ -17,6 +17,8 @@ class Device(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     device_id = db.Column(db.String(64), unique=True,
                           nullable=False, index=True)
+    hardware_id = db.Column(db.String(128), unique=True,
+                            index=True)  # Android ID 或其他硬件标识
     device_name = db.Column(db.String(128), index=True)
     api_key = db.Column(db.String(64), unique=True, index=True)  # 设备认证 Key
     timezone = db.Column(db.String(64), default='Asia/Shanghai')
@@ -38,6 +40,7 @@ class Device(db.Model):
         return {
             'id': self.id,
             'device_id': self.device_id,
+            'hardware_id': self.hardware_id,
             'device_name': self.device_name,
             'api_key': self.api_key,
             'timezone': self.timezone,

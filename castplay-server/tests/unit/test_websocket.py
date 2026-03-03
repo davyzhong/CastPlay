@@ -159,7 +159,7 @@ class TestWebSocketEvents:
                 mock_emit.assert_called_once()
                 call_args = mock_emit.call_args
                 assert call_args[0][0] == 'heartbeat_ack'
-                
+
                 # 清理
                 device_store.remove_connected(device_db_id)
 

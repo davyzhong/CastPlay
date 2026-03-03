@@ -18,7 +18,7 @@ android {
         // API 和 WebSocket URL 配置
         buildConfigField "String", "API_BASE_URL", '"http://10.0.2.2:5001/api/"'
         buildConfigField "String", "WS_URL", '"ws://10.0.2.2:5001/socket.io/"'
-        
+
         // Room schema 导出配置 - 用于迁移测试
         javaCompileOptions {
             annotationProcessorOptions {
@@ -53,7 +53,7 @@ android {
         viewBinding true
         buildConfig true
     }
-    
+
     // 测试时使用 schema 进行迁移测试
     sourceSets {
         androidTest.assets.srcDirs += files("$projectDir/schemas")

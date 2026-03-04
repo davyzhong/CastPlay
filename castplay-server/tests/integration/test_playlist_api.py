@@ -111,21 +111,19 @@ class TestPlaylistItems:
 
         assert response.status_code == 400
 
-    def test_remove_media_from_playlist(self, client, app, sample_playlist):
+    def test_remove_media_from_playlist(self, client, app, sample_playlist_with_item):
         """测试从播放列表移除媒体"""
-        with app.app_context():
-            playlist = Playlist.query.get(sample_playlist.id)
-            item_id = playlist.items[0].id
+        playlist, media, item = sample_playlist_with_item
 
         response = client.delete(
-            f'/api/playlists/{sample_playlist.id}/items/{item_id}')
+            f'/api/playlists/{playlist.id}/items/{item.id}')
 
         assert response.status_code == 200
 
         # 验证已删除
         with app.app_context():
-            item = PlaylistItem.query.get(item_id)
-            assert item is None
+            deleted_item = PlaylistItem.query.get(item.id)
+            assert deleted_item is None
 
     def test_reorder_playlist_items(self, client, app, sample_playlist, sample_media):
         """测试重新排序播放列表项"""

@@ -8,6 +8,10 @@ import com.castplay.player.data.db.entity.PlaylistEntity
 import com.castplay.player.data.model.InitResponse
 import com.castplay.player.network.ApiService
 import com.castplay.player.network.RetrofitClient
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import okhttp3.ResponseBody
 import org.json.JSONArray
@@ -30,15 +34,26 @@ import java.util.concurrent.Executors
  *  3. 构建包含本地文件路径的播放列表 JSON，供 WebView 播放器使用
  *  4. 通过 SyncCallback 向调用方报告进度和结果
  */
-class SyncManager(context: Context, private val deviceId: String) {
+class SyncManager @AssistedInject constructor(
+    @ApplicationContext private val appContext: Context,
+    private val database: AppDatabase,
+    private val apiService: ApiService,
+    @Assisted private val deviceId: String
+) {
+
+    /**
+     * Hilt Assisted Inject Factory
+     * 用于创建带有动态参数 (deviceId) 的 SyncManager 实例
+     */
+    @AssistedFactory
+    interface Factory {
+        fun create(deviceId: String): SyncManager
+    }
 
     companion object {
         private const val TAG = "SyncManager"
     }
 
-    private val appContext: Context = context.applicationContext
-    private val database: AppDatabase = AppDatabase.getInstance(context)
-    private val apiService: ApiService = RetrofitClient.getApiService()
     private val executor = Executors.newSingleThreadExecutor()
 
     // ────────────────────────────────────────────────

@@ -38,7 +38,7 @@ class TestDeviceModel:
             assert 'device_name' in data
             assert 'timezone' in data
             assert 'status' in data
-            assert data['device_id'] == 'test-device-001'
+            assert data['device_id'] == sample_device.device_id
 
     def test_device_unique_constraint(self, app):
         """测试设备 ID 唯一性约束"""
@@ -126,7 +126,8 @@ class TestMediaFileModel:
             assert 'file_type' in data
             assert 'file_size' in data
             assert 'status' in data
-            assert data['file_name'] == 'test_image.jpg'
+            # 使用动态值比较
+            assert data['file_name'] == sample_media.file_name
 
     def test_media_default_status(self, app):
         """测试媒体文件默认状态"""
@@ -168,12 +169,23 @@ class TestPlaylistModel:
             assert 'id' in data
             assert 'name' in data
             assert 'item_count' in data
-            assert data['name'] == 'Test Playlist'
-            assert data['item_count'] == 1
+            # 使用动态值比较
+            assert data['name'] == sample_playlist.name
+            assert data['item_count'] == 0  # sample_playlist 没有项目
 
-    def test_playlist_to_dict_with_items(self, app, sample_playlist):
+    def test_playlist_to_dict_with_items(self, app, sample_playlist, sample_media):
         """测试播放列表序列化（包含项目）"""
         with app.app_context():
+            # 先添加一个项目
+            item = PlaylistItem(
+                playlist_id=sample_playlist.id,
+                media_id=sample_media.id,
+                display_order=1,
+                display_duration=10
+            )
+            db.session.add(item)
+            db.session.commit()
+
             playlist = Playlist.query.get(sample_playlist.id)
             data = playlist.to_dict(include_items=True)
 
@@ -203,11 +215,20 @@ class TestPlaylistItemModel:
             assert item.display_order == 2
             assert item.display_duration == 10
 
-    def test_playlist_item_to_dict(self, app, sample_playlist):
+    def test_playlist_item_to_dict(self, app, sample_playlist, sample_media):
         """测试播放列表项序列化"""
         with app.app_context():
-            playlist = Playlist.query.get(sample_playlist.id)
-            item = playlist.items[0]
+            # 先创建一个项目
+            item = PlaylistItem(
+                playlist_id=sample_playlist.id,
+                media_id=sample_media.id,
+                display_order=1,
+                display_duration=10
+            )
+            db.session.add(item)
+            db.session.commit()
+            db.session.refresh(item)
+
             data = item.to_dict()
 
             assert 'id' in data

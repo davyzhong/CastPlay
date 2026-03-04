@@ -6,6 +6,9 @@ import com.castplay.player.data.db.dao.MediaFileDao
 import com.castplay.player.data.db.dao.PlaylistDao
 import com.castplay.player.network.ApiService
 import com.castplay.player.network.RetrofitClient
+import com.castplay.player.service.DefaultPlaylistManager
+import com.castplay.player.service.DeviceRegistrationManager
+import com.castplay.player.service.ScheduleManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -28,7 +31,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideApiService(): ApiService {
-        return RetrofitClient.getInstance().create(ApiService::class.java)
+        return RetrofitClient.getApiService()
     }
 
     /**
@@ -54,5 +57,32 @@ object AppModule {
     @Provides
     fun providePlaylistDao(database: AppDatabase): PlaylistDao {
         return database.playlistDao()
+    }
+
+    /**
+     * 提供设备注册管理器
+     */
+    @Provides
+    @Singleton
+    fun provideDeviceRegistrationManager(@ApplicationContext context: Context): DeviceRegistrationManager {
+        return DeviceRegistrationManager(context)
+    }
+
+    /**
+     * 提供默认播放列表管理器
+     */
+    @Provides
+    @Singleton
+    fun provideDefaultPlaylistManager(@ApplicationContext context: Context): DefaultPlaylistManager {
+        return DefaultPlaylistManager(context)
+    }
+
+    /**
+     * 提供定时管理器
+     */
+    @Provides
+    @Singleton
+    fun provideScheduleManager(@ApplicationContext context: Context): ScheduleManager {
+        return ScheduleManager(context)
     }
 }

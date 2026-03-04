@@ -18,6 +18,7 @@ from app.database import get_db
 from app.core.config import settings
 from app.api.deps import get_current_user
 from app.models.media import MediaFile, MediaFolder
+from app.utils.path import resolve_file_path
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -343,12 +344,68 @@ async def download_media(
     )
 
 
+async def get_thumbnail_impl(
+    media_id: int,
+    db: AsyncSession
+):
+    """缩略图获取的核心实现"""
+    result = await db.execute(select(MediaFile).where(MediaFile.id == media_id))
+    media = result.scalar_one_or_none()
+
+    if not media:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Media not found"
+        )
+
+    # 1. 优先使用已生成的缩略图
+    if media.thumbnail_path:
+        try:
+            thumbnail_path = resolve_file_path(media.thumbnail_path)
+            if os.path.exists(thumbnail_path):
+                return FileResponse(thumbnail_path, media_type='image/jpeg')
+        except Exception:
+            pass  # 缩略图路径无效，继续尝试其他方式
+
+    # 2. 图片类型：直接返回原图
+    if media.file_type == 'image':
+        try:
+            file_path = resolve_file_path(media.file_path)
+            if os.path.exists(file_path):
+                ext = os.path.splitext(media.file_name)[1].lower()
+                mime_map = {
+                    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                    '.png': 'image/png', '.gif': 'image/gif',
+                    '.bmp': 'image/bmp', '.webp': 'image/webp'
+                }
+                mime = mime_map.get(ext, 'image/jpeg')
+                return FileResponse(file_path, media_type=mime)
+        except Exception:
+            pass  # 原图路径无效
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Thumbnail not available"
+    )
+
+
 @router.get("/{media_id}/thumbnail")
 async def get_thumbnail(
     media_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: str = Depends(get_current_user)
 ):
+    """获取缩略图（需要认证）"""
+    return await get_thumbnail_impl(media_id, db)
+
+
+@router.get("/{media_id}/thumbnail/noauth")
+async def get_thumbnail_noauth(
+    media_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """获取缩略图（无需认证，用于开发和调试）"""
+    return await get_thumbnail_impl(media_id, db)
     """获取缩略图"""
     result = await db.execute(select(MediaFile).where(MediaFile.id == media_id))
     media = result.scalar_one_or_none()
@@ -360,19 +417,29 @@ async def get_thumbnail(
         )
 
     # 1. 优先使用已生成的缩略图
-    if media.thumbnail_path and os.path.exists(media.thumbnail_path):
-        return FileResponse(media.thumbnail_path, media_type='image/jpeg')
+    if media.thumbnail_path:
+        try:
+            thumbnail_path = resolve_file_path(media.thumbnail_path)
+            if os.path.exists(thumbnail_path):
+                return FileResponse(thumbnail_path, media_type='image/jpeg')
+        except Exception:
+            pass  # 缩略图路径无效，继续尝试其他方式
 
     # 2. 图片类型：直接返回原图
-    if media.file_type == 'image' and os.path.exists(media.file_path):
-        ext = os.path.splitext(media.file_name)[1].lower()
-        mime_map = {
-            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-            '.png': 'image/png', '.gif': 'image/gif',
-            '.bmp': 'image/bmp', '.webp': 'image/webp'
-        }
-        mime = mime_map.get(ext, 'image/jpeg')
-        return FileResponse(media.file_path, media_type=mime)
+    if media.file_type == 'image':
+        try:
+            file_path = resolve_file_path(media.file_path)
+            if os.path.exists(file_path):
+                ext = os.path.splitext(media.file_name)[1].lower()
+                mime_map = {
+                    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                    '.png': 'image/png', '.gif': 'image/gif',
+                    '.bmp': 'image/bmp', '.webp': 'image/webp'
+                }
+                mime = mime_map.get(ext, 'image/jpeg')
+                return FileResponse(file_path, media_type=mime)
+        except Exception:
+            pass  # 原图路径无效
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,

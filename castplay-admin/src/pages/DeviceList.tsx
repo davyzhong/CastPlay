@@ -1,12 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, Tag, message, Modal, Form, Input, TimePicker, Checkbox, Select } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { deviceApi, Device } from '@/api/device';
+import { useDeviceStore, Device } from '../stores/deviceStore';
+import { deviceApi } from '@/api/device';
 import dayjs from 'dayjs';
 
+/**
+ * 设备列表页面
+ * 使用 Zustand store 统一管理设备状态
+ */
 const DeviceList: React.FC = () => {
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Zustand store 状态
+  const {
+    devices,
+    loading,
+    fetchDevices,
+    deleteDevice,
+    createDevice,
+    error,
+    clearError,
+  } = useDeviceStore();
+
+  // 局部 UI 状态
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [currentDevice, setCurrentDevice] = useState<Device | null>(null);
@@ -14,20 +29,20 @@ const DeviceList: React.FC = () => {
   const [createForm] = Form.useForm();
 
   const loadDevices = async () => {
-    setLoading(true);
-    try {
-      const response = await deviceApi.list();
-      setDevices(response.devices || []);
-    } catch (error) {
-      message.error('加载设备列表失败');
-    } finally {
-      setLoading(false);
-    }
+    await fetchDevices();
   };
 
   useEffect(() => {
     loadDevices();
   }, []);
+
+  // 监听错误状态
+  useEffect(() => {
+    if (error) {
+      message.error(error);
+      clearError();
+    }
+  }, [error]);
 
   const handleSetSchedule = (device: Device) => {
     setCurrentDevice(device);
@@ -70,9 +85,8 @@ const DeviceList: React.FC = () => {
       content: '确定要删除这个设备吗？',
       onOk: async () => {
         try {
-          await deviceApi.delete(id);
+          await deleteDevice(id);
           message.success('删除成功');
-          loadDevices();
         } catch (error) {
           message.error('删除失败');
         }
@@ -83,15 +97,13 @@ const DeviceList: React.FC = () => {
   const handleCreate = async () => {
     try {
       const values = await createForm.validateFields();
-      await deviceApi.create({
-        device_id: values.device_id || undefined,
+      await createDevice({
         device_name: values.device_name || undefined,
         timezone: values.timezone,
       });
       message.success('设备创建成功');
       setCreateModalVisible(false);
       createForm.resetFields();
-      loadDevices();
     } catch (error: any) {
       message.error(error.response?.data?.error || '创建失败');
     }
@@ -209,22 +221,22 @@ const DeviceList: React.FC = () => {
         cancelText="取消"
       >
         <Form form={createForm} layout="vertical">
-          <Form.Item 
-            label="设备ID" 
+          <Form.Item
+            label="设备ID"
             name="device_id"
             extra="留空则自动生成"
           >
             <Input placeholder="留空自动生成" />
           </Form.Item>
-          <Form.Item 
-            label="设备名称" 
+          <Form.Item
+            label="设备名称"
             name="device_name"
             extra="留空则使用默认名称"
           >
             <Input placeholder="留空使用默认名称" />
           </Form.Item>
-          <Form.Item 
-            label="时区" 
+          <Form.Item
+            label="时区"
             name="timezone"
             initialValue="Asia/Shanghai"
           >

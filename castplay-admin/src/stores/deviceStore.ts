@@ -1,33 +1,16 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import api from '../api/client';
+import { Device as ApiDevice, DeviceListResponse } from '../api/device';
 
-// 设备类型
-interface Device {
-  id: number;
-  device_id: string;
-  device_name: string;
-  hardware_id?: string;
-  timezone: string;
-  status: 'online' | 'offline';
-  last_online?: string;
-  created_at: string;
-  updated_at: string;
-  schedule?: DeviceSchedule;
-  playlists?: DevicePlaylist[];
-}
+// 重新导出 Device 类型（复用 API 定义）
+export type Device = ApiDevice;
 
 interface DeviceSchedule {
   power_on_time?: string;
   power_off_time?: string;
   is_enabled: boolean;
   weekdays: number[];
-}
-
-interface DevicePlaylist {
-  id: number;
-  name: string;
-  is_active: boolean;
 }
 
 // Store 状态类型
@@ -81,12 +64,12 @@ export const useDeviceStore = create<DeviceState>()(
 
           if (status) queryParams.set('status', status);
 
-          const response = await api.get(`/devices?${queryParams}`);
+          const response: DeviceListResponse = await api.get(`/devices?${queryParams}`);
 
           set({
-            devices: response.data.devices,
-            total: response.data.total,
-            page: response.data.page,
+            devices: response.devices,
+            total: response.total,
+            page: response.page,
             loading: false,
           });
         } catch (error: any) {
@@ -102,8 +85,7 @@ export const useDeviceStore = create<DeviceState>()(
         set({ loading: true, error: null });
 
         try {
-          const response = await api.get(`/devices/${id}`);
-          const device = response.data;
+          const device: Device = await api.get(`/devices/${id}`);
 
           set({ currentDevice: device, loading: false });
           return device;
@@ -121,11 +103,11 @@ export const useDeviceStore = create<DeviceState>()(
         const response = await api.post('/devices', data);
 
         set(state => ({
-          devices: [response.data.device, ...state.devices],
+          devices: [response.device, ...state.devices],
           total: state.total + 1,
         }));
 
-        return response.data.device;
+        return response.device;
       },
 
       // 更新设备
@@ -134,10 +116,10 @@ export const useDeviceStore = create<DeviceState>()(
 
         set(state => ({
           devices: state.devices.map(d =>
-            d.id === id ? { ...d, ...response.data.device } : d
+            d.id === id ? { ...d, ...response.device } : d
           ),
           currentDevice: state.currentDevice?.id === id
-            ? { ...state.currentDevice, ...response.data.device }
+            ? { ...state.currentDevice, ...response.device }
             : state.currentDevice,
         }));
       },

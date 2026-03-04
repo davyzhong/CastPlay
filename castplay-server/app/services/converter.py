@@ -1,5 +1,9 @@
 """
 PPT Converter Service
+
+WARNING: 此服务包含耗时的同步操作（subprocess），
+必须通过 Celery task (app/tasks/convert.py) 调用，
+禁止直接在 API 请求中同步调用！
 """
 import os
 import subprocess

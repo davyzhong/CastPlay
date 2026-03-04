@@ -274,54 +274,32 @@ class TestPlaylistVersionCheck:
 class TestMediaDownload:
     """媒体下载测试"""
 
-    def test_download_media_success(self, client, app):
+    def test_download_media_success(self, client, app, sample_media_with_file):
         """测试下载媒体文件成功"""
-        from app.models import MediaFile
-        from app import db
-        import tempfile
+        response = client.get(
+            f'/api/player/media/{sample_media_with_file.id}/download')
 
-        with app.app_context():
-            # 创建临时文件
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.jpg', delete=False) as f:
-                f.write('fake image content')
-                temp_path = f.name
+        assert response.status_code == 200
 
-            try:
-                media = MediaFile(
-                    file_name='download_test.jpg',
-                    file_type='image',
-                    file_path=temp_path,
-                    file_size=19,
-                    status='ready'
-                )
-                db.session.add(media)
-                db.session.commit()
-
-                response = client.get(f'/api/player/media/{media.id}/download')
-
-                assert response.status_code == 200
-            finally:
-                os.unlink(temp_path)
-
-    def test_download_media_file_not_found(self, client, app):
+    def test_download_media_file_not_found(self, client, app, db):
         """测试下载媒体文件 - 文件不存在"""
         from app.models import MediaFile
-        from app import db
 
-        with app.app_context():
-            media = MediaFile(
-                file_name='non_exist.jpg',
-                file_type='image',
-                file_path='/tmp/non_exist_file.jpg',
-                file_size=0,
-                status='ready'
-            )
-            db.session.add(media)
-            db.session.commit()
+        upload_folder = app.config.get('UPLOAD_FOLDER')
 
-            response = client.get(f'/api/player/media/{media.id}/download')
+        media = MediaFile(
+            file_name='non_exist.jpg',
+            file_type='image',
+            file_path=f'{upload_folder}/non_exist_file.jpg',
+            file_size=0,
+            status='ready'
+        )
+        db.session.add(media)
+        db.session.commit()
 
-            assert response.status_code == 404
+        response = client.get(f'/api/player/media/{media.id}/download')
+
+        assert response.status_code == 404
 
     def test_download_media_not_found(self, client, app):
         """测试下载媒体文件 - 记录不存在"""
@@ -332,78 +310,55 @@ class TestMediaDownload:
 class TestConvertedMediaDownload:
     """转换后媒体下载测试"""
 
-    def test_download_converted_media_success(self, client, app):
+    def test_download_converted_media_success(self, client, app, sample_media_with_converted):
         """测试下载转换后媒体文件成功"""
-        from app.models import MediaFile
-        from app import db
-        import tempfile
+        response = client.get(
+            f'/api/player/media/{sample_media_with_converted.id}/converted')
 
-        with app.app_context():
-            # 创建临时文件
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.mp4', delete=False) as f:
-                f.write('fake video content')
-                temp_path = f.name
+        assert response.status_code == 200
 
-            try:
-                media = MediaFile(
-                    file_name='presentation.pptx',
-                    file_type='ppt',
-                    file_path='/tmp/presentation.pptx',
-                    converted_path=temp_path,
-                    file_size=19,
-                    status='ready'
-                )
-                db.session.add(media)
-                db.session.commit()
-
-                response = client.get(
-                    f'/api/player/media/{media.id}/converted')
-
-                assert response.status_code == 200
-            finally:
-                os.unlink(temp_path)
-
-    def test_download_converted_media_not_converted(self, client, app):
+    def test_download_converted_media_not_converted(self, client, app, db):
         """测试下载转换后媒体文件 - 未转换"""
         from app.models import MediaFile
-        from app import db
 
-        with app.app_context():
-            media = MediaFile(
-                file_name='presentation.pptx',
-                file_type='ppt',
-                file_path='/tmp/presentation.pptx',
-                converted_path=None,
-                file_size=1024,
-                status='processing'
-            )
-            db.session.add(media)
-            db.session.commit()
+        upload_folder = app.config.get('UPLOAD_FOLDER')
 
-            response = client.get(f'/api/player/media/{media.id}/converted')
+        media = MediaFile(
+            file_name='presentation.pptx',
+            file_type='ppt',
+            file_path=f'{upload_folder}/presentation.pptx',
+            converted_path=None,
+            file_size=1024,
+            status='processing'
+        )
+        db.session.add(media)
+        db.session.commit()
 
-            assert response.status_code == 404
+        response = client.get(f'/api/player/media/{media.id}/converted')
 
-    def test_download_converted_media_file_missing(self, client, app):
+        assert response.status_code == 404
+
+    def test_download_converted_media_file_missing(self, client, app, db):
         """测试下载转换后媒体文件 - 转换文件不存在"""
         from app.models import MediaFile
-        from app import db
 
-        with app.app_context():
-            media = MediaFile(
-                file_name='presentation.pptx',
-                file_type='ppt',
-                file_path='/tmp/presentation.pptx',
-                converted_path='/tmp/non_exist_video.mp4',
-                file_size=1024,
-                status='ready'
-            )
-            db.session.add(media)
-            db.session.commit()
+        upload_folder = app.config.get('UPLOAD_FOLDER')
+        converted_folder = app.config.get('CONVERTED_FOLDER')
 
-            response = client.get(f'/api/player/media/{media.id}/converted')
+        media = MediaFile(
+            file_name='presentation.pptx',
+            file_type='ppt',
+            file_path=f'{upload_folder}/presentation.pptx',
+            converted_path=f'{converted_folder}/non_exist_video.mp4',
+            file_size=1024,
+            status='ready'
+        )
+        db.session.add(media)
+        db.session.commit()
 
-            assert response.status_code == 404
+        response = client.get(f'/api/player/media/{media.id}/converted')
+
+        assert response.status_code == 404
 
 
 class TestPlayerStatus:

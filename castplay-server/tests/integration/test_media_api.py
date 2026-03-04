@@ -59,8 +59,8 @@ class TestMediaList:
 
         assert response.status_code == 200
         json_data = response.get_json()
-        assert 'media_files' in json_data
-        assert len(json_data['media_files']) == 0
+        assert 'media' in json_data
+        assert len(json_data['media']) == 0
 
     def test_list_media_with_data(self, client, app, sample_media):
         """测试有数据的媒体列表"""
@@ -68,7 +68,7 @@ class TestMediaList:
 
         assert response.status_code == 200
         json_data = response.get_json()
-        assert len(json_data['media_files']) == 1
+        assert len(json_data['media']) == 1
         assert json_data['total'] == 1
 
     def test_list_media_filter_by_type(self, client, app):
@@ -95,8 +95,8 @@ class TestMediaList:
 
         assert response.status_code == 200
         json_data = response.get_json()
-        assert len(json_data['media_files']) == 1
-        assert json_data['media_files'][0]['file_type'] == 'image'
+        assert len(json_data['media']) == 1
+        assert json_data['media'][0]['file_type'] == 'image'
 
     def test_list_media_filter_by_status(self, client, app):
         """测试按状态过滤媒体"""
@@ -121,7 +121,7 @@ class TestMediaList:
 
         assert response.status_code == 200
         json_data = response.get_json()
-        assert all(m['status'] == 'ready' for m in json_data['media_files'])
+        assert all(m['status'] == 'ready' for m in json_data['media'])
 
     def test_list_media_pagination(self, client, app):
         """测试分页"""
@@ -142,7 +142,7 @@ class TestMediaList:
 
         assert response.status_code == 200
         json_data = response.get_json()
-        assert len(json_data['media_files']) == 5
+        assert len(json_data['media']) == 5
         assert json_data['total'] == 10
 
 
@@ -156,7 +156,7 @@ class TestMediaDetail:
         assert response.status_code == 200
         json_data = response.get_json()
         assert json_data['id'] == sample_media.id
-        assert json_data['file_name'] == 'test_image.jpg'
+        assert json_data['file_name'] == sample_media.file_name
 
     def test_get_media_not_found(self, client):
         """测试获取不存在的媒体"""
@@ -213,16 +213,12 @@ class TestMediaDelete:
 
         assert response.status_code == 404
 
-    def test_delete_media_in_playlist(self, client, app, sample_playlist):
+    def test_delete_media_in_playlist(self, client, app, sample_playlist_with_item):
         """测试删除播放列表中的媒体"""
-        # 获取播放列表中的媒体 ID
-        with app.app_context():
-            playlist = client.get(
-                f'/api/playlists/{sample_playlist.id}').get_json()
-            media_id = playlist['items'][0]['media_id']
+        playlist, media, item = sample_playlist_with_item
 
         # 删除媒体（级联删除应该处理播放列表项）
-        response = client.delete(f'/api/media/{media_id}')
+        response = client.delete(f'/api/media/{media.id}')
 
         assert response.status_code == 200
 
@@ -230,13 +226,12 @@ class TestMediaDelete:
 class TestMediaDownload:
     """测试媒体下载 API"""
 
-    def test_download_media(self, client, app, sample_media):
+    def test_download_media(self, client, app, sample_media_with_file):
         """测试下载媒体文件"""
-        response = client.get(f'/api/media/{sample_media.id}/download')
+        response = client.get(
+            f'/api/media/{sample_media_with_file.id}/download')
 
-        # 根据实际实现，可能需要模拟文件系统
-        # 这里只测试路由是否正确
-        assert response.status_code in [200, 404]  # 404 如果文件不存在
+        assert response.status_code == 200
 
     def test_download_media_not_found(self, client):
         """测试下载不存在的媒体"""
@@ -244,116 +239,50 @@ class TestMediaDownload:
 
         assert response.status_code == 404
 
-    def test_download_converted_ppt(self, client, app):
+    def test_download_converted_ppt(self, client, app, sample_media_with_converted):
         """测试下载转换后的 PPT"""
-        import tempfile
-        import os
-        from app.models import MediaFile
-        from app import db
+        response = client.get(
+            f'/api/media/{sample_media_with_converted.id}/download')
 
-        with app.app_context():
-            # 创建临时文件
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.mp4', delete=False) as f:
-                f.write('fake video content')
-                converted_path = f.name
-
-            try:
-                media = MediaFile(
-                    file_name='presentation.pptx',
-                    file_type='ppt',
-                    file_path='/tmp/presentation.pptx',
-                    converted_path=converted_path,
-                    file_size=1024,
-                    status='ready'
-                )
-                db.session.add(media)
-                db.session.commit()
-                media_id = media.id
-
-                response = client.get(f'/api/media/{media_id}/download')
-
-                assert response.status_code == 200
-            finally:
-                if os.path.exists(converted_path):
-                    os.unlink(converted_path)
+        assert response.status_code == 200
 
 
 class TestMediaThumbnail:
     """测试媒体缩略图 API"""
 
-    def test_get_thumbnail(self, client, app):
+    def test_get_thumbnail(self, client, app, sample_media_with_thumbnail):
         """测试获取缩略图"""
-        import tempfile
-        import os
-        from app.models import MediaFile
-        from app import db
+        response = client.get(
+            f'/api/media/{sample_media_with_thumbnail.id}/thumbnail')
 
-        with app.app_context():
-            # 创建临时缩略图文件
-            with tempfile.NamedTemporaryFile(mode='wb', suffix='.jpg', delete=False) as f:
-                # 写入简单的 JPEG 头
-                f.write(b'\xff\xd8\xff\xe0\x00\x10JFIF')
-                thumbnail_path = f.name
+        assert response.status_code == 200
 
-            try:
-                media = MediaFile(
-                    file_name='video.mp4',
-                    file_type='video',
-                    file_path='/tmp/video.mp4',
-                    thumbnail_path=thumbnail_path,
-                    file_size=10240,
-                    status='ready'
-                )
-                db.session.add(media)
-                db.session.commit()
-                media_id = media.id
-
-                response = client.get(f'/api/media/{media_id}/thumbnail')
-
-                assert response.status_code == 200
-            finally:
-                if os.path.exists(thumbnail_path):
-                    os.unlink(thumbnail_path)
-
-    def test_get_thumbnail_not_found(self, client, app):
-        """测试获取不存在的缩略图"""
-        from app.models import MediaFile
-        from app import db
-
-        with app.app_context():
-            media = MediaFile(
-                file_name='no_thumb.mp4',
-                file_type='video',
-                file_path='/tmp/no_thumb.mp4',
-                thumbnail_path=None,
-                file_size=10240,
-                status='ready'
-            )
-            db.session.add(media)
-            db.session.commit()
-            media_id = media.id
-
-        response = client.get(f'/api/media/{media_id}/thumbnail')
+    def test_get_thumbnail_not_found(self, client, app, sample_media):
+        """测试获取不存在的缩略图（媒体没有缩略图）"""
+        # sample_media 没有 thumbnail_path
+        response = client.get(f'/api/media/{sample_media.id}/thumbnail')
 
         assert response.status_code == 404
 
-    def test_get_thumbnail_file_missing(self, client, app):
-        """测试缩略图文件丢失"""
+    def test_get_thumbnail_file_missing(self, client, app, db):
+        """测试缩略图文件丢失（数据库有记录但文件不存在）"""
         from app.models import MediaFile
-        from app import db
 
-        with app.app_context():
-            media = MediaFile(
-                file_name='missing_thumb.mp4',
-                file_type='video',
-                file_path='/tmp/missing_thumb.mp4',
-                thumbnail_path='/tmp/non_exist_thumb.jpg',
-                file_size=10240,
-                status='ready'
-            )
-            db.session.add(media)
-            db.session.commit()
-            media_id = media.id
+        # 创建一个指向不存在缩略图的媒体
+        upload_folder = app.config.get('UPLOAD_FOLDER')
+        thumbnail_folder = app.config.get('THUMBNAIL_FOLDER')
+
+        media = MediaFile(
+            file_name='missing_thumb.mp4',
+            file_type='video',
+            file_path=f'{upload_folder}/missing_thumb.mp4',
+            thumbnail_path=f'{thumbnail_folder}/non_exist_thumb.jpg',
+            file_size=10240,
+            status='ready'
+        )
+        db.session.add(media)
+        db.session.commit()
+        media_id = media.id
 
         response = client.get(f'/api/media/{media_id}/thumbnail')
 
@@ -474,45 +403,50 @@ class TestMediaUploadAdvanced:
 class TestMediaDeleteAdvanced:
     """测试媒体删除高级场景"""
 
-    def test_delete_media_with_converted_file(self, client, app):
+    def test_delete_media_with_converted_file(self, client, app, db):
         """测试删除带转换文件的媒体"""
-        import tempfile
         import os
         from app.models import MediaFile
-        from app import db
 
-        with app.app_context():
-            # 创建临时文件
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.pptx', delete=False) as f:
-                f.write('fake ppt')
-                file_path = f.name
+        unique_id = str(__import__('uuid').uuid4())[:8]
+        upload_folder = app.config.get('UPLOAD_FOLDER')
+        converted_folder = app.config.get('CONVERTED_FOLDER')
+        thumbnail_folder = app.config.get('THUMBNAIL_FOLDER')
 
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.mp4', delete=False) as f:
-                f.write('fake video')
-                converted_path = f.name
+        os.makedirs(upload_folder, exist_ok=True)
+        os.makedirs(converted_folder, exist_ok=True)
+        os.makedirs(thumbnail_folder, exist_ok=True)
 
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.jpg', delete=False) as f:
-                f.write('fake thumb')
-                thumbnail_path = f.name
+        # 创建测试文件
+        file_path = os.path.join(
+            upload_folder, f'test_delete_{unique_id}.pptx')
+        converted_path = os.path.join(
+            converted_folder, f'test_delete_{unique_id}.mp4')
+        thumbnail_path = os.path.join(
+            thumbnail_folder, f'test_delete_{unique_id}.jpg')
 
-            media = MediaFile(
-                file_name='test.pptx',
-                file_type='ppt',
-                file_path=file_path,
-                converted_path=converted_path,
-                thumbnail_path=thumbnail_path,
-                file_size=1024,
-                status='ready'
-            )
-            db.session.add(media)
-            db.session.commit()
-            media_id = media.id
+        for path in [file_path, converted_path, thumbnail_path]:
+            with open(path, 'wb') as f:
+                f.write(b'test content')
 
-            response = client.delete(f'/api/media/{media_id}')
+        media = MediaFile(
+            file_name='test.pptx',
+            file_type='ppt',
+            file_path=file_path,
+            converted_path=converted_path,
+            thumbnail_path=thumbnail_path,
+            file_size=1024,
+            status='ready'
+        )
+        db.session.add(media)
+        db.session.commit()
+        media_id = media.id
 
-            assert response.status_code == 200
+        response = client.delete(f'/api/media/{media_id}')
 
-            # 验证所有文件都被删除
-            assert not os.path.exists(file_path)
-            assert not os.path.exists(converted_path)
-            assert not os.path.exists(thumbnail_path)
+        assert response.status_code == 200
+
+        # 验证所有文件都被删除
+        assert not os.path.exists(file_path)
+        assert not os.path.exists(converted_path)
+        assert not os.path.exists(thumbnail_path)

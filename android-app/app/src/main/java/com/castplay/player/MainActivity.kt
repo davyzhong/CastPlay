@@ -26,8 +26,10 @@ import com.castplay.player.service.DefaultPlaylistManager
 import com.castplay.player.service.DeviceRegistrationManager
 import com.castplay.player.service.ScheduleManager
 import com.castplay.player.service.SyncManager
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * 主活动 - WebView 全屏播放器
@@ -42,6 +44,7 @@ import kotlinx.coroutines.launch
  *  5. WebView 加载 assets/player_local.html，播放器自动循环
  *  6. WebSocket 监听服务器推送，收到更新时重新同步
  */
+@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
     companion object {
@@ -59,9 +62,10 @@ class MainActivity : AppCompatActivity() {
     private var deviceIdText: TextView? = null
 
     // ─── 管理器 ───────────────────────────────────────
-    private lateinit var registrationManager: DeviceRegistrationManager
-    private lateinit var defaultPlaylistManager: DefaultPlaylistManager
-    private lateinit var scheduleManager: ScheduleManager
+    @Inject lateinit var registrationManager: DeviceRegistrationManager
+    @Inject lateinit var defaultPlaylistManager: DefaultPlaylistManager
+    @Inject lateinit var scheduleManager: ScheduleManager
+    @Inject lateinit var syncManagerFactory: SyncManager.Factory
     private var syncManager: SyncManager? = null
 
     // ─── 状态 ─────────────────────────────────────────
@@ -87,11 +91,6 @@ class MainActivity : AppCompatActivity() {
 
         hideSystemUI()
         initViews()
-
-        // 初始化管理器
-        registrationManager = DeviceRegistrationManager(this)
-        defaultPlaylistManager = DefaultPlaylistManager(this)
-        scheduleManager = ScheduleManager(this)
 
         showLoading("正在初始化...", 0)
 
@@ -160,8 +159,8 @@ class MainActivity : AppCompatActivity() {
                     updateDeviceIdDisplay()
                     showDeviceIdTemporarily()
 
-                    // 初始化同步管理器
-                    syncManager = SyncManager(this@MainActivity, deviceId!!)
+                    // 初始化同步管理器（通过 Factory 创建）
+                    syncManager = syncManagerFactory.create(deviceId!!)
 
                     // 继续启动流程
                     initWebView()
@@ -187,7 +186,7 @@ class MainActivity : AppCompatActivity() {
                     showDeviceIdTemporarily()
 
                     // 继续启动流程
-                    syncManager = SyncManager(this@MainActivity, deviceId!!)
+                    syncManager = syncManagerFactory.create(deviceId!!)
                     initWebView()
                     initWebSocket()
                     performSync()

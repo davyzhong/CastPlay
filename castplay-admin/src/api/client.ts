@@ -134,6 +134,10 @@ export const getMediaUrl = (mediaId: number, type: 'download' | 'thumbnail' | 'c
   if (type === 'converted') {
     return `${API_BASE_URL}/player/media/${mediaId}/converted`;
   }
+  // 缩略图使用无需认证的端点
+  if (type === 'thumbnail') {
+    return `${API_BASE_URL}/media/${mediaId}/${type}/noauth`;
+  }
   return `${API_BASE_URL}/media/${mediaId}/${type}`;
 };
 

@@ -270,6 +270,7 @@ class TestingConfig(Config):
     """Testing configuration"""
     TESTING: bool = True
     DEBUG: bool = True
+    SKIP_AUTH: bool = True  # 测试模式跳过认证
     SQLALCHEMY_DATABASE_URI: str = 'sqlite:///:memory:'
     SOCKETIO_MESSAGE_QUEUE: Optional[str] = None
     CELERY_BROKER_URL: Optional[str] = None

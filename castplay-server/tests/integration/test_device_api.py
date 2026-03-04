@@ -10,9 +10,8 @@ class TestDeviceRegistration:
     """测试设备注册 API"""
 
     def test_register_new_device(self, client, app):
-        """测试注册新设备"""
+        """测试注册新设备 - API 会自动生成 device_id (CAS-XXXX 格式)"""
         data = {
-            'device_id': 'new-device-001',
             'device_name': 'New Device',
             'timezone': 'Asia/Shanghai'
         }
@@ -24,14 +23,16 @@ class TestDeviceRegistration:
         assert response.status_code == 200
         json_data = response.get_json()
         assert 'device' in json_data
-        assert json_data['device']['device_id'] == 'new-device-001'
+        # API 自动生成 CAS-XXXX 格式的 device_id
+        assert json_data['device']['device_id'].startswith('CAS-')
         assert json_data['device']['device_name'] == 'New Device'
         assert json_data['device']['status'] == 'online'
+        assert json_data['is_new'] is True
 
     def test_register_existing_device(self, client, app, sample_device):
         """测试重新注册已存在的设备"""
         data = {
-            'device_id': 'test-device-001',
+            'device_id': sample_device.device_id,  # 使用已存在的 device_id
             'device_name': 'Updated Device',
             'timezone': 'Asia/Tokyo'
         }
@@ -44,20 +45,23 @@ class TestDeviceRegistration:
         json_data = response.get_json()
         assert json_data['device']['device_name'] == 'Updated Device'
         assert json_data['device']['timezone'] == 'Asia/Tokyo'
+        assert json_data['is_new'] is False
 
-    def test_register_device_missing_device_id(self, client):
-        """测试缺少 device_id 的情况"""
+    def test_register_device_without_device_id(self, client):
+        """测试不传 device_id 时自动生成"""
         data = {
-            'device_name': 'Test Device'
+            'device_name': 'Auto ID Device'
         }
 
         response = client.post('/api/devices/register',
                                data=json.dumps(data),
                                content_type='application/json')
 
-        assert response.status_code == 400
+        # 不传 device_id 时应该成功并自动生成
+        assert response.status_code == 200
         json_data = response.get_json()
-        assert 'error' in json_data
+        assert json_data['device']['device_id'].startswith('CAS-')
+        assert json_data['is_new'] is True
 
 
 class TestDeviceList:
@@ -81,7 +85,7 @@ class TestDeviceList:
         json_data = response.get_json()
         assert len(json_data['devices']) == 1
         assert json_data['total'] == 1
-        assert json_data['devices'][0]['device_id'] == 'test-device-001'
+        assert json_data['devices'][0]['device_id'] == sample_device.device_id
 
     def test_list_devices_pagination(self, client, app):
         """测试分页功能"""
@@ -131,7 +135,7 @@ class TestDeviceDetail:
         assert response.status_code == 200
         json_data = response.get_json()
         assert json_data['id'] == sample_device.id
-        assert json_data['device_id'] == 'test-device-001'
+        assert json_data['device_id'] == sample_device.device_id
 
     def test_get_device_not_found(self, client):
         """测试获取不存在的设备"""

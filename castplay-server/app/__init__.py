@@ -3,7 +3,7 @@ import os
 import logging
 from typing import Optional
 
-from flask import Flask, send_from_directory, jsonify
+from flask import Flask, send_from_directory, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
@@ -98,6 +98,16 @@ def create_app(config_name: str = 'default') -> Flask:
     app.register_blueprint(folder.bp, url_prefix='/api/v1/folders')
 
     # 兼容旧版 API（无版本前缀）- 建议在后续版本中废弃
+    # 添加废弃警告中间件
+    @app.after_request
+    def add_deprecation_warning(response):
+        """Add deprecation warning header for legacy API endpoints"""
+        if request.path.startswith('/api/') and not request.path.startswith('/api/v'):
+            response.headers['Deprecation'] = 'true'
+            response.headers['Sunset'] = 'Sat, 01 Jun 2026 00:00:00 GMT'
+            response.headers['X-Deprecated-Message'] = 'This API endpoint is deprecated. Please use /api/v1/ prefix.'
+        return response
+
     app.register_blueprint(auth.bp, url_prefix='/api/auth', name='auth_legacy')
     app.register_blueprint(
         device.bp, url_prefix='/api/devices', name='device_legacy')

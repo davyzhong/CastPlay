@@ -60,19 +60,31 @@ class DeviceConnectionStore:
     设备连接状态存储
 
     支持 Redis 持久化存储，当 Redis 不可用时自动降级到内存存储
+
+    改进：使用独立 key 存储每个设备，让每个设备有独立的 TTL
     """
 
-    KEY_PREFIX = "castplay:devices:connected"
+    KEY_PREFIX = "castplay:device:connected"
+    SESSION_PREFIX = "castplay:device:session"
     EXPIRE_SECONDS = 300  # 5分钟过期
 
     def __init__(self):
         # 内存 fallback 存储
         self._local_cache: Dict[int, Dict[str, Any]] = {}
+        self._session_map: Dict[str, int] = {}  # session_id -> device_id 映射
 
     @property
     def redis(self):
         """获取 Redis 客户端（每次调用时检查）"""
         return get_redis()
+
+    def _device_key(self, device_id: int) -> str:
+        """生成设备状态 key"""
+        return f"{self.KEY_PREFIX}:{device_id}"
+
+    def _session_key(self, session_id: str) -> str:
+        """生成会话映射 key"""
+        return f"{self.SESSION_PREFIX}:{session_id}"
 
     def set_connected(self, device_id: int, session_id: str, server_id: str = "default"):
         """
@@ -91,32 +103,53 @@ class DeviceConnectionStore:
 
         if self.redis:
             try:
-                self.redis.hset(self.KEY_PREFIX, str(
-                    device_id), json.dumps(data))
-                self.redis.expire(self.KEY_PREFIX, self.EXPIRE_SECONDS)
+                # 使用独立 key，每个设备有独立的 TTL
+                device_key = self._device_key(device_id)
+                session_key = self._session_key(session_id)
+
+                # 设置设备状态（带 TTL）
+                self.redis.setex(
+                    device_key, self.EXPIRE_SECONDS, json.dumps(data))
+                # 设置会话到设备的映射（带相同 TTL）
+                self.redis.setex(
+                    session_key, self.EXPIRE_SECONDS, str(device_id))
                 return
             except Exception as e:
                 logger.error(f"Redis set_connected failed: {e}")
 
         # Fallback 到内存
         self._local_cache[device_id] = data
+        self._session_map[session_id] = device_id
 
     def remove_connected(self, device_id: int):
         """移除设备连接"""
         if self.redis:
             try:
-                self.redis.hdel(self.KEY_PREFIX, str(device_id))
+                # 先获取 session_id
+                device_key = self._device_key(device_id)
+                data = self.redis.get(device_key)
+                if data:
+                    info = json.loads(data)
+                    session_id = info.get("sid")
+                    if session_id:
+                        self.redis.delete(self._session_key(session_id))
+                self.redis.delete(device_key)
                 return
             except Exception as e:
                 logger.error(f"Redis remove_connected failed: {e}")
 
-        self._local_cache.pop(device_id, None)
+        # Fallback 清理
+        if device_id in self._local_cache:
+            session_id = self._local_cache[device_id].get("sid")
+            if session_id:
+                self._session_map.pop(session_id, None)
+            del self._local_cache[device_id]
 
     def is_connected(self, device_id: int) -> bool:
         """检查设备是否连接"""
         if self.redis:
             try:
-                return self.redis.hexists(self.KEY_PREFIX, str(device_id))
+                return self.redis.exists(self._device_key(device_id)) > 0
             except Exception as e:
                 logger.error(f"Redis is_connected failed: {e}")
 
@@ -126,7 +159,7 @@ class DeviceConnectionStore:
         """获取设备会话 ID"""
         if self.redis:
             try:
-                data = self.redis.hget(self.KEY_PREFIX, str(device_id))
+                data = self.redis.get(self._device_key(device_id))
                 if data:
                     return json.loads(data).get("sid")
                 return None
@@ -145,24 +178,47 @@ class DeviceConnectionStore:
         """
         if self.redis:
             try:
-                all_data = self.redis.hgetall(self.KEY_PREFIX)
-                return {int(k): json.loads(v)["sid"] for k, v in all_data.items()}
+                # 使用 SCAN 查找所有设备 key
+                result = {}
+                cursor = 0
+                while True:
+                    cursor, keys = self.redis.scan(
+                        cursor, match=f"{self.KEY_PREFIX}:*")
+                    for key in keys:
+                        data = self.redis.get(key)
+                        if data:
+                            device_id = int(key.split(":")[-1])
+                            result[device_id] = json.loads(data)["sid"]
+                    if cursor == 0:
+                        break
+                return result
             except Exception as e:
                 logger.error(f"Redis get_all_connected failed: {e}")
 
         return {k: v["sid"] for k, v in self._local_cache.items()}
 
     def refresh_heartbeat(self, device_id: int):
-        """刷新心跳时间"""
+        """
+        刷新心跳时间
+
+        重置设备的 TTL，确保设备保持在线状态
+        """
         if self.redis:
             try:
-                data = self.redis.hget(self.KEY_PREFIX, str(device_id))
+                device_key = self._device_key(device_id)
+                data = self.redis.get(device_key)
                 if data:
                     info = json.loads(data)
                     info["ts"] = int(time.time())
-                    self.redis.hset(self.KEY_PREFIX, str(
-                        device_id), json.dumps(info))
-                    self.redis.expire(self.KEY_PREFIX, self.EXPIRE_SECONDS)
+                    # 重新设置并刷新 TTL
+                    self.redis.setex(
+                        device_key, self.EXPIRE_SECONDS, json.dumps(info))
+
+                    # 同时刷新 session 映射的 TTL
+                    session_id = info.get("sid")
+                    if session_id:
+                        self.redis.expire(self._session_key(
+                            session_id), self.EXPIRE_SECONDS)
                 return
             except Exception as e:
                 logger.error(f"Redis refresh_heartbeat failed: {e}")
@@ -180,44 +236,42 @@ class DeviceConnectionStore:
         Returns:
             设备 ID 或 None
         """
-        all_devices = self.get_all_connected()
-        for device_id, sid in all_devices.items():
-            if sid == session_id:
-                return device_id
-        return None
+        if self.redis:
+            try:
+                # 使用会话映射 key 直接查找，O(1) 复杂度
+                device_id = self.redis.get(self._session_key(session_id))
+                if device_id:
+                    return int(device_id)
+                return None
+            except Exception as e:
+                logger.error(f"Redis find_device_by_session failed: {e}")
+
+        return self._session_map.get(session_id)
 
     def cleanup_stale_connections(self, max_age_seconds: int = 300):
         """
         清理过期连接
 
+        注意：使用独立 key 并设置 TTL 后，Redis 会自动清理过期 key
+        此方法主要用于内存 fallback 模式
+
         Args:
             max_age_seconds: 最大连接年龄（秒）
         """
         current_time = int(time.time())
+
+        # 内存清理（Redis 会自动清理过期 key）
         stale_devices = []
-
-        if self.redis:
-            try:
-                all_data = self.redis.hgetall(self.KEY_PREFIX)
-                for device_id_str, data_str in all_data.items():
-                    info = json.loads(data_str)
-                    if current_time - info.get("ts", 0) > max_age_seconds:
-                        stale_devices.append(device_id_str)
-
-                for device_id_str in stale_devices:
-                    self.redis.hdel(self.KEY_PREFIX, device_id_str)
-                    logger.info(
-                        f"Cleaned up stale connection for device {device_id_str}")
-                return
-            except Exception as e:
-                logger.error(f"Redis cleanup_stale_connections failed: {e}")
-
-        # 内存清理
         for device_id, info in list(self._local_cache.items()):
             if current_time - info.get("ts", 0) > max_age_seconds:
-                del self._local_cache[device_id]
-                logger.info(
-                    f"Cleaned up stale connection for device {device_id}")
+                stale_devices.append(device_id)
+
+        for device_id in stale_devices:
+            session_id = self._local_cache[device_id].get("sid")
+            if session_id:
+                self._session_map.pop(session_id, None)
+            del self._local_cache[device_id]
+            logger.info(f"Cleaned up stale connection for device {device_id}")
 
 
 # 全局单例

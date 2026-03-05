@@ -88,9 +88,7 @@ repos:
     hooks:
       - id: gitlint-commit-msg
         name: Commit 消息检查
-        args: ['--msg-regex', "^(feat|fix|docs|style|refactor|test|chore|build|ci): .+"']
-        args: ['--msg-regex', "^.+((?!.+).{50,}).+"']
-        args: ['--subject-regex', '^(feat|fix|docs|style|refactor|test|chore|build|ci).*']
+        args: ['--msg-regex', "^(feat|fix|docs|style|refactor|test|chore|build|ci): .+", '--subject-regex', '^(feat|fix|docs|style|refactor|test|chore|build|ci).*']
         stages: [commit-msg]
 
   # ==================== Shell 脚本 ====================

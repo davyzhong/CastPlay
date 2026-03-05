@@ -16,21 +16,19 @@ class Device(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
 
     # 设备信息
-    device_id = Column(String(50), unique=True, index=True, nullable=False, doc="设备唯一标识")
+    device_id = Column(String(50), unique=True, index=True, nullable=False, doc="设备唯一标识（UUID）")
     device_name = Column(String(100), nullable=False, doc="设备名称")
     timezone = Column(String(50), default='Asia/Shanghai', doc="时区")
 
-    # 网络标识（新增）
+    # 网络标识
     mac_address = Column(String(17), unique=True, nullable=True, index=True, doc="MAC 地址 (XX:XX:XX:XX:XX:XX)")
     ip_address = Column(String(45), nullable=True, doc="IP 地址（支持 IPv6）")
-    registration_code = Column(String(20), unique=True, nullable=True, index=True, doc="基于 MAC 生成的注册码")
+    registration_code = Column(String(20), unique=True, nullable=True, index=True, doc="注册码")
 
-    # 播放配置（新增）
-    playback_speed = Column(Integer, default=1, doc="播放速度倍数 (1, 2, 4, 8)")
-
-    # 在线状态
+    # 设备状态
+    is_disabled = Column(Boolean, default=False, index=True, doc="是否禁用（禁用后只能播放默认内容）")
     last_online = Column(DateTime, nullable=True, doc="最后在线时间")
-    status = Column(String(20), default='offline', index=True, doc="状态: online/offline")
+    status = Column(String(20), default='offline', index=True, doc="在线状态: online/offline")
 
     # 设备标识
     api_key = Column(String(100), nullable=True, doc="API 密钥")
@@ -41,7 +39,7 @@ class Device(Base, TimestampMixin):
     cached_media = relationship("CachedMedia", back_populates="device", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
-        return f"<Device(id={self.id}, device_id='{self.device_id}', name='{self.device_name}')>"
+        return f"<Device(id={self.id}, device_id='{self.device_id}', name='{self.device_name}', disabled={self.is_disabled})>"
 
 
 class DeviceSchedule(Base, TimestampMixin):

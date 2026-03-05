@@ -1,7 +1,7 @@
 """
 认证 API 路由
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -11,6 +11,7 @@ from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, UserLogin, TokenResponse
 from app.utils.security import verify_password, get_password_hash, create_access_token
 from app.utils.logger import logger
+from app.middleware.rate_limit import limiter, limit_login
 
 router = APIRouter()
 security = HTTPBearer()
@@ -45,9 +46,14 @@ def get_current_user(
     if payload is None:
         raise credentials_exception
 
-    # 获取用户 ID
-    user_id: int = payload.get("sub")
-    if user_id is None:
+    # 获取用户 ID（Token 中存储为字符串，需要转换为整数）
+    user_id_str = payload.get("sub")
+    if user_id_str is None:
+        raise credentials_exception
+
+    try:
+        user_id = int(user_id_str)
+    except (ValueError, TypeError):
         raise credentials_exception
 
     # 查询用户
@@ -107,7 +113,8 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(credentials: UserLogin, db: Session = Depends(get_db)):
+@limit_login()
+def login(request: Request, credentials: UserLogin, db: Session = Depends(get_db)):
     """
     用户登录
 
@@ -115,12 +122,15 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     - **password**: 密码
 
     返回访问令牌
+
+    速率限制：5 次/分钟
     """
     # 查询用户
     user = db.query(User).filter(User.username == credentials.username).first()
 
     # 验证用户和密码
     if not user or not verify_password(credentials.password, user.password_hash):
+        logger.warning(f"Failed login attempt for username: {credentials.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

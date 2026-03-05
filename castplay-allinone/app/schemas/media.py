@@ -1,7 +1,7 @@
 """
 媒体文件相关 Schemas
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from typing import Optional
 from datetime import datetime
 
@@ -30,10 +30,18 @@ class MediaFileResponse(BaseModel):
     md5_hash: Optional[str] = None
     status: str
     duration: Optional[int] = None
-    upload_time: datetime
+    created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+    @field_serializer('file_path', 'converted_path', 'thumbnail_path')
+    def serialize_path_to_url(self, path: Optional[str]) -> Optional[str]:
+        """将文件路径转换为可访问的 URL"""
+        if path and path.startswith('data/'):
+            return path.replace('data/', '/media/', 1)
+        return path
 
 
 class MediaFileListResponse(BaseModel):

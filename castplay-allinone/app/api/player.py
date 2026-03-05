@@ -6,12 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
+import logging
 
 from app.database import get_db
 from app.models.device import Device, DeviceSchedule
 from app.models.playlist import Playlist, PlaylistItem, DevicePlaylist
 from app.models.media import MediaFile
-from app.utils.logger import logger
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -26,6 +28,8 @@ def player_init(
 
     返回设备信息、激活的播放列表、定时配置和 WebSocket URL
 
+    注意：被禁用的设备只能获取默认播放列表
+
     请求：
     {
         "device_id": "550e8400-e29b-41d4-a716-446655440000"
@@ -36,7 +40,8 @@ def player_init(
         "device": {...},
         "playlists": [...],
         "schedule": {...},
-        "websocket_url": "ws://localhost:5000/ws/{device_id}"
+        "websocket_url": "ws://localhost:5000/ws/{device_id}",
+        "is_disabled": false
     }
     """
     # 查找设备
@@ -68,61 +73,124 @@ def player_init(
             "timezone": device.timezone
         }
 
-    # 获取激活的播放列表
-    playlist_assignments = db.query(DevicePlaylist).filter(
-        DevicePlaylist.device_id == device.id,
-        DevicePlaylist.is_active == True
-    ).all()
+    # 检查设备是否被禁用
+    is_disabled = getattr(device, 'is_disabled', False)
 
     playlists_data = []
-    for assignment in playlist_assignments:
-        playlist = db.query(Playlist).filter(Playlist.id == assignment.playlist_id).first()
-        if not playlist:
-            continue
 
-        # 获取播放列表项
-        items_query = (
-            db.query(
-                PlaylistItem.id,
-                PlaylistItem.media_id,
-                MediaFile.file_name,
-                MediaFile.file_type,
-                MediaFile.file_path,
-                MediaFile.converted_path,
-                MediaFile.file_size,
-                MediaFile.md5_hash,
-                PlaylistItem.display_order,
-                PlaylistItem.display_duration
+    if is_disabled:
+        # 禁用设备只能获取默认播放列表
+        logger.info(f"Device {device_id} is disabled, returning default playlist only")
+        default_playlist = db.query(Playlist).filter(Playlist.is_system == True).first()
+        if default_playlist:
+            # 获取播放列表项
+            items_query = (
+                db.query(
+                    PlaylistItem.id,
+                    PlaylistItem.media_id,
+                    MediaFile.file_name,
+                    MediaFile.file_type,
+                    MediaFile.file_path,
+                    MediaFile.converted_path,
+                    MediaFile.file_size,
+                    MediaFile.md5_hash,
+                    PlaylistItem.display_order,
+                    PlaylistItem.display_duration
+                )
+                .join(MediaFile, PlaylistItem.media_id == MediaFile.id)
+                .filter(PlaylistItem.playlist_id == default_playlist.id)
+                .order_by(PlaylistItem.display_order)
+                .all()
             )
-            .join(MediaFile, PlaylistItem.media_id == MediaFile.id)
-            .filter(PlaylistItem.playlist_id == playlist.id)
-            .order_by(PlaylistItem.display_order)
-            .all()
-        )
 
-        items = [
-            {
-                "id": item.id,
-                "media_id": item.media_id,
-                "file_name": item.file_name,
-                "file_type": item.file_type,
-                "file_url": f"/api/player/media/{item.media_id}/download",
-                "display_order": item.display_order,
-                "display_duration": item.display_duration,
-                "file_size": item.file_size,
-                "md5_hash": item.md5_hash
-            }
-            for item in items_query
-        ]
+            items = [
+                {
+                    "id": item.id,
+                    "media_id": item.media_id,
+                    "file_name": item.file_name,
+                    "file_type": item.file_type,
+                    "file_url": f"/api/player/media/{item.media_id}/download",
+                    "display_order": item.display_order,
+                    "display_duration": item.display_duration,
+                    "file_size": item.file_size,
+                    "md5_hash": item.md5_hash
+                }
+                for item in items_query
+            ]
 
-        playlists_data.append({
-            "id": playlist.id,
-            "name": playlist.name,
-            "version": playlist.updated_at.isoformat(),
-            "items": items
-        })
+            playlists_data.append({
+                "id": default_playlist.id,
+                "name": f"[默认] {default_playlist.name}",
+                "version": default_playlist.updated_at.isoformat(),
+                "is_system": True,
+                "items": items
+            })
+    else:
+        # 正常设备获取激活的播放列表
+        playlist_assignments = db.query(DevicePlaylist).filter(
+            DevicePlaylist.device_id == device.id,
+            DevicePlaylist.is_active == True
+        ).all()
 
-    logger.info(f"Player initialized for device {device_id} ({device.device_name})")
+        # 如果没有分配播放列表，使用系统默认播放列表
+        if not playlist_assignments:
+            default_playlist = db.query(Playlist).filter(Playlist.is_system == True).first()
+            if default_playlist:
+                class DefaultPlaylistAssignment:
+                    def __init__(self, playlist_id):
+                        self.playlist_id = playlist_id
+                        self.is_active = True
+                playlist_assignments = [DefaultPlaylistAssignment(default_playlist.id)]
+
+        for assignment in playlist_assignments:
+            playlist = db.query(Playlist).filter(Playlist.id == assignment.playlist_id).first()
+            if not playlist:
+                continue
+
+            # 获取播放列表项
+            items_query = (
+                db.query(
+                    PlaylistItem.id,
+                    PlaylistItem.media_id,
+                    MediaFile.file_name,
+                    MediaFile.file_type,
+                    MediaFile.file_path,
+                    MediaFile.converted_path,
+                    MediaFile.file_size,
+                    MediaFile.md5_hash,
+                    PlaylistItem.display_order,
+                    PlaylistItem.display_duration
+                )
+                .join(MediaFile, PlaylistItem.media_id == MediaFile.id)
+                .filter(PlaylistItem.playlist_id == playlist.id)
+                .order_by(PlaylistItem.display_order)
+                .all()
+            )
+
+            items = [
+                {
+                    "id": item.id,
+                    "media_id": item.media_id,
+                    "file_name": item.file_name,
+                    "file_type": item.file_type,
+                    "file_url": f"/api/player/media/{item.media_id}/download",
+                    "display_order": item.display_order,
+                    "display_duration": item.display_duration,
+                    "file_size": item.file_size,
+                    "md5_hash": item.md5_hash
+                }
+                for item in items_query
+            ]
+
+            playlists_data.append({
+                "id": playlist.id,
+                "name": playlist.name,
+                "version": playlist.updated_at.isoformat(),
+                "is_system": playlist.is_system,
+                "items": items
+            })
+
+    logger.info(f"Player initialized for device {device_id} ({device.device_name}), disabled={is_disabled}")
 
     return {
         "device": {
@@ -133,11 +201,11 @@ def player_init(
             "mac_address": device.mac_address,
             "ip_address": device.ip_address,
             "registration_code": device.registration_code,
-            "playback_speed": device.playback_speed
         },
         "playlists": playlists_data,
         "schedule": schedule_data,
-        "websocket_url": f"ws://{device.device_id}"  # 暂时占位
+        "websocket_url": f"ws://{device.device_id}",
+        "is_disabled": is_disabled
     }
 
 

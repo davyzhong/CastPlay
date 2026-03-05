@@ -391,7 +391,7 @@ class TestPlaylistErrorHandlingFlow:
         delete_response = client.delete(f"/api/playlists/{playlist.id}")
         assert delete_response.status_code == 401
 
-    def test_not_found_playlist_flow(self, client, auth_headers):
+    def test_not_found_playlist_flow(self, client, test_db, auth_headers):
         """测试播放列表不存在的流程"""
         # 获取不存在的播放列表
         get_response = client.get("/api/playlists/99999")

@@ -58,14 +58,48 @@ def list_playlists(
     - **skip**: 跳过数量（分页）
     - **limit**: 返回数量（分页）
     """
+    from sqlalchemy import func
+
     query = db.query(Playlist)
     total = query.count()
     playlists = query.order_by(Playlist.id.desc()).offset(skip).limit(limit).all()
 
+    # 获取每个播放列表的媒体数量
+    playlist_ids = [p.id for p in playlists]
+    item_counts = dict(
+        db.query(PlaylistItem.playlist_id, func.count(PlaylistItem.id))
+        .filter(PlaylistItem.playlist_id.in_(playlist_ids))
+        .group_by(PlaylistItem.playlist_id)
+        .all()
+    ) if playlist_ids else {}
+
+    # 获取每个播放列表的设备数量
+    device_counts = dict(
+        db.query(DevicePlaylist.playlist_id, func.count(DevicePlaylist.id))
+        .filter(DevicePlaylist.playlist_id.in_(playlist_ids))
+        .group_by(DevicePlaylist.playlist_id)
+        .all()
+    ) if playlist_ids else {}
+
+    # 构建响应，包含 item_count 和 device_count
+    playlist_responses = [
+        PlaylistResponse(
+            id=p.id,
+            name=p.name,
+            description=p.description,
+            is_system=p.is_system,
+            item_count=item_counts.get(p.id, 0),
+            device_count=device_counts.get(p.id, 0),
+            created_at=p.created_at,
+            updated_at=p.updated_at
+        )
+        for p in playlists
+    ]
+
     pages = (total + limit - 1) // limit if total > 0 else 0
 
     return {
-        "items": playlists,
+        "items": playlist_responses,
         "total": total,
         "page": skip // limit + 1,
         "per_page": limit,

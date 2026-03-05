@@ -1,0 +1,1896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CastPlay 播放器测试页面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #888;
+            font-size: 0.85rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+        }
+
+        .sidebar {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 16px;
+            height: fit-content;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .card:last-child {
+            margin-bottom: 0;
+        }
+
+        .card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #00d4ff;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+
+        .form-group select option {
+            background: #1a1a2e;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 4px 12px rgba(0,212,255,0.3);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            color: #000;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff4757, #cc3344);
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .btn-small {
+            padding: 6px 10px;
+            font-size: 0.75rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .player-container {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            aspect-ratio: 16/9;
+        }
+
+        .player-container.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1000;
+            aspect-ratio: auto;
+        }
+
+        .player-container video,
+        .player-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .player-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.8);
+            color: #666;
+        }
+
+        .player-placeholder svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        .player-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .player-controls .btn {
+            width: auto;
+            padding: 8px 14px;
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .speed-control select {
+            padding: 6px 10px;
+            font-size: 0.8rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+            margin: 12px 0;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .time-display {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 16px;
+            padding: 10px 14px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .status-dot.online {
+            background: #00ff88;
+            box-shadow: 0 0 6px rgba(0,255,136,0.5);
+        }
+
+        .status-dot.offline {
+            background: #ff4757;
+        }
+
+        .status-dot.connecting {
+            background: #ffa500;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .playlist-container {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .playlist-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .playlist-item:hover {
+            background: rgba(0,0,0,0.4);
+        }
+
+        .playlist-item.active {
+            background: rgba(0,212,255,0.2);
+            border: 1px solid rgba(0,212,255,0.3);
+        }
+
+        .playlist-item-index {
+            width: 24px;
+            height: 24px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            margin-right: 10px;
+        }
+
+        .playlist-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .playlist-item-name {
+            font-size: 0.85rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .playlist-item-duration {
+            font-size: 0.7rem;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        .playlist-item-type {
+            padding: 3px 6px;
+            background: rgba(0,212,255,0.2);
+            border-radius: 3px;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+        }
+
+        .log-container {
+            background: rgba(0,0,0,0.3);
+            border-radius: 6px;
+            padding: 10px;
+            max-height: 180px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.75rem;
+        }
+
+        .log-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            gap: 6px;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: #666;
+            flex-shrink: 0;
+        }
+
+        .log-message {
+            color: #aaa;
+        }
+
+        .log-message.success { color: #00ff88; }
+        .log-message.error { color: #ff4757; }
+        .log-message.info { color: #00d4ff; }
+        .log-message.warning { color: #ffa500; }
+
+        .empty-state {
+            text-align: center;
+            padding: 30px 16px;
+            color: #666;
+        }
+
+        .empty-state svg {
+            width: 40px;
+            height: 40px;
+            margin-bottom: 10px;
+            opacity: 0.5;
+        }
+
+        .device-info {
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+
+        .device-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 0.8rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .device-info-row:last-child {
+            border-bottom: none;
+        }
+
+        .device-info-label {
+            color: #888;
+        }
+
+        .device-info-value {
+            color: #fff;
+            font-family: monospace;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+            background: rgba(0,0,0,0.2);
+            padding: 4px;
+            border-radius: 6px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 8px;
+            background: transparent;
+            border: none;
+            color: #888;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: rgba(0,212,255,0.2);
+            color: #fff;
+        }
+
+        .tab:hover:not(.active) {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .checkbox-group input {
+            width: 16px;
+            height: 16px;
+            accent-color: #00d4ff;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .stat-item {
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #00d4ff;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .media-item {
+            aspect-ratio: 1;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            cursor: pointer;
+            overflow: hidden;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .media-item:hover {
+            transform: scale(1.05);
+            z-index: 1;
+        }
+
+        .media-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .media-item-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+        }
+
+        .fullscreen-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.6);
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .player-container:hover .fullscreen-btn {
+            opacity: 1;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+
+        @media (max-width: 900px) {
+            .main-content { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>CastPlay 播放器测试</h1>
+            <p>Android 播放端模拟测试工具</p>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <!-- 设备注册 -->
+                <div class="card">
+                    <div class="card-title">设备注册</div>
+                    <div class="form-group">
+                        <label>设备 ID</label>
+                        <input type="text" id="deviceId" placeholder="自动生成">
+                    </div>
+                    <div class="form-group">
+                        <label>设备名称</label>
+                        <input type="text" id="deviceName" value="Web 测试播放器">
+                    </div>
+                    <div class="form-group">
+                        <label>服务器地址</label>
+                        <input type="text" id="serverUrl" value="http://localhost:8000">
+                    </div>
+                    <div class="form-group">
+                        <label>时区</label>
+                        <select id="timezone">
+                            <option value="Asia/Shanghai" selected>亚洲/上海</option>
+                            <option value="Asia/Tokyo">亚洲/东京</option>
+                            <option value="America/New_York">美洲/纽约</option>
+                            <option value="Europe/London">欧洲/伦敦</option>
+                            <option value="UTC">UTC</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" id="registerBtn" onclick="registerDevice()">
+                        注册设备
+                    </button>
+                    <div class="device-info" id="deviceInfo" style="display: none;">
+                        <div class="device-info-row">
+                            <span class="device-info-label">状态</span>
+                            <span class="device-info-value" id="deviceStatus">-</span>
+                        </div>
+                        <div class="device-info-row">
+                            <span class="device-info-label">数据库 ID</span>
+                            <span class="device-info-value" id="deviceDbId">-</span>
+                        </div>
+                        <div class="device-info-row">
+                            <span class="device-info-label">WebSocket</span>
+                            <span class="device-info-value" id="wsStatus">-</span>
+                        </div>
+                        <div class="device-info-row">
+                            <span class="device-info-label">最后心跳</span>
+                            <span class="device-info-value" id="lastHeartbeat">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 播放列表选择 -->
+                <div class="card">
+                    <div class="card-title">播放列表</div>
+                    <div class="form-group">
+                        <label>选择播放列表</label>
+                        <select id="playlistSelect" onchange="loadPlaylistDetail()">
+                            <option value="">-- 请选择播放列表 --</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-success" id="syncBtn" onclick="syncWithServer()" disabled>
+                        与服务器同步
+                    </button>
+                    <div id="playlistContainer" class="playlist-container" style="margin-top: 12px;">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 18V5l12-2v13"></path>
+                                <circle cx="6" cy="18" r="3"></circle>
+                                <circle cx="18" cy="16" r="3"></circle>
+                            </svg>
+                            <p>未选择播放列表</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 媒体库 -->
+                <div class="card">
+                    <div class="card-title">媒体库</div>
+                    <button class="btn btn-secondary btn-small" onclick="loadMediaLibrary()">刷新</button>
+                    <div id="mediaLibraryContainer" class="media-grid" style="margin-top: 10px;">
+                        <div class="empty-state">
+                            <p>点击刷新</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-area">
+                <!-- 播放器 -->
+                <div class="card">
+                    <div class="card-title">
+                        <span>媒体播放器</span>
+                        <span style="margin-left: auto; font-size: 0.75rem; color: #888;">
+                            <span id="scheduleInfo">无排期</span>
+                        </span>
+                    </div>
+                    <div class="player-container" id="playerContainer">
+                        <button class="fullscreen-btn" onclick="toggleFullscreen()" title="全屏">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                            </svg>
+                        </button>
+                        <video id="videoPlayer" style="display: none;"></video>
+                        <img id="imagePlayer" style="display: none;">
+                        <div class="player-placeholder" id="playerPlaceholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            <p>未加载媒体</p>
+                        </div>
+                    </div>
+                    <div class="progress-bar" id="progressBar" onclick="seekMedia(event)">
+                        <div class="progress-bar-fill" id="progressFill"></div>
+                    </div>
+                    <div class="time-display">
+                        <span id="currentTime">00:00</span>
+                        <span id="totalTime">00:00</span>
+                    </div>
+                    <div class="player-controls">
+                        <button class="btn btn-secondary" onclick="previousMedia()" title="上一个">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="19 20 9 12 19 4 19 20"></polygon>
+                                <line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"></line>
+                            </svg>
+                        </button>
+                        <button class="btn btn-primary" id="playPauseBtn" onclick="togglePlayPause()" title="播放/暂停">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" id="playIcon">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" id="pauseIcon" style="display: none;">
+                                <rect x="6" y="4" width="4" height="16"></rect>
+                                <rect x="14" y="4" width="4" height="16"></rect>
+                            </svg>
+                        </button>
+                        <button class="btn btn-secondary" onclick="nextMedia()" title="下一个">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                                <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"></line>
+                            </svg>
+                        </button>
+                        <button class="btn btn-secondary" onclick="stopPlayback()" title="停止">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="6" width="12" height="12"></rect>
+                            </svg>
+                        </button>
+                        <div class="speed-control">
+                            <select id="playbackSpeed" onchange="setPlaybackSpeed()" title="播放速度">
+                                <option value="0.25">0.25x</option>
+                                <option value="0.5">0.5x</option>
+                                <option value="0.75">0.75x</option>
+                                <option value="1" selected>1x</option>
+                                <option value="1.25">1.25x</option>
+                                <option value="1.5">1.5x</option>
+                                <option value="2">2x</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="status-bar">
+                        <div class="status-item">
+                            <span class="status-dot" id="statusDot"></span>
+                            <span id="statusText">未连接</span>
+                        </div>
+                        <div class="status-item">
+                            <span>当前媒体:</span>
+                            <span id="currentMediaName">-</span>
+                        </div>
+                        <div class="status-item">
+                            <span>索引:</span>
+                            <span id="currentIndex">-</span>
+                        </div>
+                        <div class="status-item">
+                            <span>循环:</span>
+                            <span id="loopCount">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 播放统计 -->
+                <div class="card">
+                    <div class="card-title">播放统计</div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="statPlayTime">0s</div>
+                            <div class="stat-label">播放时间</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="statItemsPlayed">0</div>
+                            <div class="stat-label">已播放项数</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="statErrors">0</div>
+                            <div class="stat-label">错误数</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 设置和日志 -->
+                <div class="card">
+                    <div class="tabs">
+                        <button class="tab active" onclick="showTab('settings')">设置</button>
+                        <button class="tab" onclick="showTab('log')">日志</button>
+                        <button class="tab" onclick="showTab('api')">API 测试</button>
+                    </div>
+
+                    <div id="settingsTab">
+                        <div class="settings-grid">
+                            <div class="form-group">
+                                <label>自动播放</label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="autoplay" checked>
+                                    <span>自动播放下一个</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label>循环播放列表</label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="loopPlaylist" checked>
+                                    <span>循环整个列表</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label>静音</label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="mute">
+                                    <span>静音播放</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label>自动上报</label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="autoReport" checked>
+                                    <span>自动上报状态</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label>图片显示时长(秒)</label>
+                                <input type="number" id="imageDuration" value="5" min="1" max="60">
+                            </div>
+                            <div class="form-group">
+                                <label>音量</label>
+                                <input type="range" id="volume" min="0" max="100" value="80" onchange="setVolume()">
+                            </div>
+                            <div class="form-group">
+                                <label>心跳间隔(秒)</label>
+                                <input type="number" id="heartbeatInterval" value="30" min="10" max="300">
+                            </div>
+                            <div class="form-group">
+                                <label>状态上报间隔(秒)</label>
+                                <input type="number" id="reportInterval" value="60" min="10" max="600">
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" onclick="sendHeartbeat()">发送心跳</button>
+                            <button class="btn btn-secondary" onclick="reportStatus()">上报状态</button>
+                            <button class="btn btn-secondary" onclick="takeScreenshot()">截图</button>
+                            <button class="btn btn-danger" onclick="clearAllState()">重置状态</button>
+                        </div>
+                    </div>
+
+                    <div id="logTab" style="display: none;">
+                        <div class="log-container" id="logContainer"></div>
+                        <div style="margin-top: 10px; display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" onclick="clearLog()">清空日志</button>
+                            <button class="btn btn-secondary" onclick="exportLog()">导出日志</button>
+                        </div>
+                    </div>
+
+                    <div id="apiTab" style="display: none;">
+                        <div class="form-group">
+                            <label>API 端点</label>
+                            <select id="apiEndpoint" onchange="updateApiBody()">
+                                <option value="/api/player/init|POST">POST /api/player/init</option>
+                                <option value="/api/player/status|POST">POST /api/player/status</option>
+                                <option value="/api/player/screenshot|POST">POST /api/player/screenshot</option>
+                                <option value="/api/devices/register|POST">POST /api/devices/register</option>
+                                <option value="/api/devices/|GET">GET /api/devices/</option>
+                                <option value="/api/playlists/|GET">GET /api/playlists/</option>
+                                <option value="/api/media/|GET">GET /api/media/</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>请求体 (JSON)</label>
+                            <textarea id="apiBody" rows="4" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; padding: 10px; font-family: monospace; font-size: 0.8rem;"></textarea>
+                        </div>
+                        <div style="margin-bottom: 12px; display: flex; gap: 8px;">
+                            <button class="btn btn-primary" onclick="testApi()">发送请求</button>
+                            <button class="btn btn-secondary" onclick="testAllEndpoints()">测试全部</button>
+                        </div>
+                        <div class="form-group">
+                            <label>响应</label>
+                            <pre id="apiResponse" style="background: rgba(0,0,0,0.3); border-radius: 6px; padding: 10px; font-size: 0.75rem; max-height: 180px; overflow-y: auto; white-space: pre-wrap;"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 状态
+        let state = {
+            deviceId: '',
+            deviceDbId: null,
+            serverUrl: 'http://localhost:8000',
+            registered: false,
+            websocket: null,
+            playlist: null,
+            playlistItems: [],
+            currentIndex: -1,
+            isPlaying: false,
+            loopCount: 0,
+            imageTimer: null,
+            heartbeatInterval: null,
+            reportInterval: null,
+            stats: {
+                playTime: 0,
+                itemsPlayed: 0,
+                errors: 0,
+                startTime: null
+            },
+            mediaLibrary: []
+        };
+
+        // 生成 UUID
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 加载保存的设备 ID
+            const savedDeviceId = localStorage.getItem('castplay_device_id');
+            if (savedDeviceId) {
+                document.getElementById('deviceId').value = savedDeviceId;
+            } else {
+                document.getElementById('deviceId').value = generateUUID();
+            }
+
+            // 加载保存的服务器地址
+            const savedUrl = localStorage.getItem('castplay_server_url');
+            if (savedUrl) {
+                document.getElementById('serverUrl').value = savedUrl;
+                state.serverUrl = savedUrl;
+            }
+
+            // 视频播放器事件
+            const video = document.getElementById('videoPlayer');
+            video.addEventListener('timeupdate', updateProgress);
+            video.addEventListener('ended', onMediaEnded);
+            video.addEventListener('loadedmetadata', () => {
+                document.getElementById('totalTime').textContent = formatTime(video.duration);
+            });
+            video.addEventListener('play', () => {
+                if (!state.stats.startTime) state.stats.startTime = Date.now();
+            });
+
+            // 更新 API 请求体
+            updateApiBody();
+
+            addLog('播放器测试页面已初始化', 'info');
+        });
+
+        // 保存设置到 localStorage
+        function saveSettings() {
+            localStorage.setItem('castplay_server_url', state.serverUrl);
+            localStorage.setItem('castplay_device_id', state.deviceId);
+        }
+
+        // 更新 API 请求体模板
+        function updateApiBody() {
+            const endpoint = document.getElementById('apiEndpoint').value;
+            const [, method] = endpoint.split('|');
+            const bodyTextarea = document.getElementById('apiBody');
+
+            const templates = {
+                '/api/player/init|POST': JSON.stringify({ device_id: state.deviceId || 'YOUR_DEVICE_ID' }, null, 2),
+                '/api/player/status|POST': JSON.stringify({
+                    device_id: state.deviceId || 'YOUR_DEVICE_ID',
+                    player_status: 'playing',
+                    current_index: state.currentIndex,
+                    current_media_id: state.playlistItems[state.currentIndex]?.id || null
+                }, null, 2),
+                '/api/player/screenshot|POST': JSON.stringify({
+                    device_id: state.deviceId || 'YOUR_DEVICE_ID',
+                    screenshot: 'base64_encoded_image...'
+                }, null, 2),
+                '/api/devices/register|POST': JSON.stringify({
+                    device_id: state.deviceId || 'YOUR_DEVICE_ID',
+                    device_name: 'Web 测试播放器',
+                    timezone: 'Asia/Shanghai'
+                }, null, 2)
+            };
+
+            bodyTextarea.value = method === 'POST' ? (templates[endpoint] || '{}') : '';
+        }
+
+        // 注册设备
+        async function registerDevice() {
+            const deviceId = document.getElementById('deviceId').value.trim();
+            const deviceName = document.getElementById('deviceName').value.trim() || 'Web 测试播放器';
+            const serverUrl = document.getElementById('serverUrl').value.trim();
+            const timezone = document.getElementById('timezone').value;
+
+            if (!deviceId) {
+                addLog('请输入设备 ID', 'error');
+                return;
+            }
+
+            state.serverUrl = serverUrl;
+            saveSettings();
+
+            document.getElementById('statusDot').className = 'status-dot connecting';
+            document.getElementById('statusText').textContent = '注册中...';
+
+            try {
+                addLog(`正在注册设备 ${deviceId}...`, 'info');
+
+                const response = await fetch(`${serverUrl}/api/devices/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: deviceId,
+                        device_name: deviceName,
+                        timezone: timezone
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                state.deviceId = deviceId;
+                state.deviceDbId = data.id;
+                state.registered = true;
+
+                // 更新 UI
+                document.getElementById('deviceInfo').style.display = 'block';
+                document.getElementById('deviceStatus').textContent = '在线';
+                document.getElementById('deviceDbId').textContent = data.id;
+                document.getElementById('registerBtn').textContent = '更新注册';
+                document.getElementById('syncBtn').disabled = false;
+
+                document.getElementById('statusDot').className = 'status-dot online';
+                document.getElementById('statusText').textContent = '已注册';
+
+                addLog(`设备注册成功: ${data.device_name} (ID: ${data.id})`, 'success');
+
+                // 连接 WebSocket
+                connectWebSocket();
+
+                // 加载播放列表和媒体库
+                loadPlaylists();
+                loadMediaLibrary();
+
+            } catch (error) {
+                state.stats.errors++;
+                updateStats();
+                addLog(`注册失败: ${error.message}`, 'error');
+                document.getElementById('statusDot').className = 'status-dot offline';
+                document.getElementById('statusText').textContent = '错误';
+            }
+        }
+
+        // 连接 WebSocket
+        function connectWebSocket() {
+            const wsUrl = state.serverUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+            const wsEndpoint = `${wsUrl}/ws/${state.deviceId}`;
+
+            try {
+                state.websocket = new WebSocket(wsEndpoint);
+
+                state.websocket.onopen = () => {
+                    addLog('WebSocket 已连接', 'success');
+                    document.getElementById('wsStatus').textContent = '已连接';
+
+                    // 启动心跳和状态上报
+                    startHeartbeat();
+                    startAutoReport();
+                };
+
+                state.websocket.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        addLog(`收到消息: ${data.event || data.type || '未知'} - ${JSON.stringify(data).slice(0, 100)}`, 'info');
+
+                        if (data.event === 'playlist_update' || data.event === 'force_sync') {
+                            addLog('正在同步播放列表...', 'info');
+                            syncWithServer();
+                        } else if (data.type === 'heartbeat_ack') {
+                            document.getElementById('lastHeartbeat').textContent = new Date().toLocaleTimeString();
+                        } else if (data.event === 'command') {
+                            handleServerCommand(data);
+                        }
+                    } catch (e) {
+                        addLog(`WebSocket 消息解析错误: ${e.message}`, 'error');
+                    }
+                };
+
+                state.websocket.onclose = () => {
+                    addLog('WebSocket 已断开', 'error');
+                    document.getElementById('wsStatus').textContent = '已断开';
+                    // 5 秒后尝试重连
+                    setTimeout(connectWebSocket, 5000);
+                };
+
+                state.websocket.onerror = () => {
+                    addLog('WebSocket 连接错误', 'error');
+                    document.getElementById('wsStatus').textContent = '错误';
+                };
+
+            } catch (error) {
+                addLog(`WebSocket 连接失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 处理服务器命令
+        function handleServerCommand(data) {
+            addLog(`收到命令: ${data.command}`, 'info');
+
+            switch (data.command) {
+                case 'play':
+                    if (data.index !== undefined) {
+                        playMediaAtIndex(data.index);
+                    } else {
+                        togglePlayPause();
+                    }
+                    break;
+                case 'pause':
+                    if (state.isPlaying) {
+                        togglePlayPause();
+                    }
+                    break;
+                case 'stop':
+                    stopPlayback();
+                    break;
+                case 'next':
+                    nextMedia();
+                    break;
+                case 'previous':
+                    previousMedia();
+                    break;
+                case 'sync':
+                    syncWithServer();
+                    break;
+                case 'volume':
+                    if (data.volume !== undefined) {
+                        document.getElementById('volume').value = data.volume * 100;
+                        setVolume();
+                    }
+                    break;
+                case 'screenshot':
+                    takeScreenshot();
+                    break;
+                default:
+                    addLog(`未知命令: ${data.command}`, 'warning');
+            }
+        }
+
+        // 心跳
+        function startHeartbeat() {
+            if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
+
+            const interval = parseInt(document.getElementById('heartbeatInterval').value) || 30;
+
+            state.heartbeatInterval = setInterval(async () => {
+                if (state.deviceDbId) {
+                    try {
+                        const response = await fetch(`${state.serverUrl}/api/devices/${state.deviceDbId}/heartbeat`, {
+                            method: 'PUT'
+                        });
+                        if (response.ok) {
+                            document.getElementById('lastHeartbeat').textContent = new Date().toLocaleTimeString();
+                        }
+                    } catch (error) {
+                        addLog(`心跳失败: ${error.message}`, 'error');
+                    }
+                }
+
+                // WebSocket 心跳
+                if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
+                    state.websocket.send(JSON.stringify({ type: 'heartbeat' }));
+                }
+            }, interval * 1000);
+
+            addLog(`心跳已启动 (${interval}秒间隔)`, 'info');
+        }
+
+        // 自动状态上报
+        function startAutoReport() {
+            if (state.reportInterval) clearInterval(state.reportInterval);
+
+            const interval = parseInt(document.getElementById('reportInterval').value) || 60;
+
+            state.reportInterval = setInterval(() => {
+                if (document.getElementById('autoReport').checked) {
+                    reportStatus();
+                }
+            }, interval * 1000);
+
+            addLog(`自动上报已启动 (${interval}秒间隔)`, 'info');
+        }
+
+        // 加载播放列表
+        async function loadPlaylists() {
+            try {
+                const response = await fetch(`${state.serverUrl}/api/playlists/`);
+                const data = await response.json();
+
+                const select = document.getElementById('playlistSelect');
+                select.innerHTML = '<option value="">-- 请选择播放列表 --</option>';
+
+                data.items.forEach(playlist => {
+                    const option = document.createElement('option');
+                    option.value = playlist.id;
+                    option.textContent = `${playlist.name} (${playlist.items?.length || 0} 项)`;
+                    select.appendChild(option);
+                });
+
+                addLog(`已加载 ${data.items.length} 个播放列表`, 'success');
+
+            } catch (error) {
+                addLog(`加载播放列表失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 加载媒体库
+        async function loadMediaLibrary() {
+            try {
+                const response = await fetch(`${state.serverUrl}/api/media/`);
+                const data = await response.json();
+
+                state.mediaLibrary = data.items || [];
+
+                const container = document.getElementById('mediaLibraryContainer');
+
+                if (state.mediaLibrary.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><p>无媒体文件</p></div>';
+                    return;
+                }
+
+                container.innerHTML = state.mediaLibrary.map(media => {
+                    const isImage = media.file_type === 'image';
+                    const preview = isImage
+                        ? `<img src="${state.serverUrl}${media.file_url}" alt="${media.file_name}" onerror="this.parentElement.innerHTML='<span class=\\'media-item-icon\\'>📄</span>'">`
+                        : `<span class="media-item-icon">${media.file_type === 'video' ? '🎬' : '📄'}</span>`;
+
+                    return `
+                        <div class="media-item" onclick="playMediaById(${media.id})" title="${media.file_name}">
+                            ${preview}
+                        </div>
+                    `;
+                }).join('');
+
+                addLog(`已加载 ${state.mediaLibrary.length} 个媒体文件`, 'success');
+
+            } catch (error) {
+                addLog(`加载媒体库失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 加载播放列表详情
+        async function loadPlaylistDetail() {
+            const playlistId = document.getElementById('playlistSelect').value;
+            if (!playlistId) {
+                state.playlistItems = [];
+                renderPlaylistItems();
+                return;
+            }
+
+            try {
+                const response = await fetch(`${state.serverUrl}/api/playlists/${playlistId}`);
+                const data = await response.json();
+
+                state.playlist = data;
+                state.playlistItems = data.items || [];
+                state.currentIndex = -1;
+                state.loopCount = 0;
+                document.getElementById('loopCount').textContent = '0';
+
+                renderPlaylistItems();
+                addLog(`已加载播放列表: ${data.name} (${state.playlistItems.length} 项)`, 'success');
+
+                // 检查排期
+                checkSchedule(data);
+
+            } catch (error) {
+                addLog(`加载播放列表详情失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 检查排期
+        function checkSchedule(playlist) {
+            const now = new Date();
+            const scheduleInfo = document.getElementById('scheduleInfo');
+
+            // 简单检查 - 实际应用中会检查具体排期
+            scheduleInfo.textContent = playlist.is_active ? '已激活' : '未激活';
+        }
+
+        // 渲染播放列表项
+        function renderPlaylistItems() {
+            const container = document.getElementById('playlistContainer');
+
+            if (state.playlistItems.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18V5l12-2v13"></path>
+                            <circle cx="6" cy="18" r="3"></circle>
+                            <circle cx="18" cy="16" r="3"></circle>
+                        </svg>
+                        <p>无播放项</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = state.playlistItems.map((item, index) => `
+                <div class="playlist-item ${index === state.currentIndex ? 'active' : ''}" onclick="playMediaAtIndex(${index})">
+                    <div class="playlist-item-index">${index + 1}</div>
+                    <div class="playlist-item-info">
+                        <div class="playlist-item-name">${item.file_name}</div>
+                        <div class="playlist-item-duration">${item.display_duration || '-'}秒</div>
+                    </div>
+                    <span class="playlist-item-type">${item.file_type || '文件'}</span>
+                </div>
+            `).join('');
+        }
+
+        // 与服务器同步
+        async function syncWithServer() {
+            if (!state.deviceId) {
+                addLog('请先注册设备', 'error');
+                return;
+            }
+
+            try {
+                addLog('正在与服务器同步...', 'info');
+
+                const response = await fetch(`${state.serverUrl}/api/player/init`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: state.deviceId })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                addLog('同步完成', 'success');
+
+                if (data.playlists && data.playlists.length > 0) {
+                    const firstPlaylist = data.playlists[0];
+                    state.playlist = firstPlaylist;
+                    state.playlistItems = firstPlaylist.items || [];
+                    state.currentIndex = -1;
+                    state.loopCount = 0;
+
+                    renderPlaylistItems();
+                    addLog(`已加载播放列表: ${firstPlaylist.name} (${state.playlistItems.length} 项)`, 'success');
+                    checkSchedule(firstPlaylist);
+                }
+
+            } catch (error) {
+                state.stats.errors++;
+                updateStats();
+                addLog(`同步失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 播放指定索引的媒体
+        function playMediaAtIndex(index) {
+            if (index < 0 || index >= state.playlistItems.length) return;
+
+            state.currentIndex = index;
+            const item = state.playlistItems[index];
+
+            renderPlaylistItems();
+            document.getElementById('currentMediaName').textContent = item.file_name;
+            document.getElementById('currentIndex').textContent = `${index + 1}/${state.playlistItems.length}`;
+
+            document.getElementById('videoPlayer').style.display = 'none';
+            document.getElementById('imagePlayer').style.display = 'none';
+            document.getElementById('playerPlaceholder').style.display = 'none';
+
+            if (state.imageTimer) {
+                clearTimeout(state.imageTimer);
+                state.imageTimer = null;
+            }
+
+            const fileUrl = `${state.serverUrl}${item.file_url}`;
+            const fileType = item.file_type || guessFileType(item.file_name);
+
+            if (fileType === 'video') {
+                const video = document.getElementById('videoPlayer');
+                video.src = fileUrl;
+                video.style.display = 'block';
+                video.playbackRate = parseFloat(document.getElementById('playbackSpeed').value);
+                video.muted = document.getElementById('mute').checked;
+                video.play().catch(e => {
+                    addLog(`播放错误: ${e.message}`, 'error');
+                    state.stats.errors++;
+                    updateStats();
+                });
+                state.isPlaying = true;
+                updatePlayPauseButton();
+            } else if (fileType === 'image') {
+                const img = document.getElementById('imagePlayer');
+                img.src = fileUrl;
+                img.style.display = 'block';
+
+                const duration = item.display_duration || parseInt(document.getElementById('imageDuration').value) || 5;
+                state.imageTimer = setTimeout(() => {
+                    if (document.getElementById('autoplay').checked) {
+                        nextMedia();
+                    }
+                }, duration * 1000);
+            } else {
+                document.getElementById('playerPlaceholder').style.display = 'flex';
+                addLog(`不支持的媒体类型: ${fileType}`, 'error');
+                state.stats.errors++;
+                updateStats();
+            }
+
+            addLog(`正在播放: ${item.file_name}`, 'info');
+        }
+
+        // 按 ID 播放媒体（从媒体库）
+        function playMediaById(mediaId) {
+            const media = state.mediaLibrary.find(m => m.id === mediaId);
+            if (!media) return;
+
+            // 创建临时播放列表项
+            const tempItem = {
+                id: media.id,
+                file_name: media.file_name,
+                file_type: media.file_type,
+                file_url: media.file_url,
+                display_duration: 5
+            };
+
+            // 临时添加到播放列表
+            const originalItems = [...state.playlistItems];
+            state.playlistItems = [tempItem];
+            state.currentIndex = 0;
+
+            playMediaAtIndex(0);
+
+            // 恢复原始播放列表
+            state.playlistItems = originalItems;
+        }
+
+        // 根据文件名猜测文件类型
+        function guessFileType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'];
+            const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+
+            if (videoExts.includes(ext)) return 'video';
+            if (imageExts.includes(ext)) return 'image';
+            return 'unknown';
+        }
+
+        // 播放/暂停切换
+        function togglePlayPause() {
+            const video = document.getElementById('videoPlayer');
+
+            if (state.currentIndex === -1 && state.playlistItems.length > 0) {
+                playMediaAtIndex(0);
+                return;
+            }
+
+            if (video.style.display !== 'none') {
+                if (video.paused) {
+                    video.play();
+                    state.isPlaying = true;
+                } else {
+                    video.pause();
+                    state.isPlaying = false;
+                }
+            }
+
+            updatePlayPauseButton();
+        }
+
+        // 更新播放/暂停按钮
+        function updatePlayPauseButton() {
+            const playIcon = document.getElementById('playIcon');
+            const pauseIcon = document.getElementById('pauseIcon');
+
+            if (state.isPlaying) {
+                playIcon.style.display = 'none';
+                pauseIcon.style.display = 'block';
+            } else {
+                playIcon.style.display = 'block';
+                pauseIcon.style.display = 'none';
+            }
+        }
+
+        // 上一个媒体
+        function previousMedia() {
+            if (state.playlistItems.length === 0) return;
+
+            let newIndex = state.currentIndex - 1;
+            if (newIndex < 0) {
+                if (document.getElementById('loopPlaylist').checked) {
+                    newIndex = state.playlistItems.length - 1;
+                } else {
+                    newIndex = 0;
+                }
+            }
+            playMediaAtIndex(newIndex);
+        }
+
+        // 下一个媒体
+        function nextMedia() {
+            if (state.playlistItems.length === 0) return;
+
+            let newIndex = state.currentIndex + 1;
+            if (newIndex >= state.playlistItems.length) {
+                if (document.getElementById('loopPlaylist').checked) {
+                    newIndex = 0;
+                    state.loopCount++;
+                    document.getElementById('loopCount').textContent = state.loopCount;
+                } else {
+                    stopPlayback();
+                    return;
+                }
+            }
+            playMediaAtIndex(newIndex);
+        }
+
+        // 停止播放
+        function stopPlayback() {
+            const video = document.getElementById('videoPlayer');
+            video.pause();
+            video.currentTime = 0;
+
+            if (state.imageTimer) {
+                clearTimeout(state.imageTimer);
+                state.imageTimer = null;
+            }
+
+            state.isPlaying = false;
+            state.currentIndex = -1;
+
+            document.getElementById('videoPlayer').style.display = 'none';
+            document.getElementById('imagePlayer').style.display = 'none';
+            document.getElementById('playerPlaceholder').style.display = 'flex';
+
+            updatePlayPauseButton();
+            renderPlaylistItems();
+
+            document.getElementById('currentMediaName').textContent = '-';
+            document.getElementById('currentIndex').textContent = '-';
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('currentTime').textContent = '00:00';
+            document.getElementById('totalTime').textContent = '00:00';
+
+            addLog('播放已停止', 'info');
+        }
+
+        // 媒体播放结束
+        function onMediaEnded() {
+            state.stats.itemsPlayed++;
+            updateStats();
+
+            if (document.getElementById('autoplay').checked) {
+                nextMedia();
+            } else {
+                state.isPlaying = false;
+                updatePlayPauseButton();
+            }
+        }
+
+        // 更新进度
+        function updateProgress() {
+            const video = document.getElementById('videoPlayer');
+            const progress = (video.currentTime / video.duration) * 100;
+            document.getElementById('progressFill').style.width = `${progress}%`;
+            document.getElementById('currentTime').textContent = formatTime(video.currentTime);
+
+            // 更新播放时间统计
+            if (state.stats.startTime) {
+                const elapsed = Math.floor((Date.now() - state.stats.startTime) / 1000);
+                state.stats.playTime = elapsed;
+                updateStats();
+            }
+        }
+
+        // 跳转播放位置
+        function seekMedia(event) {
+            const video = document.getElementById('videoPlayer');
+            const progressBar = document.getElementById('progressBar');
+            const rect = progressBar.getBoundingClientRect();
+            const pos = (event.clientX - rect.left) / rect.width;
+            video.currentTime = pos * video.duration;
+        }
+
+        // 设置播放速度
+        function setPlaybackSpeed() {
+            const speed = parseFloat(document.getElementById('playbackSpeed').value);
+            document.getElementById('videoPlayer').playbackRate = speed;
+            addLog(`播放速度: ${speed}x`, 'info');
+        }
+
+        // 设置音量
+        function setVolume() {
+            const volume = document.getElementById('volume').value / 100;
+            document.getElementById('videoPlayer').volume = volume;
+        }
+
+        // 切换全屏
+        function toggleFullscreen() {
+            const container = document.getElementById('playerContainer');
+            container.classList.toggle('fullscreen');
+
+            if (container.classList.contains('fullscreen')) {
+                if (container.requestFullscreen) {
+                    container.requestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        // 截图
+        async function takeScreenshot() {
+            const video = document.getElementById('videoPlayer');
+            const img = document.getElementById('imagePlayer');
+
+            let screenshotData;
+
+            if (video.style.display !== 'none') {
+                // 视频截图
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                screenshotData = canvas.toDataURL('image/jpeg', 0.8);
+            } else if (img.style.display !== 'none') {
+                // 图片截图
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth || img.width;
+                canvas.height = img.naturalHeight || img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                screenshotData = canvas.toDataURL('image/jpeg', 0.8);
+            } else {
+                addLog('没有可截图的媒体', 'warning');
+                return;
+            }
+
+            addLog('已截图', 'info');
+
+            // 上传到服务器
+            if (state.deviceId) {
+                try {
+                    await fetch(`${state.serverUrl}/api/player/screenshot`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            device_id: state.deviceId,
+                            screenshot: screenshotData
+                        })
+                    });
+                    addLog('截图已上传', 'success');
+                } catch (error) {
+                    addLog(`截图上传失败: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // 更新统计显示
+        function updateStats() {
+            document.getElementById('statPlayTime').textContent = `${state.stats.playTime}秒`;
+            document.getElementById('statItemsPlayed').textContent = state.stats.itemsPlayed;
+            document.getElementById('statErrors').textContent = state.stats.errors;
+        }
+
+        // 发送心跳
+        async function sendHeartbeat() {
+            if (!state.deviceDbId) return;
+
+            try {
+                const response = await fetch(`${state.serverUrl}/api/devices/${state.deviceDbId}/heartbeat`, {
+                    method: 'PUT'
+                });
+                if (response.ok) {
+                    document.getElementById('lastHeartbeat').textContent = new Date().toLocaleTimeString();
+                    addLog('心跳已发送', 'success');
+                }
+            } catch (error) {
+                addLog(`心跳失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 上报状态
+        async function reportStatus() {
+            if (!state.deviceId) return;
+
+            const currentItem = state.playlistItems[state.currentIndex];
+
+            try {
+                await fetch(`${state.serverUrl}/api/player/status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: state.deviceId,
+                        player_status: state.isPlaying ? 'playing' : 'stopped',
+                        current_index: state.currentIndex,
+                        current_media_id: currentItem?.id || null,
+                        current_media_name: currentItem?.file_name || null
+                    })
+                });
+                addLog('状态已上报', 'success');
+            } catch (error) {
+                addLog(`状态上报失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 标签页切换
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('[id$="Tab"]').forEach(t => t.style.display = 'none');
+
+            event.target.classList.add('active');
+            document.getElementById(`${tabName}Tab`).style.display = 'block';
+
+            // 切换到 API 标签页时更新请求体
+            if (tabName === 'api') {
+                updateApiBody();
+            }
+        }
+
+        // 测试 API
+        async function testApi() {
+            const endpointSelect = document.getElementById('apiEndpoint');
+            const endpointValue = endpointSelect.value;
+            const [endpoint, method] = endpointValue.split('|');
+            const bodyText = document.getElementById('apiBody').value;
+
+            try {
+                // 替换占位符
+                let body = bodyText;
+                if (state.deviceId) {
+                    body = body.replace('YOUR_DEVICE_ID', state.deviceId);
+                    body = body.replace('"device_id": ""', `"device_id": "${state.deviceId}"`);
+                }
+
+                const url = state.serverUrl + endpoint;
+
+                const options = {
+                    method,
+                    headers: { 'Content-Type': 'application/json' }
+                };
+
+                if (method === 'POST') {
+                    try {
+                        options.body = body;
+                    } catch (e) {
+                        // Body 不是有效的 JSON，作为文本发送
+                    }
+                }
+
+                const response = await fetch(url, options);
+                let data;
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    data = await response.text();
+                }
+
+                document.getElementById('apiResponse').textContent =
+                    typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+                addLog(`API: ${method} ${endpoint} - ${response.status}`, response.ok ? '成功' : '失败');
+
+            } catch (error) {
+                document.getElementById('apiResponse').textContent = `错误: ${error.message}`;
+                addLog(`API 调用失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试所有端点
+        async function testAllEndpoints() {
+            const endpoints = [
+                { path: '/api/devices/', method: 'GET' },
+                { path: '/api/playlists/', method: 'GET' },
+                { path: '/api/media/', method: 'GET' }
+            ];
+
+            addLog('正在测试所有端点...', 'info');
+
+            for (const ep of endpoints) {
+                try {
+                    const response = await fetch(`${state.serverUrl}${ep.path}`, { method: ep.method });
+                    addLog(`${ep.method} ${ep.path} - ${response.status}`, response.ok ? '成功' : '失败');
+                } catch (error) {
+                    addLog(`${ep.method} ${ep.path} - 错误: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // 日志记录
+        function addLog(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            const time = new Date().toLocaleTimeString();
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span class="log-message ${type}">${message}</span>
+            `;
+
+            container.insertBefore(entry, container.firstChild);
+
+            // 只保留最近 100 条
+            while (container.children.length > 100) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('logContainer').innerHTML = '';
+            addLog('日志已清空', 'info');
+        }
+
+        function exportLog() {
+            const container = document.getElementById('logContainer');
+            const logs = Array.from(container.children).map(entry => {
+                const time = entry.querySelector('.log-time').textContent;
+                const msg = entry.querySelector('.log-message').textContent;
+                return `[${time}] ${msg}`;
+            }).join('\n');
+
+            const blob = new Blob([logs], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `castplay_log_${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            addLog('日志已导出', 'success');
+        }
+
+        // 清除所有状态
+        function clearAllState() {
+            if (confirm('确定要重置所有状态吗？')) {
+                stopPlayback();
+                state.playlistItems = [];
+                state.playlist = null;
+                state.currentIndex = -1;
+                state.loopCount = 0;
+                state.stats = { playTime: 0, itemsPlayed: 0, errors: 0, startTime: null };
+
+                if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
+                if (state.reportInterval) clearInterval(state.reportInterval);
+                if (state.websocket) state.websocket.close();
+
+                document.getElementById('playlistSelect').value = '';
+                document.getElementById('playlistContainer').innerHTML = '<div class="empty-state"><p>未选择播放列表</p></div>';
+
+                addLog('所有状态已重置', 'info');
+                updateStats();
+            }
+        }
+
+        // 格式化时间
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return '00:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+    </script>
+</body>
+</html>

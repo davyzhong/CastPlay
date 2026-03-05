@@ -25,7 +25,7 @@ export interface Device {
   mac_address?: string
   ip_address?: string
   registration_code?: string
-  playback_speed: number
+  is_disabled?: boolean
   created_at: string
   updated_at: string
 }
@@ -62,6 +62,10 @@ export interface Playlist {
   id: number
   name: string
   description?: string
+  is_system?: boolean
+  item_count: number
+  device_count: number
+  devices?: DeviceAssignment[]
   created_at: string
   updated_at: string
 }
@@ -80,6 +84,7 @@ export interface PlaylistDetail {
   id: number
   name: string
   description?: string
+  is_system?: boolean
   items: PlaylistItem[]
   devices: DeviceAssignment[]
   created_at: string
@@ -90,6 +95,16 @@ export interface DeviceAssignment {
   id: number
   device_id: number
   is_active: boolean
+  assigned_at: string
+}
+
+// 设备播放列表关联
+export interface DevicePlaylist {
+  assignment_id: number
+  playlist_id: number
+  playlist_name: string
+  is_active: boolean
+  item_count: number
   assigned_at: string
 }
 

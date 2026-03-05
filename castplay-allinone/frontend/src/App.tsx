@@ -1,8 +1,14 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { Layout, ConfigProvider, theme } from 'antd';
-import { AppstoreOutlined, DatabaseOutlined, FolderOutlined, PlayCircleOutlined } from '@ant-design/icons';
-import { useStore } from './store';
-import getToken from './api/auth';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Layout, theme, Menu } from 'antd';
+import { AppstoreOutlined, DatabaseOutlined, FolderOutlined, PlayCircleOutlined, ExperimentOutlined, DesktopOutlined } from '@ant-design/icons';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import DeviceList from './pages/DeviceList';
+import MediaList from './pages/MediaList';
+import PlaylistList from './pages/PlaylistList';
+import PlayerSimulator from './pages/PlayerSimulator';
+import WebPlayerSimulator from './pages/WebPlayerSimulator';
+import { useState, useEffect } from 'react';
 
 const { Content, Sider } = Layout;
 
@@ -10,8 +16,9 @@ const MainLayout: React.FC = () => {
   const {
     token: { colorBgContainer },
   } = theme.useToken();
-  const user = useStore((state) => state.user);
-  const logout = useStore((state) => state.logout);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [selectedKey, setSelectedKey] = useState('dashboard');
 
   const menuItems = [
     {
@@ -38,11 +45,35 @@ const MainLayout: React.FC = () => {
       label: '播放列表',
       path: '/playlists',
     },
+    {
+      key: 'webplayer',
+      icon: <DesktopOutlined />,
+      label: 'Web 播放端',
+      path: '/webplayer',
+    },
+    {
+      key: 'simulator',
+      icon: <ExperimentOutlined />,
+      label: '播放端测试',
+      path: '/simulator',
+    },
   ];
 
-  if (!user || !getToken()) {
-    return <Navigate to="/login" replace />;
-  }
+  useEffect(() => {
+    const path = location.pathname;
+    if (path === '/') {
+      setSelectedKey('dashboard');
+    } else {
+      setSelectedKey(path.substring(1));
+    }
+  }, [location.pathname]);
+
+  const handleMenuClick = ({ key }: { key: string }) => {
+    const menuItem = menuItems.find(item => item.key === key);
+    if (menuItem) {
+      navigate(menuItem.path);
+    }
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -55,10 +86,11 @@ const MainLayout: React.FC = () => {
         }}>
           CastPlay
         </div>
-        <Layout.Menu
+        <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[window.location.pathname.split('/')[1]]}
+          selectedKeys={[selectedKey]}
+          onClick={handleMenuClick}
           items={menuItems.map((item) => ({
             key: item.key,
             icon: item.icon,
@@ -74,15 +106,12 @@ const MainLayout: React.FC = () => {
           minHeight: 'calc(100vh - 64px)'
         }}>
           <Routes>
-            <Route path="/" element={
-              <div>
-                <h1>仪表盘</h1>
-                <p>欢迎使用 CastPlay 数字标牌管理系统</p>
-              </div>
-            } />
-            <Route path="/devices" element={<import('./pages/DeviceList').default />} />
-            <Route path="/media" element={<import('./pages/MediaList').default />} />
-            <Route path="/playlists" element={<import('./pages/PlaylistList').default />} />
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/devices" element={<DeviceList />} />
+            <Route path="/media" element={<MediaList />} />
+            <Route path="/playlists" element={<PlaylistList />} />
+            <Route path="/webplayer" element={<WebPlayerSimulator />} />
+            <Route path="/simulator" element={<PlayerSimulator />} />
           </Routes>
         </Content>
       </Layout>
@@ -93,7 +122,7 @@ const MainLayout: React.FC = () => {
 const App: React.FC = () => {
   return (
     <Routes>
-      <Route path="/login" element={<import('./pages/Login').default />} />
+      <Route path="/login" element={<Login />} />
       <Route path="/*" element={<MainLayout />} />
     </Routes>
   );

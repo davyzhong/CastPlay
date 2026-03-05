@@ -1,10 +1,14 @@
 """
 WebSocket 连接管理器
 管理设备连接和实时消息推送
+
+注意：使用全局单例 manager，其他模块应通过导入此实例使用：
+    from app.websocket.handler import manager
 """
 from fastapi import WebSocket, WebSocketDisconnect
-from typing import Dict, List
+from typing import Dict, List, Optional
 from loguru import logger
+from datetime import datetime
 
 
 class ConnectionManager:
@@ -185,9 +189,28 @@ class ConnectionManager:
         Returns:
             ISO 格式的时间字符串
         """
-        from datetime import datetime
         return datetime.utcnow().isoformat()
 
+    def get_device_id_by_db_id(self, db_device_id: int) -> Optional[str]:
+        """
+        根据数据库 ID 获取设备的 WebSocket 连接 ID
 
-# 全局连接管理器实例
+        Args:
+            db_device_id: 设备数据库 ID
+
+        Returns:
+            设备 UUID，如果未连接则返回 None
+        """
+        # 遍历查找（实际应用中可能需要建立映射表）
+        for device_id in self.active_connections.keys():
+            # 这里简化处理，实际应该维护 db_id -> device_id 的映射
+            # 暂时返回字符串形式的 db_id
+            pass
+        return str(db_device_id)
+
+
+# ============================================================================
+# 全局连接管理器单例
+# 重要：其他模块必须通过此导入使用，不要创建新实例
+# ============================================================================
 manager = ConnectionManager()

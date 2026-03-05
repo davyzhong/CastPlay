@@ -1,11 +1,11 @@
 """
 通知服务
 封装 WebSocket 通知功能
-"""
-from app.websocket.handler import ConnectionManager
 
-# 使用全局连接管理器
-connection_manager = ConnectionManager()
+重要：使用 websocket/handler.py 中的全局 manager 实例
+"""
+from datetime import datetime
+from app.websocket.handler import manager as connection_manager
 
 
 class NotificationService:
@@ -13,6 +13,7 @@ class NotificationService:
     通知服务
 
     封装设备通知相关功能
+    使用全局 ConnectionManager 单例
     """
 
     @staticmethod
@@ -34,6 +35,23 @@ class NotificationService:
             device_id: 设备数据库 ID
         """
         await connection_manager.notify_schedule_update(device_id)
+
+    @staticmethod
+    async def notify_config_update(device_id: int, config: dict):
+        """
+        通知设备配置更新（如播放速度）
+
+        Args:
+            device_id: 设备数据库 ID
+            config: 配置内容
+        """
+        await connection_manager.send_to_device(device_id, {
+            "event": "config_update",
+            "device_id": device_id,
+            "action": "update",
+            "data": config,
+            "timestamp": datetime.utcnow().isoformat()
+        })
 
     @staticmethod
     async def notify_force_sync(device_id: int):

@@ -11,11 +11,13 @@ from pathlib import Path
 import uvicorn
 
 from app.config import settings
-from app.database import init_database, get_db
+from app.database import init_database, get_db, SessionLocal
 from app.middleware.cors import setup_cors
+from app.middleware.rate_limit import setup_rate_limit
 from app.workers import task_manager
 from app.utils.logger import logger
-from app.websocket import ConnectionManager
+# 使用全局单例 manager，不要创建新实例
+from app.websocket.handler import manager as connection_manager
 
 
 @asynccontextmanager
@@ -30,71 +32,75 @@ async def lifespan(app: FastAPI):
     关闭时：
     1. 停止后台任务队列
     """
+    import os
+    is_testing = os.environ.get("TESTING")
+
     # 启动时执行
     logger.info("=" * 50)
     logger.info(f"{settings.APP_NAME} v{settings.APP_VERSION} starting...")
     logger.info("=" * 50)
 
     # 初始化数据库（测试模式下跳过）
-    import os
-    if not os.environ.get("TESTING"):
+    if not is_testing:
         init_database()
 
-    # 启动后台任务队列
-    task_manager.start()
+    # 启动后台任务队列（测试模式下跳过）
+    if not is_testing:
+        task_manager.start()
 
-    # 注册 PPT 转换任务处理器
-    def handle_ppt_conversion(task):
-        from app.services.converter import PPTConverter
-        from app.models.media import MediaFile
-        from sqlalchemy.orm import Session
+        # 注册 PPT 转换任务处理器
+        def handle_ppt_conversion(task):
+            from app.services.converter import PPTConverter
+            from app.models.media import MediaFile
+            from sqlalchemy.orm import Session
 
-        media_id = task.get("media_id")
-        file_path = task.get("file_path")
+            media_id = task.get("media_id")
+            file_path = task.get("file_path")
 
-        # 获取数据库会话
-        db = SessionLocal()
+            # 获取数据库会话
+            db = SessionLocal()
 
-        try:
-            # 更新状态为处理中
-            media = db.query(MediaFile).filter(MediaFile.id == media_id).first()
-            if media:
-                media.status = "processing"
-                db.commit()
+            try:
+                # 更新状态为处理中
+                media = db.query(MediaFile).filter(MediaFile.id == media_id).first()
+                if media:
+                    media.status = "processing"
+                    db.commit()
 
-            # 执行转换
-            converter = PPTConverter()
-            result = converter.convert(file_path, media_id)
+                # 执行转换
+                converter = PPTConverter()
+                result = converter.convert(file_path, media_id)
 
-            # 更新数据库
-            if media:
-                if result.get("success"):
-                    media.status = "ready"
-                    media.converted_path = result.get("converted_path")
-                    if result.get("thumbnail_path"):
-                        media.thumbnail_path = result.get("thumbnail_path")
-                    if result.get("duration"):
-                        media.duration = result.get("duration")
-                else:
+                # 更新数据库
+                if media:
+                    if result.get("success"):
+                        media.status = "ready"
+                        media.converted_path = result.get("converted_path")
+                        if result.get("thumbnail_path"):
+                            media.thumbnail_path = result.get("thumbnail_path")
+                        if result.get("duration"):
+                            media.duration = result.get("duration")
+                    else:
+                        media.status = "failed"
+                    db.commit()
+
+            except Exception as e:
+                logger.error(f"PPT conversion task failed: {e}")
+                if media:
                     media.status = "failed"
-                db.commit()
+                    db.commit()
+            finally:
+                db.close()
 
-        except Exception as e:
-            logger.error(f"PPT conversion task failed: {e}")
-            if media:
-                media.status = "failed"
-                db.commit()
-        finally:
-            db.close()
-
-    task_manager.register_handler("convert_ppt", handle_ppt_conversion)
+        task_manager.register_handler("convert_ppt", handle_ppt_conversion)
 
     yield
 
-    # 关闭时执行
-    logger.info("Shutting down...")
-    task_manager.stop()
-    logger.info("Shutdown complete")
+    # 关闭时执行（测试模式下跳过）
+    if not is_testing:
+        logger.info("Shutting down...")
+        task_manager.stop()
+        logger.info("Shutdown complete")
 
 
 # 创建 FastAPI 应用
@@ -109,6 +115,9 @@ app = FastAPI(
 
 # 配置 CORS
 setup_cors(app)
+
+# 配置速率限制
+setup_rate_limit(app)
 
 # 挂载静态文件（如果存在）
 static_dir = Path("frontend/dist")
@@ -181,10 +190,8 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
     2. 处理心跳
     3. 接收服务器推送的更新通知
     """
-    connection_manager = ConnectionManager()
-
     try:
-        # 连接设备
+        # 使用全局 connection_manager 单例
         await connection_manager.connect(device_id, websocket)
 
         # 处理设备消息

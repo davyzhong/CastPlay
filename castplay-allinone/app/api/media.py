@@ -15,6 +15,7 @@ from app.models.user import User
 from app.utils.file_utils import (
     get_file_extension,
     validate_file_type,
+    validate_file_content,
     get_unique_filename,
     calculate_md5,
     generate_thumbnail,
@@ -46,11 +47,11 @@ async def upload_media(
     - video: mp4, avi, mov, mkv, flv
     - ppt: ppt, pptx
     """
-    # 验证文件类型
+    # 验证文件扩展名
     if not validate_file_type(file.filename, file_type):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File type not supported for {file_type}"
+            detail=f"File extension not supported for {file_type}"
         )
 
     # 读取文件内容
@@ -62,6 +63,15 @@ async def upload_media(
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"File size exceeds limit ({format_file_size(settings.MAX_FILE_SIZE)})"
+        )
+
+    # 验证文件实际内容（Magic Number 检查）
+    content_valid, content_error = validate_file_content(contents, file_type)
+    if not content_valid:
+        logger.warning(f"File content validation failed for {file.filename}: {content_error}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File content validation failed: {content_error}"
         )
 
     # 生成唯一文件名
@@ -267,3 +277,69 @@ def get_thumbnail(media_id: int, db: Session = Depends(get_db)):
         media.thumbnail_path,
         media_type="image/jpeg"
     )
+
+
+@router.post("/{media_id}/retry", response_model=MediaFileResponse)
+def retry_conversion(
+    media_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    重试 PPT 转换
+
+    仅对状态为 failed 且类型为 ppt 的媒体文件有效
+
+    需要认证
+    """
+    media = db.query(MediaFile).filter(MediaFile.id == media_id).first()
+    if not media:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Media file not found"
+        )
+
+    if media.file_type != "ppt":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PPT files can be retried"
+        )
+
+    if media.status != "failed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot retry: current status is '{media.status}', not 'failed'"
+        )
+
+    # 检查转换工具是否可用
+    from app.services.converter import PPTConverter
+    converter = PPTConverter()
+    available, msg = converter.is_available()
+    if not available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Conversion tools not available: {msg}"
+        )
+
+    # 检查源文件是否存在
+    if not media.file_path or not os.path.exists(media.file_path):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Source file not found"
+        )
+
+    # 更新状态为处理中
+    media.status = "processing"
+    db.commit()
+
+    # 提交转换任务
+    task_manager.submit_task(
+        "convert_ppt",
+        {
+            "media_id": media.id,
+            "file_path": media.file_path
+        }
+    )
+    logger.info(f"PPT conversion retry submitted for media {media.id}")
+
+    return media

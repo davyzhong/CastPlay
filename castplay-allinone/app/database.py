@@ -48,6 +48,26 @@ def init_database():
         conn.execute('PRAGMA synchronous=NORMAL')
         conn.execute('PRAGMA cache_size=-64000')  # 64MB cache
 
+        # 数据库迁移：添加 is_disabled 列（如果不存在）
+        cursor = conn.cursor()
+        try:
+            # 检查 is_disabled 列是否存在
+            cursor.execute("SELECT * FROM pragma_table_info WHERE name='devices'")
+            columns = cursor.fetchall()
+            column_names = [col[1] for col in columns]
+
+            if 'is_disabled' not in column_names:
+                print("Adding is_disabled column to devices table...")
+                cursor.execute("ALTER TABLE devices ADD COLUMN is_disabled BOOLEAN DEFAULT 0")
+                conn.commit()
+                print("is_disabled column added successfully")
+
+            # 移除 playback_speed 列（如果存在且不再需要）
+            # 注意：SQLite 不支持 DROP COLUMN，保留该列但不使用
+
+        except Exception as e:
+            print(f"Migration check: {e}")
+
     print(f"Database initialized at {DB_PATH}")
 
 

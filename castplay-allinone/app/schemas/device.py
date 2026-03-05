@@ -35,7 +35,6 @@ class DeviceUpdate(BaseModel):
     device_name: Optional[str] = Field(None, max_length=100)
     timezone: Optional[str] = None
     status: Optional[str] = Field(None, pattern="^(online|offline)$")
-    playback_speed: Optional[int] = Field(None, ge=1, le=8, description="播放速度 (1, 2, 4, 8)")
 
 
 class DeviceResponse(BaseModel):
@@ -48,7 +47,7 @@ class DeviceResponse(BaseModel):
     mac_address: Optional[str] = None
     ip_address: Optional[str] = None
     registration_code: Optional[str] = None
-    playback_speed: int = 1
+    is_disabled: bool = False
     # 原有字段
     last_online: Optional[datetime] = None
     status: str

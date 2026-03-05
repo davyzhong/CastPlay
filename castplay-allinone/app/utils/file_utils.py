@@ -4,13 +4,101 @@
 """
 import os
 import hashlib
+import struct
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict, Set
 from PIL import Image
 import mimetypes
 
 from app.config import settings
 from app.utils.logger import logger
+
+
+# ============================================================================
+# 文件 Magic Number (文件签名) 定义
+# 用于验证文件实际类型，防止恶意文件伪装
+# ============================================================================
+FILE_SIGNATURES: Dict[str, Set[bytes]] = {
+    # 图片格式
+    'jpg': {b'\xff\xd8\xff'},
+    'jpeg': {b'\xff\xd8\xff'},
+    'png': {b'\x89PNG\r\n\x1a\n'},
+    'gif': {b'GIF87a', b'GIF89a'},
+    'bmp': {b'BM'},
+
+    # 视频格式
+    'mp4': {b'\x00\x00\x00\x18ftypmp42', b'\x00\x00\x00\x1cftypmp42',
+            b'\x00\x00\x00\x20ftypisom', b'\x00\x00\x00\x00ftypqt'},
+    'avi': {b'RIFF'},
+    'mov': {b'\x00\x00\x00\x14ftypqt', b'\x00\x00\x00\x00ftypqt'},
+    'mkv': {b'\x1a\x45\xdf\xa3'},
+    'flv': {b'FLV'},
+
+    # PPT 格式 (Office 文件)
+    'ppt': {b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'},  # OLE 复合文档
+    'pptx': {b'PK\x03\x04', b'PK\x05\x06', b'PK\x07\x08'},  # ZIP 格式
+}
+
+# MIME 类型映射
+MIME_TYPE_MAP: Dict[str, str] = {
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'gif': 'image/gif',
+    'bmp': 'image/bmp',
+    'mp4': 'video/mp4',
+    'avi': 'video/x-msvideo',
+    'mov': 'video/quicktime',
+    'mkv': 'video/x-matroska',
+    'flv': 'video/x-flv',
+    'ppt': 'application/vnd.ms-powerpoint',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+}
+
+
+def validate_file_content(contents: bytes, claimed_type: str) -> Tuple[bool, str]:
+    """
+    验证文件实际内容类型（通过 Magic Number）
+
+    Args:
+        contents: 文件二进制内容
+        claimed_type: 声称的文件类型 (image/video/ppt)
+
+    Returns:
+        (是否验证通过, 错误消息)
+    """
+    if len(contents) < 8:
+        return False, "File too small to validate"
+
+    # 获取该类型允许的扩展名
+    type_to_ext = {
+        'image': settings.ALLOWED_IMAGE_TYPES,
+        'video': settings.ALLOWED_VIDEO_TYPES,
+        'ppt': settings.ALLOWED_PPT_TYPES
+    }
+    allowed_extensions = type_to_ext.get(claimed_type, [])
+
+    # 检查文件签名
+    for ext in allowed_extensions:
+        signatures = FILE_SIGNATURES.get(ext, set())
+        for sig in signatures:
+            if contents[:len(sig)] == sig:
+                return True, ""
+
+    # PPTX 是 ZIP 格式，需要额外检查
+    if claimed_type == 'ppt' and contents[:4] == b'PK\x03\x04':
+        # 可能是 PPTX，进一步检查内容
+        # 简化处理：检查是否包含 [Content_Types].xml
+        if b'[Content_Types]' in contents[:8192]:
+            return True, ""
+
+    # AVI 文件是 RIFF 格式，需要进一步验证
+    if claimed_type == 'video' and contents[:4] == b'RIFF':
+        if contents[8:12] == b'AVI ':
+            return True, ""
+
+    allowed_ext_str = ', '.join(allowed_extensions)
+    return False, f"File content does not match claimed type '{claimed_type}'. Allowed: {allowed_ext_str}"
 
 
 def get_file_extension(filename: str) -> str:
@@ -80,14 +168,14 @@ def validate_file_type(filename: str, file_type: str) -> bool:
     return ext in allowed_types.get(file_type, [])
 
 
-def generate_thumbnail(file_path: str, output_path: str, size: Tuple[int, int] = (320, 240)) -> bool:
+def generate_thumbnail(file_path: str, output_path: str, size: Tuple[int, int] = (640, 480)) -> bool:
     """
     生成图片缩略图
 
     Args:
         file_path: 原始文件路径
         output_path: 缩略图输出路径
-        size: 缩略图尺寸 (宽度, 高度)
+        size: 缩略图尺寸 (宽度, 高度)，默认 640x480
 
     Returns:
         是否成功

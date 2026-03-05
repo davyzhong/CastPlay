@@ -7,9 +7,12 @@ from typing import Optional
 from datetime import datetime, timedelta
 import hashlib
 import uuid
+import random
+import string
 
 from app.database import get_db
 from app.models.device import Device, DeviceSchedule
+from app.models.playlist import PlaylistItem
 from app.schemas.device import (
     DeviceCreate, DeviceResponse, DeviceUpdate,
     DeviceScheduleCreate, DeviceScheduleResponse
@@ -21,12 +24,32 @@ from app.utils.logger import logger
 router = APIRouter()
 
 
-def generate_registration_code(mac_address: str) -> str:
-    """基于 MAC 地址生成 12 位注册码"""
-    clean_mac = mac_address.replace(':', '').upper()
-    hash_obj = hashlib.sha256(clean_mac.encode())
-    code = hash_obj.hexdigest()[:12].upper()
-    return f"CP-{code[:4]}-{code[4:8]}-{code[8:12]}"
+def generate_friendly_code(length: int = 4) -> str:
+    """生成易读的字母数字组合（排除易混淆字符）"""
+    chars = string.ascii_uppercase + string.digits
+    # 排除易混淆字符: 0, O, 1, I, L
+    chars = chars.replace('0', '').replace('O', '').replace('1', '').replace('I', '').replace('L', '')
+    return ''.join(random.choices(chars, k=length))
+
+
+def generate_registration_code(device_id: str = None, mac_address: str = None) -> str:
+    """
+    生成友好的注册码（格式: CP-XXXX-XXXX-XXXX）
+    基于设备 ID 或 MAC 地址生成确定性注册码
+    """
+    source = (device_id or '') + (mac_address or '')
+    if source:
+        # 使用哈希确保同一设备始终生成相同注册码
+        hash_obj = hashlib.sha256(source.encode())
+        # 使用哈希的前 12 个字符作为基础
+        hex_digest = hash_obj.hexdigest()[:12].upper()
+        # 转换为易读格式
+        code = f"{hex_digest[:4]}-{hex_digest[4:8]}-{hex_digest[8:12]}"
+    else:
+        # 生成随机注册码
+        code = f"{generate_friendly_code()}-{generate_friendly_code()}-{generate_friendly_code()}"
+
+    return f"CP-{code}"
 
 
 def generate_device_id_from_mac(mac_address: str) -> str:
@@ -142,12 +165,16 @@ def register_device(
         logger.info(f"Device updated: {existing.device_name} ({existing.device_id})")
         return existing
 
+    # 生成注册码（基于 device_id）
+    registration_code = generate_registration_code(device_id=device_data.device_id)
+
     # 创建新设备
     new_device = Device(
         device_id=device_data.device_id,
-        device_name=device_data.device_name,
+        device_name=device_data.device_name or f"新设备-{device_data.device_id[:8]}",
         timezone=device_data.timezone,
         ip_address=client_ip,
+        registration_code=registration_code,
         last_online=datetime.utcnow(),
         status="online"
     )
@@ -155,7 +182,7 @@ def register_device(
     db.commit()
     db.refresh(new_device)
 
-    logger.info(f"New device registered: {new_device.device_name} ({new_device.device_id})")
+    logger.info(f"New device registered: {new_device.device_name} ({new_device.device_id}), 注册码: {registration_code}")
     response.status_code = status.HTTP_201_CREATED
     return new_device
 
@@ -181,7 +208,7 @@ def device_heartbeat(device_id: int, db: Session = Depends(get_db)):
     return {"message": "Heartbeat received", "device_id": device.device_id}
 
 
-@router.get("/", response_model=list[DeviceResponse])
+@router.get("/")
 def list_devices(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -200,8 +227,13 @@ def list_devices(
     if status_filter:
         query = query.filter(Device.status == status_filter)
 
-    devices = query.order_by(Device.id).offset(skip).limit(limit).all()
-    return devices
+    total = query.count()
+    devices = query.order_by(Device.id.desc()).offset(skip).limit(limit).all()
+
+    return {
+        "items": devices,
+        "total": total
+    }
 
 
 @router.get("/{device_id}", response_model=DeviceResponse)
@@ -244,8 +276,6 @@ def update_device(
         device.timezone = device_data.timezone
     if device_data.status is not None:
         device.status = device_data.status
-    if device_data.playback_speed is not None:
-        device.playback_speed = device_data.playback_speed
 
     db.commit()
     db.refresh(device)
@@ -254,14 +284,17 @@ def update_device(
     return device
 
 
-@router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_device(
+@router.put("/{device_id}/disable", response_model=DeviceResponse)
+async def toggle_device_disable(
     device_id: int,
+    is_disabled: bool = Body(..., embed=True, description="是否禁用"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    删除设备
+    启用/禁用设备
+
+    禁用后的设备只能播放默认播放列表内容，不会接收播放列表更新
 
     需要认证
     """
@@ -272,11 +305,23 @@ def delete_device(
             detail="Device not found"
         )
 
-    db.delete(device)
+    device.is_disabled = is_disabled
     db.commit()
+    db.refresh(device)
 
-    logger.info(f"Device deleted: {device.device_name}")
-    return None
+    status_text = "禁用" if is_disabled else "启用"
+    logger.info(f"Device {status_text}: {device.device_name}")
+
+    # 发送 WebSocket 通知
+    from app.services.notification import NotificationService
+    if is_disabled:
+        # 通知设备已被禁用
+        await NotificationService.notify_config_update(device_id, {"is_disabled": True})
+    else:
+        # 通知设备已启用，需要重新同步
+        await NotificationService.notify_playlist_update(device_id)
+
+    return device
 
 
 @router.post("/{device_id}/schedule", response_model=DeviceScheduleResponse)
@@ -446,5 +491,58 @@ def get_cached_media(
                 "created_at": item.created_at.isoformat() if item.created_at else None
             }
             for item in cached
+        ]
+    }
+
+
+@router.get("/{device_id}/playlists")
+def get_device_playlists(
+    device_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    获取设备关联的播放列表
+
+    返回该设备所有已分配的播放列表及其状态
+    """
+    from app.models.playlist import DevicePlaylist, Playlist
+    from sqlalchemy import func
+
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Device not found"
+        )
+
+    # 查询设备关联的播放列表
+    assignments = (
+        db.query(DevicePlaylist, Playlist)
+        .join(Playlist, DevicePlaylist.playlist_id == Playlist.id)
+        .filter(DevicePlaylist.device_id == device_id)
+        .all()
+    )
+
+    # 获取每个播放列表的媒体数量
+    playlist_ids = [dp.playlist_id for dp, p in assignments]
+    item_counts = dict(
+        db.query(PlaylistItem.playlist_id, func.count(PlaylistItem.id))
+        .filter(PlaylistItem.playlist_id.in_(playlist_ids))
+        .group_by(PlaylistItem.playlist_id)
+        .all()
+    ) if playlist_ids else {}
+
+    return {
+        "device_id": device_id,
+        "playlists": [
+            {
+                "assignment_id": dp.id,
+                "playlist_id": p.id,
+                "playlist_name": p.name,
+                "is_active": bool(dp.is_active),
+                "item_count": item_counts.get(p.id, 0),
+                "assigned_at": dp.created_at.isoformat() if dp.created_at else None
+            }
+            for dp, p in assignments
         ]
     }

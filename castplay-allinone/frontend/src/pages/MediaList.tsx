@@ -6,45 +6,38 @@ import {
   Table,
   Button,
   Space,
-  Modal,
   Tag,
-  Progress,
-  message,
   Card,
   Typography,
   Upload,
   Image,
-  Dropdown,
+  App,
 } from 'antd';
 import {
   UploadOutlined,
   DeleteOutlined,
   ReloadOutlined,
   DownloadOutlined,
-  EyeOutlined,
+  RedoOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import type { MediaFile } from '../types';
 import {
   getMediaList,
   uploadMedia,
   deleteMedia,
-  getThumbnail,
   downloadMedia,
+  retryConversion,
 } from '../api/media';
-import { useStore } from '../store';
-
-const { Dragger } = Upload;
 
 const { Title } = Typography;
 
 const MediaListPage: React.FC = () => {
+  const { message, modal } = App.useApp();
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [previewVisible, setPreviewVisible] = useState(false);
-  const [previewMedia, setPreviewMedia] = useState<MediaFile | null>(null);
-  const setNotification = useStore((state) => state.setNotification);
 
   const fetchMedia = async () => {
     setLoading(true);
@@ -68,15 +61,11 @@ const MediaListPage: React.FC = () => {
   const handleUpload = async (file: File, fileType: string) => {
     setUploading(true);
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const response = await uploadMedia(formData as any, fileType);
+      const response = await uploadMedia(file, fileType as 'image' | 'video' | 'ppt');
 
-      if (response.media) {
+      if (response && response.media) {
         message.success(`${fileType === 'ppt' ? 'PPT' : '文件'}上传成功`);
-        // 刷新列表
         await fetchMedia();
       }
     } catch (error: any) {
@@ -88,7 +77,7 @@ const MediaListPage: React.FC = () => {
   };
 
   const handleDelete = async (media: MediaFile) => {
-    Modal.confirm({
+    modal.confirm({
       title: '确认删除',
       content: `确定要删除 "${media.file_name}" 吗？`,
       okText: '确定',
@@ -107,55 +96,68 @@ const MediaListPage: React.FC = () => {
     });
   };
 
-  const handlePreview = (media: MediaFile) => {
-    setPreviewMedia(media);
-    setPreviewVisible(true);
+  const handleRetry = async (media: MediaFile) => {
+    try {
+      await retryConversion(media.id);
+      message.success('已重新提交转换任务');
+      await fetchMedia();
+    } catch (error: any) {
+      console.error('Retry error:', error);
+      const errorMsg = error?.response?.data?.detail || '重试失败';
+      message.error(errorMsg);
+    }
   };
 
   const columns: ColumnsType<MediaFile> = [
     {
-      title: '缩略图',
+      title: '预览',
       dataIndex: 'thumbnail_path',
       key: 'thumbnail',
-      width: 100,
+      width: 120,
       render: (path: string, record: MediaFile) => {
-        if (record.file_type === 'video' && path) {
+        if (path) {
+          // 预览时显示的图片源
+          const previewSrc = record.file_type === 'image' ? (record.file_path || path) : path;
+
           return (
             <Image
               src={path}
               alt={record.file_name}
-              preview={false}
-              width={60}
-              height={40}
-              style={{ borderRadius: 4, objectFit: 'cover' }}
+              width={80}
+              height={60}
+              style={{ borderRadius: 4, objectFit: 'cover', cursor: 'pointer' }}
+              fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect fill='%23f0f0f0' width='80' height='60'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E无预览%3C/text%3E%3C/svg%3E"
+              preview={{
+                src: previewSrc,
+              }}
             />
           );
-        } else if (record.file_type === 'ppt' && path) {
-          return (
-            <div
-              style={{
-                width: 60,
-                height: 40,
-                backgroundColor: '#1890ff',
-                borderRadius: 4,
-                display: 'flex',
-                alignItems: 'center',
-                color: '#fff',
-                fontSize: '10px',
-              }}
-            >
-              PPT
-            </div>
-          );
         }
+
+        const typeConfig: Record<string, { color: string; icon: string }> = {
+          image: { color: '#52c41a', icon: '🖼️' },
+          video: { color: '#1890ff', icon: '🎬' },
+          ppt: { color: '#fa8c16', icon: '📊' },
+        };
+        const config = typeConfig[record.file_type] || { color: '#999', icon: '📄' };
+
         return (
-          <Button
-            icon={<EyeOutlined />}
-            size="small"
-            onClick={() => handlePreview(record)}
+          <div
+            style={{
+              width: 80,
+              height: 60,
+              backgroundColor: config.color,
+              borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '24px',
+              color: '#fff',
+            }}
+            title={record.file_name}
           >
-            预览
-          </Button>
+            {config.icon}
+          </div>
         );
       },
     },
@@ -171,11 +173,11 @@ const MediaListPage: React.FC = () => {
       key: 'file_type',
       width: 100,
       render: (type: string) => {
-        const colors: {
+        const colors = {
           image: 'green',
           video: 'blue',
           ppt: 'orange',
-        };
+        } as const;
         return <Tag color={colors[type as keyof typeof colors]}>{type.toUpperCase()}</Tag>;
       },
     },
@@ -207,17 +209,31 @@ const MediaListPage: React.FC = () => {
     },
     {
       title: '上传时间',
-      dataIndex: 'upload_time',
-      key: 'upload_time',
+      dataIndex: 'created_at',
+      key: 'created_at',
       width: 180,
-      render: (time: string) => new Date(time).toLocaleString('zh-CN'),
+      render: (time: string) => {
+        if (!time) return '-';
+        const date = new Date(time.replace(' ', 'T'));
+        return isNaN(date.getTime()) ? '-' : date.toLocaleString('zh-CN');
+      },
     },
     {
       title: '操作',
       key: 'action',
-      width: 150,
+      width: 200,
       render: (_: any, record: MediaFile) => (
         <Space>
+          {record.file_type === 'ppt' && record.status === 'failed' && (
+            <Button
+              type="link"
+              icon={<RedoOutlined />}
+              size="small"
+              onClick={() => handleRetry(record)}
+            >
+              重试
+            </Button>
+          )}
           {record.file_type === 'video' && (
             <Button
               type="link"
@@ -244,9 +260,8 @@ const MediaListPage: React.FC = () => {
 
   const uploadProps = {
     name: 'file',
-    accept:
-      'image/*,video/*,.ppt,.pptx',
-    beforeUpload: (file) => {
+    accept: 'image/*,video/*,.ppt,.pptx',
+    beforeUpload: (file: File) => {
       const isLt50M = file.size / 1024 / 1024 < 500;
       if (!isLt50M) {
         message.error('文件大小不能超过 500MB');
@@ -266,19 +281,21 @@ const MediaListPage: React.FC = () => {
         <Space style={{ marginBottom: 16 }}>
           <Upload.Dragger
             {...uploadProps}
-            loading={uploading}
+            disabled={uploading}
             showUploadList={false}
-            customRequest={({ file, onSuccess }) => {
-              const fileExt = file.name.split('.').pop()?.toLowerCase();
+            customRequest={(options: UploadRequestOption) => {
+              const { file } = options;
+              const uploadFile = file as File;
+              const fileExt = uploadFile.name.split('.').pop()?.toLowerCase();
               let fileType = 'image';
-              if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].includes(fileExt)) {
+              if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].includes(fileExt || '')) {
                 fileType = 'image';
-              } else if (['mp4', 'avi', 'mov', 'mkv', 'flv'].includes(fileExt)) {
+              } else if (['mp4', 'avi', 'mov', 'mkv', 'flv'].includes(fileExt || '')) {
                 fileType = 'video';
-              } else if (['ppt', 'pptx'].includes(fileExt)) {
+              } else if (['ppt', 'pptx'].includes(fileExt || '')) {
                 fileType = 'ppt';
               }
-              handleUpload(file, fileType);
+              handleUpload(uploadFile, fileType);
             }}
           >
             <p className="ant-upload-drag-icon">
@@ -306,46 +323,6 @@ const MediaListPage: React.FC = () => {
           pagination={false}
         />
       </Card>
-
-      {/* 预览模态框 */}
-      <Modal
-        title={previewMedia ? previewMedia.file_name : '预览'}
-        open={previewVisible}
-        footer={null}
-        onCancel={() => setPreviewVisible(false)}
-        width={800}
-      >
-        {previewMedia && (
-          <div style={{ textAlign: 'center' }}>
-            {previewMedia.file_type === 'image' && previewMedia.thumbnail_path && (
-              <Image
-                src={previewMedia.thumbnail_path}
-                alt={previewMedia.file_name}
-                style={{ maxWidth: '100%' }}
-              />
-            )}
-            {previewMedia.file_type === 'video' && (
-              <video
-                controls
-                src={downloadMedia(previewMedia.id)}
-                style={{ maxWidth: '100%', maxHeight: 600 }}
-              />
-            )}
-            {previewMedia.file_type === 'ppt' && (
-              <div>
-                <Image
-                  src={previewMedia.thumbnail_path}
-                  alt={previewMedia.file_name}
-                  style={{ maxWidth: '100%', marginBottom: 16 }}
-                />
-                <p style={{ color: '#888' }}>
-                  PPT 文件预览暂不可用，请下载后查看
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
     </div>
   );
 };

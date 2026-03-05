@@ -1,7 +1,7 @@
 /**
  * 认证 API
  */
-import apiClient from './client';
+import { api } from './client';
 import type { User, ApiResponse } from '../types';
 
 export interface LoginParams {
@@ -18,15 +18,15 @@ export interface RegisterParams {
 
 // 用户登录
 export const login = (params: LoginParams) =>
-  apiClient.post<ApiResponse<{ access_token: string; user: User }>>('/auth/login', params);
+  api.post<ApiResponse<{ access_token: string; user: User }>>('/auth/login', params);
 
 // 用户注册
 export const register = (params: RegisterParams) =>
-  apiClient.post<ApiResponse<{ user: User }>>('/auth/register', params);
+  api.post<ApiResponse<{ user: User }>>('/auth/register', params);
 
 // 获取当前用户信息
 export const getCurrentUser = () =>
-  apiClient.get<User>('/auth/me');
+  api.get<User>('/auth/me');
 
 // 退出登录
 export const logout = () => {

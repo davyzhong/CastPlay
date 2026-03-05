@@ -23,6 +23,9 @@ class PlaylistResponse(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+    is_system: bool = False
+    item_count: int = 0
+    device_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -56,10 +59,21 @@ class DevicePlaylistResponse(BaseModel):
     device_id: int
     playlist_id: int
     is_active: bool
-    assigned_at: datetime
+    assigned_at: Optional[datetime] = None  # 使用 created_at 作为分配时间
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_orm_with_assigned_at(cls, obj):
+        """从 ORM 对象创建，使用 created_at 作为 assigned_at"""
+        return cls(
+            id=obj.id,
+            device_id=obj.device_id,
+            playlist_id=obj.playlist_id,
+            is_active=obj.is_active,
+            assigned_at=obj.created_at
+        )
 
 
 class PlaylistDetailResponse(BaseModel):
@@ -67,6 +81,7 @@ class PlaylistDetailResponse(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+    is_system: bool = False
     items: List[PlaylistItemResponse]
     devices: List[dict]  # 简化处理
     created_at: datetime
@@ -85,3 +100,16 @@ class PlaylistListResponse(BaseModel):
 class ReorderItemsRequest(BaseModel):
     """重新排序请求"""
     items: List[dict]  # [{"id": 1, "order": 0}, ...]
+
+
+class PlaylistItemBatchCreate(BaseModel):
+    """批量添加播放列表项请求"""
+    media_ids: List[int] = Field(..., min_length=1, max_length=50, description="媒体文件 ID 列表")
+    display_duration: int = Field(default=5, ge=1, le=3600, description="默认显示时长（秒）")
+
+
+class PlaylistItemBatchResponse(BaseModel):
+    """批量添加播放列表项响应"""
+    added_count: int
+    items: List[PlaylistItemResponse]
+    failed_media_ids: List[int] = []

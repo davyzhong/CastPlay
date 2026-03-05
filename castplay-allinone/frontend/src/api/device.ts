@@ -1,8 +1,8 @@
 /**
  * 设备 API
  */
-import apiClient from './client';
-import type { Device, DeviceSchedule, ApiResponse } from '../types';
+import { api } from './client';
+import type { Device, DeviceSchedule, DevicePlaylist, ApiResponse } from '../types';
 
 export interface DeviceListParams {
   skip?: number;
@@ -31,32 +31,40 @@ export interface SetScheduleParams {
 
 // 设备注册
 export const registerDevice = (params: CreateDeviceParams) =>
-  apiClient.post<ApiResponse<{ device: Device }>>('/devices/register', params);
+  api.post<ApiResponse<{ device: Device }>>('/devices/register', params);
 
 // 设备心跳
 export const deviceHeartbeat = (deviceId: number) =>
-  apiClient.put(`/devices/${deviceId}/heartbeat`);
+  api.put<void>(`/devices/${deviceId}/heartbeat`);
 
 // 获取设备列表
 export const getDeviceList = (params: DeviceListParams = {}) =>
-  apiClient.get<{ items: Device[]; total: number }>('/devices', { params });
+  api.get<{ items: Device[]; total: number }>('/devices', { params });
 
 // 获取设备详情
 export const getDevice = (deviceId: number) =>
-  apiClient.get<Device>(`/devices/${deviceId}`);
+  api.get<Device>(`/devices/${deviceId}`);
 
 // 更新设备
 export const updateDevice = (deviceId: number, params: UpdateDeviceParams) =>
-  apiClient.put<Device>(`/devices/${deviceId}`, params);
+  api.put<Device>(`/devices/${deviceId}`, params);
 
 // 删除设备
 export const deleteDevice = (deviceId: number) =>
-  apiClient.delete(`/devices/${deviceId}`);
+  api.delete<void>(`/devices/${deviceId}`);
 
 // 设置定时配置
 export const setDeviceSchedule = (deviceId: number, params: SetScheduleParams) =>
-  apiClient.post<ApiResponse<{ schedule: DeviceSchedule }>>(`/devices/${deviceId}/schedule`, params);
+  api.post<ApiResponse<{ schedule: DeviceSchedule }>>(`/devices/${deviceId}/schedule`, params);
 
 // 获取定时配置
 export const getDeviceSchedule = (deviceId: number) =>
-  apiClient.get<DeviceSchedule>(`/devices/${deviceId}/schedule`);
+  api.get<DeviceSchedule>(`/devices/${deviceId}/schedule`);
+
+// 获取设备关联的播放列表
+export const getDevicePlaylists = (deviceId: number) =>
+  api.get<{ device_id: number; playlists: DevicePlaylist[] }>(`/devices/${deviceId}/playlists`);
+
+// 禁用/启用设备
+export const toggleDeviceDisabled = (deviceId: number, isDisabled: boolean) =>
+  api.put<Device>(`/devices/${deviceId}/disable`, { is_disabled: isDisabled });

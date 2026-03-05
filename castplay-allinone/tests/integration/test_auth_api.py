@@ -223,11 +223,15 @@ class TestGetCurrentUserEndpoint:
 
         assert response.status_code == 401
 
-    def test_get_current_user_expired_token(self, client, test_user):
-        """测试过期的 Token（需要模拟）"""
-        # 这个测试可能需要创建一个立即过期的 Token
-        # 在实际实现中，可以使用 JWT 手动创建过期 Token
-        pass
+    def test_get_current_user_expired_token(self, client, test_user, expired_token):
+        """测试过期的 Token"""
+        response = client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {expired_token}"}
+        )
+
+        # 过期的 token 应该返回 401
+        assert response.status_code == 401
 
 
 # ============================================================================

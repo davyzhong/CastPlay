@@ -68,12 +68,22 @@ class TestUserSchemas:
 
     def test_token_response_structure(self):
         """测试 Token 响应结构"""
+        from datetime import datetime
         response = TokenResponse(
             access_token="test_token_abc123",
-            token_type="bearer"
+            token_type="bearer",
+            user=UserResponse(
+                id=1,
+                username="testuser",
+                email="test@example.com",
+                is_active=True,
+                is_superuser=False,
+                created_at=datetime.now()
+            )
         )
         assert response.access_token == "test_token_abc123"
         assert response.token_type == "bearer"
+        assert response.user.username == "testuser"
 
 
 # ============================================================================
@@ -150,6 +160,7 @@ class TestMediaSchemas:
 
     def test_media_response_structure(self):
         """测试媒体响应结构"""
+        from datetime import datetime
         response = MediaFileResponse(
             id=1,
             file_name="test.jpg",
@@ -158,7 +169,8 @@ class TestMediaSchemas:
             file_size=102400,
             thumbnail_path="/thumbnails/test.jpg",
             md5_hash="d41d8cd98f00b204e9800998ecf8427e",
-            status="ready"
+            status="ready",
+            created_at=datetime.now()
         )
         assert response.id == 1
         assert response.file_name == "test.jpg"
@@ -167,6 +179,7 @@ class TestMediaSchemas:
 
     def test_media_list_response_structure(self):
         """测试媒体列表响应结构"""
+        from datetime import datetime
         media_items = [
             MediaFileResponse(
                 id=i,
@@ -175,7 +188,8 @@ class TestMediaSchemas:
                 file_path=f"/uploads/test{i}.jpg",
                 file_size=102400,
                 md5_hash=f"hash{i}",
-                status="ready"
+                status="ready",
+                created_at=datetime.now()
             )
             for i in range(3)
         ]
@@ -194,6 +208,7 @@ class TestMediaSchemas:
 
     def test_upload_response_structure(self):
         """测试上传响应结构"""
+        from datetime import datetime
         media = MediaFileResponse(
             id=1,
             file_name="uploaded.jpg",
@@ -201,7 +216,8 @@ class TestMediaSchemas:
             file_path="/uploads/uploaded.jpg",
             file_size=204800,
             md5_hash="upload_hash",
-            status="ready"
+            status="ready",
+            created_at=datetime.now()
         )
         response = UploadResponse(
             message="File uploaded successfully",
@@ -401,9 +417,18 @@ class TestSchemaSerialization:
 
     def test_json_serialization(self):
         """测试 JSON 序列化"""
+        from datetime import datetime
         response = TokenResponse(
             access_token="test_token",
-            token_type="bearer"
+            token_type="bearer",
+            user=UserResponse(
+                id=1,
+                username="testuser",
+                email="test@example.com",
+                is_active=True,
+                is_superuser=False,
+                created_at=datetime.now()
+            )
         )
 
         # 转换为 JSON
@@ -424,14 +449,22 @@ class TestSchemaBoundaryValues:
 
     def test_username_length(self):
         """测试用户名长度限制"""
-        # 短用户名
-        short = UserCreate(username="ab", password="pass123")
-        assert short.username == "ab"
+        # 最小有效长度（3 字符）
+        short = UserCreate(username="abc", password="pass123")
+        assert short.username == "abc"
 
-        # 长用户名（根据实际限制调整）
-        long_name = "a" * 100  # 假设限制为 100 字符
+        # 最大有效长度（50 字符）
+        long_name = "a" * 50
         long = UserCreate(username=long_name, password="pass123")
         assert long.username == long_name
+
+        # 太短的用户名应该失败
+        with pytest.raises(ValidationError):
+            UserCreate(username="ab", password="pass123")
+
+        # 太长的用户名应该失败
+        with pytest.raises(ValidationError):
+            UserCreate(username="a" * 51, password="pass123")
 
     def test_weekdays_boundary(self):
         """测试工作日边界值"""

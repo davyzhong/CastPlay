@@ -1,5 +1,6 @@
 /**
  * 设备管理页面
+ * 优化版本：合并列信息，简化界面
  */
 import { useState, useEffect } from 'react';
 import {
@@ -15,22 +16,41 @@ import {
   Switch,
   Typography,
   App,
+  List,
+  Popconfirm,
+  Tooltip,
+  Descriptions,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { PlusOutlined, ReloadOutlined, ClockCircleOutlined } from '@ant-design/icons';
-import type { Device, DeviceSchedule } from '../types';
-import { getDeviceList, deleteDevice, setDeviceSchedule, getDeviceSchedule } from '../api/device';
+import {
+  ReloadOutlined,
+  ClockCircleOutlined,
+  UnorderedListOutlined,
+  DesktopOutlined,
+  StopOutlined,
+  CheckCircleOutlined,
+  InfoCircleOutlined,
+} from '@ant-design/icons';
+import type { Device, DeviceSchedule, DevicePlaylist, Playlist } from '../types';
+import { getDeviceList, setDeviceSchedule, getDeviceSchedule, getDevicePlaylists, toggleDeviceDisabled } from '../api/device';
+import { getPlaylistList, assignPlaylistToDevice, unassignPlaylistFromDevice, togglePlaylistActivation } from '../api/playlist';
 import { useStore } from '../store';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const DeviceListPage: React.FC = () => {
   const { message, modal } = App.useApp();
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(false);
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
+  const [playlistModalVisible, setPlaylistModalVisible] = useState(false);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [schedule, setSchedule] = useState<DeviceSchedule | null>(null);
+  const [devicePlaylists, setDevicePlaylists] = useState<DevicePlaylist[]>([]);
+  const [allPlaylists, setAllPlaylists] = useState<Playlist[]>([]);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<number | null>(null);
+  const [playlistLoading, setPlaylistLoading] = useState(false);
   const { setDevices: setStoreDevices } = useStore();
   const [form] = Form.useForm();
 
@@ -53,12 +73,11 @@ const DeviceListPage: React.FC = () => {
 
   useEffect(() => {
     fetchDevices();
-    }, []);
+  }, []);
 
   const handleScheduleModal = async (device: Device) => {
     setSelectedDevice(device);
 
-    // 获取现有定时配置
     try {
       const scheduleData = await getDeviceSchedule(device.id);
       setSchedule(scheduleData);
@@ -69,7 +88,18 @@ const DeviceListPage: React.FC = () => {
         weekdays: scheduleData.weekdays,
       });
     } catch (error: any) {
-      console.error('Fetch schedule error:', error);
+      if (error.status === 404) {
+        setSchedule(null);
+        form.setFieldsValue({
+          power_on_time: null,
+          power_off_time: null,
+          is_enabled: false,
+          weekdays: [1, 2, 3, 4, 5],
+        });
+      } else {
+        console.error('Fetch schedule error:', error);
+        message.error('获取定时配置失败');
+      }
     }
 
     setScheduleModalVisible(true);
@@ -79,108 +109,218 @@ const DeviceListPage: React.FC = () => {
     if (!selectedDevice) return;
 
     try {
+      const formatTime = (time: any) => {
+        if (!time) return null;
+        if (time && typeof time.format === 'function') {
+          return time.format('HH:mm');
+        }
+        return time;
+      };
+
       await setDeviceSchedule(selectedDevice.id, {
-        power_on_time: values.power_on_time,
-        power_off_time: values.power_off_time,
-        is_enabled: values.is_enabled,
-        weekdays: values.weekdays,
+        power_on_time: formatTime(values.power_on_time),
+        power_off_time: formatTime(values.power_off_time),
+        is_enabled: values.is_enabled || false,
+        weekdays: values.weekdays || [1, 2, 3, 4, 5],
       });
 
       message.success('定时配置已更新');
       setScheduleModalVisible(false);
     } catch (error: any) {
       console.error('Set schedule error:', error);
-      message.error('设置定时配置失败');
+      message.error(error.message || '设置定时配置失败');
     }
   };
 
-  const handleDelete = async (device: Device) => {
+  const handleToggleDisabled = async (device: Device) => {
+    const newDisabledState = !device.is_disabled;
+    const action = newDisabledState ? '禁用' : '启用';
+
     modal.confirm({
-      title: '确认删除',
-      content: `确定要删除设备 "${device.device_name}" 吗？`,
+      title: `确认${action}设备`,
+      content: newDisabledState
+        ? `禁用后，设备 "${device.device_name}" 只能播放默认内容，不会接收播放列表更新。确定要禁用吗？`
+        : `确定要启用设备 "${device.device_name}" 吗？`,
       okText: '确定',
       cancelText: '取消',
-      okType: 'danger',
+      okType: newDisabledState ? 'danger' : 'primary',
       onOk: async () => {
         try {
-          await deleteDevice(device.id);
-          message.success('设备已删除');
-          // 更新本地状态
-          setDevices(devices.filter((d) => d.id !== device.id));
+          await toggleDeviceDisabled(device.id, newDisabledState);
+          message.success(`设备已${action}`);
+          // 刷新设备列表
+          fetchDevices();
         } catch (error: any) {
-          console.error('Delete device error:', error);
-          message.error('删除设备失败');
+          console.error('Toggle disabled error:', error);
+          message.error(`${action}设备失败`);
         }
       },
     });
   };
 
+  const handleShowDetail = (device: Device) => {
+    setSelectedDevice(device);
+    setDetailModalVisible(true);
+  };
+
+  // 播放列表管理相关函数
+  const fetchAllPlaylists = async () => {
+    try {
+      const response = await getPlaylistList({ limit: 100 });
+      setAllPlaylists(response.items || []);
+    } catch (error: any) {
+      console.error('Fetch playlists error:', error);
+    }
+  };
+
+  const handlePlaylistModal = async (device: Device) => {
+    setSelectedDevice(device);
+    setPlaylistLoading(true);
+    setPlaylistModalVisible(true);
+
+    try {
+      const response = await getDevicePlaylists(device.id);
+      setDevicePlaylists(response.playlists || []);
+      await fetchAllPlaylists();
+    } catch (error: any) {
+      console.error('Fetch device playlists error:', error);
+      message.error('获取设备播放列表失败');
+    } finally {
+      setPlaylistLoading(false);
+    }
+  };
+
+  const handleAssignPlaylist = async () => {
+    if (!selectedDevice || !selectedPlaylistId) return;
+
+    setPlaylistLoading(true);
+    try {
+      await assignPlaylistToDevice(selectedPlaylistId, selectedDevice.id);
+      message.success('播放列表分配成功');
+      setSelectedPlaylistId(null);
+      const response = await getDevicePlaylists(selectedDevice.id);
+      setDevicePlaylists(response.playlists || []);
+    } catch (error: any) {
+      console.error('Assign playlist error:', error);
+      message.error(error.response?.data?.detail || '分配播放列表失败');
+    } finally {
+      setPlaylistLoading(false);
+    }
+  };
+
+  const handleUnassignPlaylist = async (playlistId: number) => {
+    if (!selectedDevice) return;
+
+    try {
+      await unassignPlaylistFromDevice(playlistId, selectedDevice.id);
+      message.success('已取消播放列表分配');
+      const response = await getDevicePlaylists(selectedDevice.id);
+      setDevicePlaylists(response.playlists || []);
+    } catch (error: any) {
+      console.error('Unassign playlist error:', error);
+      message.error('取消分配失败');
+    }
+  };
+
+  const handleTogglePlaylistActive = async (playlistId: number, isActive: boolean) => {
+    if (!selectedDevice) return;
+
+    try {
+      await togglePlaylistActivation(playlistId, selectedDevice.id, isActive);
+      message.success(isActive ? '播放列表已激活' : '播放列表已停用');
+      const response = await getDevicePlaylists(selectedDevice.id);
+      setDevicePlaylists(response.playlists || []);
+    } catch (error: any) {
+      console.error('Toggle playlist active error:', error);
+      message.error('操作失败');
+    }
+  };
+
+  // 格式化最后在线时间
+  const formatLastOnline = (time: string | undefined) => {
+    if (!time) return '-';
+    const date = new Date(time);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return '刚刚';
+    if (diffMins < 60) return `${diffMins} 分钟前`;
+    if (diffHours < 24) return `${diffHours} 小时前`;
+    if (diffDays < 7) return `${diffDays} 天前`;
+    return date.toLocaleDateString('zh-CN');
+  };
+
   const columns: ColumnsType<Device> = [
     {
-      title: '设备 ID',
-      dataIndex: 'device_id',
-      key: 'device_id',
-      width: 150,
-      ellipsis: true,
-    },
-    {
-      title: '设备名称',
-      dataIndex: 'device_name',
-      key: 'device_name',
-    },
-    {
-      title: 'MAC 地址',
-      dataIndex: 'mac_address',
-      key: 'mac_address',
-      render: (mac: string) => mac || '-',
-    },
-    {
-      title: 'IP 地址',
-      dataIndex: 'ip_address',
-      key: 'ip_address',
-      render: (ip: string) => ip || '-',
+      title: '设备信息',
+      key: 'device_info',
+      width: 300,
+      render: (_: any, record: Device) => (
+        <Space direction="vertical" size={0}>
+          <Space>
+            <DesktopOutlined style={{ color: record.is_disabled ? '#999' : '#1890ff' }} />
+            <Text strong style={{ color: record.is_disabled ? '#999' : undefined }}>
+              {record.device_name}
+            </Text>
+            {record.is_disabled && (
+              <Tag color="warning" icon={<StopOutlined />}>已禁用</Tag>
+            )}
+          </Space>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            ID: {record.device_id.slice(0, 8)}...
+          </Text>
+          {(record.ip_address || record.mac_address) && (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {record.ip_address && `IP: ${record.ip_address}`}
+              {record.ip_address && record.mac_address && ' | '}
+              {record.mac_address && `MAC: ${record.mac_address}`}
+            </Text>
+          )}
+        </Space>
+      ),
     },
     {
       title: '注册码',
       dataIndex: 'registration_code',
       key: 'registration_code',
+      width: 140,
       render: (code: string) => code ? (
-        <Tag color="blue">{code}</Tag>
+        <Tag color="blue" copyable={{ text: code }}>{code}</Tag>
       ) : '-',
     },
     {
-      title: '播放速度',
-      dataIndex: 'playback_speed',
-      key: 'playback_speed',
-      render: (speed: number) => `${speed || 1}X`,
-    },
-    {
-      title: '时区',
-      dataIndex: 'timezone',
-      key: 'timezone',
-    },
-    {
       title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => (
-        <Tag color={status === 'online' ? 'success' : 'default'}>
-          {status === 'online' ? '在线' : '离线'}
-        </Tag>
-      ),
+      key: 'status_info',
+      width: 140,
+      render: (_: any, record: Device) => {
+        if (record.is_disabled) {
+          return (
+            <Tooltip title="设备已被禁用，只能播放默认内容">
+              <Tag color="warning" icon={<StopOutlined />}>已禁用</Tag>
+            </Tooltip>
+          );
+        }
+        return (
+          <Tooltip title={`最后在线: ${formatLastOnline(record.last_online)}`}>
+            <Tag color={record.status === 'online' ? 'success' : 'default'}>
+              {record.status === 'online' ? '在线' : '离线'}
+            </Tag>
+          </Tooltip>
+        );
+      },
     },
     {
-      title: '最后在线',
-      dataIndex: 'last_online',
-      key: 'last_online',
-      render: (time: string) => time ? new Date(time).toLocaleString('zh-CN') : '-',
-    },
-    {
-      title: '定时配置',
+      title: '定时',
       key: 'schedule',
+      width: 80,
+      align: 'center',
       render: (_: any, record: Device) => (
         <Button
           type="link"
+          size="small"
           icon={<ClockCircleOutlined />}
           onClick={() => handleScheduleModal(record)}
         >
@@ -189,17 +329,54 @@ const DeviceListPage: React.FC = () => {
       ),
     },
     {
+      title: '播放列表',
+      key: 'playlists',
+      width: 90,
+      align: 'center',
+      render: (_: any, record: Device) => (
+        <Button
+          type="link"
+          size="small"
+          icon={<UnorderedListOutlined />}
+          onClick={() => handlePlaylistModal(record)}
+          disabled={record.is_disabled}
+        >
+          管理
+        </Button>
+      ),
+    },
+    {
       title: '操作',
       key: 'action',
+      width: 180,
       render: (_: any, record: Device) => (
-        <Space size="middle">
-          <Button
-            type="link"
-            danger
-            onClick={() => handleDelete(record)}
+        <Space size="small">
+          <Tooltip title="查看详情">
+            <Button
+              type="text"
+              size="small"
+              icon={<InfoCircleOutlined />}
+              onClick={() => handleShowDetail(record)}
+            />
+          </Tooltip>
+          <Popconfirm
+            title={record.is_disabled ? '启用设备' : '禁用设备'}
+            description={record.is_disabled
+              ? '启用后设备将恢复正常播放功能'
+              : '禁用后设备只能播放默认内容'}
+            onConfirm={() => handleToggleDisabled(record)}
+            okText="确定"
+            cancelText="取消"
           >
-            删除
-          </Button>
+            <Button
+              type="text"
+              size="small"
+              danger={!record.is_disabled}
+              icon={record.is_disabled ? <CheckCircleOutlined /> : <StopOutlined />}
+            >
+              {record.is_disabled ? '启用' : '禁用'}
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -207,39 +384,78 @@ const DeviceListPage: React.FC = () => {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
-        <Title level={4}>设备管理</Title>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Title level={4} style={{ margin: 0 }}>设备管理</Title>
+        <Button
+          icon={<ReloadOutlined />}
+          loading={loading}
+          onClick={fetchDevices}
+        >
+          刷新
+        </Button>
       </div>
 
       <Card>
-        <Space style={{ marginBottom: 16 }}>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => message.info('设备注册由播放端完成')}
-          >
-            注册设备
-          </Button>
-          <Button
-            icon={<ReloadOutlined />}
-            loading={loading}
-            onClick={fetchDevices}
-          >
-            刷新
-          </Button>
-        </Space>
-
         <Table
           columns={columns}
           dataSource={devices}
           rowKey="id"
           loading={loading}
           pagination={false}
-          locale={{
-            emptyText: '暂无设备',
-          }}
+          locale={{ emptyText: '暂无设备' }}
         />
       </Card>
+
+      {/* 设备详情模态框 */}
+      <Modal
+        title="设备详情"
+        open={detailModalVisible}
+        onCancel={() => setDetailModalVisible(false)}
+        footer={null}
+        width={600}
+      >
+        {selectedDevice && (
+          <Descriptions column={2} bordered size="small">
+            <Descriptions.Item label="设备名称" span={2}>
+              {selectedDevice.device_name}
+            </Descriptions.Item>
+            <Descriptions.Item label="设备 ID" span={2}>
+              <Text copyable>{selectedDevice.device_id}</Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="注册码">
+              {selectedDevice.registration_code ? (
+                <Text copyable>{{ text: selectedDevice.registration_code }}</Text>
+              ) : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="时区">
+              {selectedDevice.timezone}
+            </Descriptions.Item>
+            <Descriptions.Item label="MAC 地址">
+              {selectedDevice.mac_address || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="IP 地址">
+              {selectedDevice.ip_address || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="状态">
+              {selectedDevice.is_disabled ? (
+                <Tag color="warning">已禁用</Tag>
+              ) : (
+                <Tag color={selectedDevice.status === 'online' ? 'success' : 'default'}>
+                  {selectedDevice.status === 'online' ? '在线' : '离线'}
+                </Tag>
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="最后在线">
+              {selectedDevice.last_online
+                ? new Date(selectedDevice.last_online).toLocaleString('zh-CN')
+                : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="创建时间" span={2}>
+              {new Date(selectedDevice.created_at).toLocaleString('zh-CN')}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Modal>
 
       {/* 定时配置模态框 */}
       <Modal
@@ -249,66 +465,148 @@ const DeviceListPage: React.FC = () => {
         footer={null}
         width={500}
       >
-        {schedule && (
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleSetSchedule}
-            initialValues={{
-              power_on_time: schedule.power_on_time,
-              power_off_time: schedule.power_off_time,
-              is_enabled: schedule.is_enabled,
-              weekdays: schedule.weekdays,
-            }}
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSetSchedule}
+          initialValues={{
+            is_enabled: false,
+            weekdays: [1, 2, 3, 4, 5],
+          }}
+        >
+          <Form.Item label="启用定时配置" name="is_enabled" valuePropName="checked">
+            <Switch checkedChildren="启用" />
+          </Form.Item>
+
+          <Form.Item
+            label="开机时间"
+            name="power_on_time"
+            rules={[{ required: true, message: '请选择开机时间' }]}
           >
-            <Form.Item label="启用定时配置" name="is_enabled" valuePropName="checked">
-              <Switch checkedChildren="启用" />
-            </Form.Item>
+            <TimePicker format="HH:mm" style={{ width: '100%' }} />
+          </Form.Item>
 
-            <Form.Item
-              label="开机时间"
-              name="power_on_time"
-              rules={[{ required: true, message: '请选择开机时间' }]}
-            >
-              <TimePicker format="HH:mm" style={{ width: '100%' }} />
-            </Form.Item>
+          <Form.Item
+            label="关机时间"
+            name="power_off_time"
+            rules={[{ required: true, message: '请选择关机时间' }]}
+          >
+            <TimePicker format="HH:mm" style={{ width: '100%' }} />
+          </Form.Item>
 
-            <Form.Item
-              label="关机时间"
-              name="power_off_time"
-              rules={[{ required: true, message: '请选择关机时间' }]}
-            >
-              <TimePicker format="HH:mm" style={{ width: '100%' }} />
-            </Form.Item>
+          <Form.Item
+            label="工作日"
+            name="weekdays"
+            rules={[{ required: true, message: '请选择工作日' }]}
+          >
+            <Select
+              mode="multiple"
+              placeholder="请选择工作日"
+              style={{ width: '100%' }}
+              options={[
+                { label: '周一', value: 1 },
+                { label: '周二', value: 2 },
+                { label: '周三', value: 3 },
+                { label: '周四', value: 4 },
+                { label: '周五', value: 5 },
+                { label: '周六', value: 6 },
+                { label: '周日', value: 7 },
+              ]}
+            />
+          </Form.Item>
 
-            <Form.Item
-              label="工作日"
-              name="weekdays"
-              rules={[{ required: true, message: '请选择工作日' }]}
-            >
+          <Form.Item>
+            <Button type="primary" htmlType="submit" block>
+              保存配置
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 播放列表管理模态框 */}
+      <Modal
+        title={selectedDevice ? `播放列表管理: ${selectedDevice.device_name}` : '播放列表管理'}
+        open={playlistModalVisible}
+        onCancel={() => {
+          setPlaylistModalVisible(false);
+          setDevicePlaylists([]);
+          setSelectedPlaylistId(null);
+        }}
+        footer={null}
+        width={600}
+      >
+        <div>
+          {/* 分配新播放列表 */}
+          <Card size="small" style={{ marginBottom: 16 }}>
+            <Space.Compact style={{ width: '100%' }}>
               <Select
-                mode="multiple"
-                placeholder="请选择工作日"
-                style={{ width: '100%' }}
-                options={[
-                  { label: '周一', value: 1 },
-                  { label: '周二', value: 2 },
-                  { label: '周三', value: 3 },
-                  { label: '周四', value: 4 },
-                  { label: '周五', value: 5 },
-                  { label: '周六', value: 6 },
-                  { label: '周日', value: 7 },
-                ]}
+                style={{ width: 'calc(100% - 80px)' }}
+                placeholder="选择播放列表"
+                value={selectedPlaylistId}
+                onChange={setSelectedPlaylistId}
+                options={allPlaylists
+                  .filter((p) => !devicePlaylists.some((dp) => dp.playlist_id === p.id))
+                  .map((p) => ({
+                    label: `${p.name} (${p.item_count} 项)`,
+                    value: p.id,
+                  }))}
               />
-            </Form.Item>
-
-            <Form.Item>
-              <Button type="primary" htmlType="submit" block>
-                保存配置
+              <Button
+                type="primary"
+                onClick={handleAssignPlaylist}
+                disabled={!selectedPlaylistId}
+                loading={playlistLoading}
+              >
+                分配
               </Button>
-            </Form.Item>
-          </Form>
-        )}
+            </Space.Compact>
+          </Card>
+
+          {/* 已分配的播放列表 */}
+          <Typography.Text strong>已分配的播放列表</Typography.Text>
+          <List
+            loading={playlistLoading}
+            style={{ marginTop: 8 }}
+            dataSource={devicePlaylists}
+            locale={{ emptyText: '暂无分配的播放列表' }}
+            renderItem={(item) => (
+              <List.Item
+                key={item.assignment_id || item.playlist_id}
+                actions={[
+                  <Switch
+                    key="active"
+                    size="small"
+                    checked={item.is_active}
+                    checkedChildren="激活"
+                    unCheckedChildren="停用"
+                    onChange={(checked) => handleTogglePlaylistActive(item.playlist_id, checked)}
+                  />,
+                  <Popconfirm
+                    key="remove"
+                    title="确定要取消分配吗？"
+                    onConfirm={() => handleUnassignPlaylist(item.playlist_id)}
+                    okText="确定"
+                    cancelText="取消"
+                  >
+                    <Button size="small" danger>
+                      移除
+                    </Button>
+                  </Popconfirm>,
+                ]}
+              >
+                <List.Item.Meta
+                  title={
+                    <Space>
+                      {item.playlist_name}
+                      <Tag color="blue">{item.item_count} 项</Tag>
+                    </Space>
+                  }
+                  description={`分配时间: ${item.assigned_at ? new Date(item.assigned_at).toLocaleString('zh-CN') : '-'}`}
+                />
+              </List.Item>
+            )}
+          />
+        </div>
       </Modal>
     </div>
   );

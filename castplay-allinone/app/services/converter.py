@@ -177,8 +177,8 @@ class PPTConverter:
             output_dir.mkdir(exist_ok=True)
 
             # 使用 pdftoppm 或 ImageMagick 转换
-            # 优先使用 pdftoppm
-            cmd = ["pdftoppm", "-jpeg", "-r", "150", pdf_path, str(output_dir / "slide")]
+            # 优先使用 pdftoppm，使用 300 DPI 获得更高质量的图片
+            cmd = ["pdftoppm", "-jpeg", "-r", "300", pdf_path, str(output_dir / "slide")]
 
             logger.info(f"Running: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
@@ -254,16 +254,18 @@ class PPTConverter:
             output_path = settings.CONVERTED_DIR / f"{original_name}.mp4"
 
             # 构建 ffmpeg 命令
+            # 注意：pdftoppm 生成的文件名是 slide-1.jpg, slide-2.jpg（不是 slide-01.jpg）
+            # 使用 %d 模式匹配
             cmd = [
                 self.ffmpeg_path,
                 "-y",  # 覆盖输出文件
                 "-framerate", "1/5",  # 每张幻灯片 5 秒
-                "-i", f"{images_dir}/slide-%01d.jpg",  # 输入文件模式
+                "-i", f"{images_dir}/slide-%d.jpg",  # 输入文件模式
                 "-c:v", "libx264",  # 视频编码
                 "-pix_fmt", "yuv420p",  # 像素格式
                 "-preset", "fast",  # 编码预设
                 "-crf", "23",  # 质量控制
-                "-vf", "scale=1920:1080:force_original_aspect_ratio",  # 缩放到 1080p
+                "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black",  # 缩放到 1080p 并居中加黑边
                 str(output_path)
             ]
 
@@ -300,13 +302,13 @@ class PPTConverter:
             original_name = Path(video_path).stem
             thumbnail_path = settings.THUMBNAILS_DIR / f"thumb_{original_name}.jpg"
 
-            # 构建 ffmpeg 命令
+            # 构建 ffmpeg 命令，生成 640 像素宽度的缩略图
             cmd = [
                 self.ffmpeg_path,
                 "-i", video_path,
                 "-ss", "00:00:01",  # 从第 1 秒开始
                 "-vframes", "1",  # 只取 1 帧
-                "-vf", "scale=320:-1",  # 缩放到宽度 320
+                "-vf", "scale=640:-1",  # 缩放到宽度 640
                 "-y",
                 str(thumbnail_path)
             ]

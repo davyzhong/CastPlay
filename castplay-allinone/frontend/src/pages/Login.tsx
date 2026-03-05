@@ -2,7 +2,7 @@
  * 登录页面
  */
 import { useState } from 'react';
-import { Form, Input, Button, Card, message, Typography } from 'antd';
+import { Form, Input, Button, Card, Typography, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../api/auth';
@@ -11,15 +11,17 @@ import { useStore } from '../store';
 const { Title } = Typography;
 
 const LoginPage: React.FC = () => {
+  const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const setUser = useStore((state) => state.setUser);
-  const setNotification = useStore((state) => state.setNotification);
+  const { setUser } = useStore();
 
   const handleFinish = async (values: { username: string; password: string }) => {
+    console.log('Login button clicked, values:', values);
     setLoading(true);
     try {
       const response: any = await login(values);
+      console.log('Login response:', response);
 
       if (response.access_token) {
         // 保存 token
@@ -31,40 +33,27 @@ const LoginPage: React.FC = () => {
         // 显示成功消息
         message.success('登录成功');
 
-        // 跳转到首页
-        navigate('/');
+        console.log('Token saved, navigating to home...');
+
+        // 尝试使用 navigate 而不是 window.location.href
+        try {
+          navigate('/');
+          console.log('Navigate successful');
+        } catch (navError) {
+          console.error('Navigate error:', navError);
+          // 如果 navigate 失败，回退到 window.location.href
+          console.log('Falling back to window.location.href');
+          window.location.href = '/';
+        }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error);
-      setNotification({
-        message: error.message || error.detail || '登录失败，请重试',
-        type: 'error',
-      });
+      const errorMessage = error instanceof Error ? error.message : '登录失败，请重试';
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
-
-  // 检查是否已登录
-  const token = localStorage.getItem('token');
-  if (token) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        background: '#f0f2f5',
-      }}>
-        <Card style={{ width: 400 }}>
-          <div style={{ textAlign: 'center' }}>
-            <Title level={3}>CastPlay 管理后台</Title>
-            <p style={{ color: '#888' }}>您已登录，正在跳转...</p>
-          </div>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div style={{

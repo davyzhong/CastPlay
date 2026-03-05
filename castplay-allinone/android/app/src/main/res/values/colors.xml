@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#1890FF</color>
+    <color name="colorPrimaryDark">#0066CC</color>
+    <color name="colorAccent">#52C41A</color>
+    <color name="colorBackground">#000000</color>
+    <color name="colorSurface">#1E1E1E</color>
+    <color name="colorOnSurface">#FFFFFF</color>
+    <color name="colorError">#F5222D</color>
+
+    <!-- Player specific colors -->
+    <color name="player_background">#000000</color>
+    <color name="player_controls_background">#80000000</color>
+    <color name="player_text">#FFFFFF</color>
+    <color name="player_progress">#1890FF</color>
+</resources>

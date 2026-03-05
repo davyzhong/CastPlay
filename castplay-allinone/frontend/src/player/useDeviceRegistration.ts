@@ -1,0 +1,160 @@
+/**
+ * 设备注册 Hook
+ * 处理设备注册逻辑，支持 MAC 地址注册和传统 device_id 注册
+ */
+import { useState, useCallback, useEffect } from 'react';
+import axios from 'axios';
+import type { PlayerDeviceInfo } from './types';
+
+// 模拟 MAC 地址生成
+const generateMockMac = (): string => {
+  const hexDigits = '0123456789ABCDEF';
+  const parts: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    let part = '';
+    for (let j = 0; j < 2; j++) {
+      part += hexDigits[Math.floor(Math.random() * hexDigits.length)];
+    }
+    parts.push(part);
+  }
+  return parts.join(':');
+};
+
+// 模拟注册码生成
+const generateMockRegistrationCode = (macAddress: string): string => {
+  const cleanMac = macAddress.replace(/:/g, '').toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < cleanMac.length; i++) {
+    hash = ((hash << 5) - hash) + cleanMac.charCodeAt(i);
+    hash = hash & hash;
+  }
+  const code = Math.abs(hash).toString(16).toUpperCase().padStart(12, '0').slice(0, 12);
+  return `CP-${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8, 12)}`;
+};
+
+export interface UseDeviceRegistrationReturn {
+  deviceInfo: PlayerDeviceInfo | null;
+  isRegistered: boolean;
+  isLoading: boolean;
+  error: string | null;
+  register: () => Promise<void>;
+  checkRegistration: () => Promise<boolean>;
+}
+
+export const useDeviceRegistration = (): UseDeviceRegistrationReturn => {
+  const [deviceInfo, setDeviceInfo] = useState<PlayerDeviceInfo | null>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 获取 Android Bridge
+  const getAndroidBridge = useCallback(() => {
+    return window.AndroidBridge;
+  }, []);
+
+  // 获取设备信息
+  const getDeviceInfo = useCallback(() => {
+    const bridge = getAndroidBridge();
+
+    if (bridge) {
+      return {
+        macAddress: bridge.getMacAddress(),
+        ipAddress: bridge.getIPAddress() || '0.0.0.0',
+        deviceId: bridge.getDeviceId(),
+        registrationCode: bridge.getRegistrationCode(),
+        timezone: bridge.getLocalTimezone() || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
+    }
+
+    // Web 环境模拟
+    const mockMac = generateMockMac();
+    return {
+      macAddress: mockMac,
+      ipAddress: '0.0.0.0',
+      deviceId: null,
+      registrationCode: generateMockRegistrationCode(mockMac),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    };
+  }, [getAndroidBridge]);
+
+  // 检查是否已注册（从本地存储）
+  const checkRegistration = useCallback(async (): Promise<boolean> => {
+    const storedDevice = localStorage.getItem('player_device_info');
+    if (storedDevice) {
+      try {
+        const info = JSON.parse(storedDevice) as PlayerDeviceInfo;
+        setDeviceInfo(info);
+        setIsRegistered(true);
+        return true;
+      } catch {
+        localStorage.removeItem('player_device_info');
+      }
+    }
+    return false;
+  }, []);
+
+  // 注册设备
+  const register = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const deviceData = getDeviceInfo();
+
+      // 构建注册请求
+      const payload: Record<string, unknown> = {
+        device_name: `CastPlay-${deviceData.macAddress.replace(/:/g, '').slice(-6)}`,
+        timezone: deviceData.timezone,
+      };
+
+      if (deviceData.macAddress) {
+        payload.mac_address = deviceData.macAddress;
+        payload.ip_address = deviceData.ipAddress;
+        if (deviceData.registrationCode) {
+          payload.registration_code = deviceData.registrationCode;
+        }
+      } else if (deviceData.deviceId) {
+        payload.device_id = deviceData.deviceId;
+      }
+
+      const response = await axios.post('/api/devices/register', payload);
+      const registeredDevice: PlayerDeviceInfo = {
+        id: response.data.id,
+        device_id: response.data.device_id,
+        device_name: response.data.device_name,
+        timezone: response.data.timezone,
+        mac_address: response.data.mac_address,
+        ip_address: response.data.ip_address,
+        registration_code: response.data.registration_code,
+        playback_speed: response.data.playback_speed || 1,
+      };
+
+      // 保存到本地存储
+      localStorage.setItem('player_device_info', JSON.stringify(registeredDevice));
+      setDeviceInfo(registeredDevice);
+      setIsRegistered(true);
+    } catch (err) {
+      const errorMessage = axios.isAxiosError(err)
+        ? (err.response?.data?.detail || '注册失败')
+        : '注册失败';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getDeviceInfo]);
+
+  // 初始化时检查注册状态
+  useEffect(() => {
+    checkRegistration();
+  }, [checkRegistration]);
+
+  return {
+    deviceInfo,
+    isRegistered,
+    isLoading,
+    error,
+    register,
+    checkRegistration,
+  };
+};

@@ -1,0 +1,151 @@
+[MASTER]
+# pylint 配置文件
+
+# 扩展加载
+load-plugins=pylint_django,pylint_flask
+
+# Python 版本
+py-version=3.12
+
+# 输出格式
+output-format=colorized
+
+# 报告文件
+persistent=yes
+jobs=1
+
+# 并行检查
+jobs=10
+
+# 使用多个 CPU
+parallel=true
+
+[MESSAGES CONTROL]
+# 禁用某些警告
+disable=
+    C0111,  # 缺少文档字符串
+    R0903,  # 语句过长
+    R0913,  # 参数过多
+    C0103,  # 嵌套空格
+
+# 启用某些检查
+enable=
+
+[FORMAT]
+# 最大行长度
+max-line-length=100
+
+# 单个缩进长度
+indent-string='    '
+
+# 允许的缩进
+indent-after-paren=4
+
+[DESIGN]
+# 最大参数数量
+max-args=7
+
+# 最大属性数量
+max-attributes=7
+
+# 最少公共方法
+min-public-methods=2
+
+# 最大分支数
+max-branches=12
+
+# 最大返回数
+max-returns=6
+
+# 最大本地变量数
+max-locals=15
+
+# 最大语句数
+max-statements=50
+
+[CLASSES]
+# 禁用类警告
+disable=
+    R0903,  # 类文档太多行
+
+# 类名风格
+class-rgx=[A-Z][a-zA-Z0-9]+
+class-convention=PascalCase
+
+[BASIC]
+# 禁用函数警告
+disable=
+    R0903,  # 函数文档太多行
+
+# 函数名风格
+function-rgx=[a-z_][a-z0-9_]{2,30}$
+method-rgx=[a-z_][a-z0-9_]{2,30}$
+attr-rgx=[a-z_][a-z0-9_]{2,30}$
+argument-rgx=[a-z_][a-z0-9_]{2,30}$
+variable-rgx=[a-z_][a-z0-9_]{2,30}$
+class-attribute-rgx=([A-Za-z_][A-Za-z0-9_]{2,30}|(__.*__))$
+
+# 变量命名
+good-names=i,j,k,ex,Run,_
+
+[IMPORTS]
+# 导入警告
+disable=
+    C0411,  # 未使用的导入
+
+# 允许的导入模块
+deprecated-modules=
+
+# 允许的导入包
+allowed-wildcard-imports=
+
+[VARIABLES]
+# 变量警告
+disable=
+    C0103  # 未使用的变量
+
+# 允许的变量命名
+init-import=
+dummy-rgx=_+$|((dummy|unused_)_[a-zA-Z0-9_]*$)
+
+[SIMILARITIES]
+# 相似代码检查
+min-similarity-lines=4
+ignore-comments=yes
+ignore-docstrings=yes
+ignore-imports=no
+
+[IMPORTS]
+# 导入顺序
+known-standard-library=
+known-third-party=
+known-first-party=
+prefered-modules=
+
+[EXCEPTIONS]
+# 异常命名
+overgeneral-exceptions=Exception
+
+[TYPECHECK]
+# 类型检查
+ignore-mixin-members=yes
+ignore-none=yes
+
+[LOGGING]
+# 日志相关检查
+logging-format-style=new
+
+[STRING]
+# 字符串检查
+check-quote-consistency=yes
+
+# 字符串引号风格
+string-quote=single-avoid-escape
+
+[MISCELLANEOUS]
+# 杂项检查
+# 文档字符串
+docstring-min-length=10
+
+# 检查魔术方法
+check-magic-methods=no

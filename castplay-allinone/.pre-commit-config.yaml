@@ -1,0 +1,131 @@
+# Pre-commit hooks 配置
+# 在每次 commit 前自动运行检查
+# 安装: pip install pre-commit && pre-commit install
+
+repos:
+  # ==================== 通用配置 ====================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # 检查大文件
+      - id: check-added-large-files
+        name: 检查大文件
+        args: ['--maxkb=1000', '--enforce']
+
+      # 检查 JSON/YAML 语法
+      - id: check-json
+        name: 检查 JSON 语法
+        files: \.(json|lock)$
+      - id: check-yaml
+        name: 检查 YAML 语法
+        files: \.(yml|yaml)$
+
+      # 检测冲突标记
+      - id: check-merge-conflict
+        name: 检查冲突标记
+
+      # 删除尾部空白
+      - id: end-of-file-fixer
+        name: 修复文件结尾
+      - id: trailing-whitespace-fixer
+        name: 删除尾部空白
+
+      # 检查文件编码
+      - id: check-case-conflict
+        name: 检查大小写冲突
+
+      # 检查未跟踪的大文件
+      - id: detect-private-key
+        name: 检测私钥
+
+  # ==================== Python 代码 ====================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # 代码格式化
+      - id: black
+        name: Black 格式化
+        language_version: python3.12
+        args: ['--line-length=100']
+
+      # 导入排序
+      - id: isort
+        name: 导入排序
+        args: ['--profile=black']
+
+      # 类型检查
+      - id: mypy
+        name: mypy 类型检查
+        args: ['--ignore-missing-imports']
+        additional_dependencies:
+          - types-PyYAML
+
+      # 代码质量
+      - id: pylint
+        name: pylint 代码质量
+        args: ['--rcfile=.pylintrc', '--max-line-length=100']
+
+  # ==================== Python 安全 ====================
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        name: Bandit 安全检查
+        args: ['-c', 'pyproject.toml']
+        additional_dependencies: ['bandit[toml]']
+
+  # ==================== Python 依赖 ====================
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.3.3
+    hooks:
+      - id: python-safety-dependencies-check
+        name: Safety 依赖检查
+        files: pyproject.toml
+
+  # ==================== 文档检查 ====================
+  - repo: https://github.com/econchis/gitlint
+    rev: 0.3.0
+    hooks:
+      - id: gitlint-commit-msg
+        name: Commit 消息检查
+        args: ['--msg-regex', "^(feat|fix|docs|style|refactor|test|chore|build|ci): .+"']
+        args: ['--msg-regex', "^.+((?!.+).{50,}).+"']
+        args: ['--subject-regex', '^(feat|fix|docs|style|refactor|test|chore|build|ci).*']
+        stages: [commit-msg]
+
+  # ==================== Shell 脚本 ====================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-executables-have-shebangs
+        name: 检查脚本 shebang
+        types: [shell]
+      - id: check-yaml
+        name: 检查 YAML
+        types: [yaml]
+      - id: check-toml
+        name: 检查 TOML
+        types: [toml]
+
+  # ==================== 文件过滤 ====================
+  exclude: |
+      (?x)(
+        ^frontend/node_modules/           # 前端依赖
+        | ^frontend/dist/              # 前端构建
+        | ^frontend/.vite/             # Vite 缓存
+        | ^venv/                      # 虚拟环境
+        | ^\.git/                     # Git 文件
+        | ^__pycache__/               # Python 缓存
+        | ^\.pytest_cache/            # pytest 缓存
+        | ^htmlcov/                   # 覆盖率报告
+        | ^data/                      # 数据目录
+      )
+
+  # CI 配置
+  ci:
+    autofix_prs: true
+    autofix_commit_msg: 'style: 自动修复 pre-commit 问题'
+    autoupdate_branch: 'pre-commit-autoupdate'
+    autoupdate_schedule: weekly
+    skip: []
+    submodules: false

@@ -1,0 +1,22 @@
+[project]
+name = "castplay-allinone"
+version = "2.0.0"
+description = "CastPlay All-in-One - 快速启动的一体化数字标牌管理系统"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["app"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line_length = 100

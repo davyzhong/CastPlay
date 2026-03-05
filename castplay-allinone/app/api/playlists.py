@@ -12,7 +12,8 @@ from app.schemas.playlist import (
     PlaylistCreate, PlaylistResponse, PlaylistUpdate,
     PlaylistListResponse, PlaylistDetailResponse,
     PlaylistItemCreate, PlaylistItemResponse,
-    DevicePlaylistResponse, ReorderItemsRequest
+    DevicePlaylistResponse, ReorderItemsRequest,
+    PlaylistItemBatchCreate, PlaylistItemBatchResponse
 )
 from app.api.auth import get_current_user
 from app.models.user import User
@@ -121,9 +122,10 @@ def get_playlist(playlist_id: int, db: Session = Depends(get_db)):
 
     devices = [
         {
-            "id": dp.device_id,
+            "id": dp.id,
+            "device_id": dp.device_id,
             "is_active": bool(dp.is_active),
-            "assigned_at": dp.assigned_at
+            "assigned_at": dp.created_at.isoformat() if dp.created_at else None
         }
         for dp in device_assignments
     ]
@@ -132,6 +134,7 @@ def get_playlist(playlist_id: int, db: Session = Depends(get_db)):
         id=playlist.id,
         name=playlist.name,
         description=playlist.description,
+        is_system=playlist.is_system,
         items=items,
         devices=devices,
         created_at=playlist.created_at,
@@ -256,6 +259,82 @@ def add_playlist_item(
     )
 
 
+@router.post("/{playlist_id}/items/batch", response_model=PlaylistItemBatchResponse)
+def add_playlist_items_batch(
+    playlist_id: int,
+    batch_data: PlaylistItemBatchCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    批量添加媒体到播放列表
+
+    - **media_ids**: 媒体文件 ID 列表（最多 50 个）
+    - **display_duration**: 默认显示时长（秒）
+
+    需要认证
+    """
+    # 检查播放列表是否存在
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist not found"
+        )
+
+    # 获取当前最大 display_order
+    max_order = db.query(PlaylistItem.display_order).filter(
+        PlaylistItem.playlist_id == playlist_id
+    ).order_by(PlaylistItem.display_order.desc()).first()
+
+    next_order = (max_order[0] + 1) if max_order else 0
+
+    # 批量查询媒体文件
+    media_files = db.query(MediaFile).filter(
+        MediaFile.id.in_(batch_data.media_ids)
+    ).all()
+    media_map = {m.id: m for m in media_files}
+
+    added_items = []
+    failed_media_ids = []
+
+    # 添加媒体项
+    for media_id in batch_data.media_ids:
+        media = media_map.get(media_id)
+        if not media:
+            failed_media_ids.append(media_id)
+            continue
+
+        new_item = PlaylistItem(
+            playlist_id=playlist_id,
+            media_id=media_id,
+            display_order=next_order,
+            display_duration=batch_data.display_duration
+        )
+        db.add(new_item)
+        db.flush()  # 获取 ID
+
+        added_items.append(PlaylistItemResponse(
+            id=new_item.id,
+            media_id=new_item.media_id,
+            file_name=media.file_name,
+            file_type=media.file_type,
+            display_order=new_item.display_order,
+            display_duration=new_item.display_duration,
+            created_at=new_item.created_at
+        ))
+        next_order += 1
+
+    db.commit()
+
+    logger.info(f"Batch added {len(added_items)} items to playlist {playlist_id}")
+    return PlaylistItemBatchResponse(
+        added_count=len(added_items),
+        items=added_items,
+        failed_media_ids=failed_media_ids
+    )
+
+
 @router.delete("/{playlist_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_playlist_item(
     playlist_id: int,
@@ -330,7 +409,7 @@ def reorder_playlist_items(
     return {"message": "Playlist items reordered successfully"}
 
 
-@router.post("/{playlist_id}/devices/{device_id}", response_model=DevicePlaylistResponse)
+@router.post("/{playlist_id}/devices/{device_id}", response_model=DevicePlaylistResponse, status_code=status.HTTP_201_CREATED)
 async def assign_playlist_to_device(
     playlist_id: int,
     device_id: int,
@@ -375,7 +454,7 @@ async def assign_playlist_to_device(
     new_assignment = DevicePlaylist(
         device_id=device_id,
         playlist_id=playlist_id,
-        is_active=1
+        is_active=True
     )
     db.add(new_assignment)
     db.commit()
@@ -387,7 +466,7 @@ async def assign_playlist_to_device(
     from app.services.notification import NotificationService
     await NotificationService.notify_playlist_update(device_id)
 
-    return new_assignment
+    return DevicePlaylistResponse.from_orm_with_assigned_at(new_assignment)
 
 
 @router.delete("/{playlist_id}/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -449,7 +528,7 @@ def toggle_playlist_activation(
             detail="Assignment not found"
         )
 
-    assignment.is_active = int(is_active)
+    assignment.is_active = is_active
     db.commit()
 
     logger.info(f"Playlist {playlist_id} on device {device_id} {'activated' if is_active else 'deactivated'}")

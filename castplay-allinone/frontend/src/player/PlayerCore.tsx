@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 播放器核心组件
  * 整合设备注册、播放列表同步、媒体缓存、离线模式、定时播放
@@ -35,30 +34,21 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
   } = useDeviceRegistration();
 
   // 离线模式
-  const { isOnline, wasOffline, showOfflineToast } = useOfflineMode();
+  const { isOnline } = useOfflineMode();
 
   // 播放列表同步
   const {
-    playlists,
     currentPlaylist,
-    isLoading: isLoadingPlaylists,
-    syncPlaylist,
-    selectPlaylist,
   } = usePlaylistSync(deviceInfo?.device_id || null, isOnline);
 
   // 媒体缓存
   const {
-    cachedMedia,
-    downloadMedia,
-    getMediaUrl,
     preloadPlaylist,
   } = useMediaCache(isOnline);
 
   // 定时播放
   const {
-    schedule,
     shouldPlay: shouldBePlaying,
-    checkSchedule,
   } = usePlaybackScheduler(
     currentPlaylist ? null : null, // 从初始化响应获取
     deviceInfo?.timezone
@@ -67,8 +57,8 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
   // 播放器状态
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [playbackSpeed, setPlaybackSpeed] = useState(defaultSpeed);
-  const [loopEnabled, setLoopEnabled] = useState(true);
+  const [playbackSpeed] = useState(defaultSpeed);
+  const [loopEnabled] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -116,11 +106,6 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
     setIsPlaying(false);
   }, []);
 
-  const stop = useCallback(() => {
-    setIsPlaying(false);
-    setCurrentIndex(0);
-  }, []);
-
   const next = useCallback(() => {
     if (currentItems.length === 0) return;
     if (currentIndex < currentItems.length - 1) {
@@ -131,27 +116,6 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
       setIsPlaying(false);
     }
   }, [currentIndex, currentItems.length, loopEnabled]);
-
-  const prev = useCallback(() => {
-    if (currentItems.length === 0) return;
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-    } else if (loopEnabled) {
-      setCurrentIndex(currentItems.length - 1);
-    }
-  }, [currentIndex, currentItems.length, loopEnabled]);
-
-  const goToIndex = useCallback((index: number) => {
-    if (index >= 0 && index < currentItems.length) {
-      setCurrentIndex(index);
-    }
-  }, [currentItems.length]);
-
-  const setSpeed = useCallback((speed: number) => {
-    if ([1, 2, 4, 8].includes(speed)) {
-      setPlaybackSpeed(speed);
-    }
-  }, []);
 
   // 自动播放
   useEffect(() => {

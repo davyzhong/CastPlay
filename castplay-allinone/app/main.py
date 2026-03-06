@@ -2,6 +2,7 @@
 CastPlay All-in-One - FastAPI 主应用
 一体化数字标牌管理系统
 """
+from app.api import auth, devices, media, playlists, player
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
@@ -47,52 +48,6 @@ async def lifespan(app: FastAPI):
     # 启动后台任务队列（测试模式下跳过）
     if not is_testing:
         task_manager.start()
-
-        # 注册 PPT 转换任务处理器
-        def handle_ppt_conversion(task):
-            from app.services.converter import PPTConverter
-            from app.models.media import MediaFile
-            from sqlalchemy.orm import Session
-
-            media_id = task.get("media_id")
-            file_path = task.get("file_path")
-
-            # 获取数据库会话
-            db = SessionLocal()
-
-            try:
-                # 更新状态为处理中
-                media = db.query(MediaFile).filter(MediaFile.id == media_id).first()
-                if media:
-                    media.status = "processing"
-                    db.commit()
-
-                # 执行转换
-                converter = PPTConverter()
-                result = converter.convert(file_path, media_id)
-
-                # 更新数据库
-                if media:
-                    if result.get("success"):
-                        media.status = "ready"
-                        media.converted_path = result.get("converted_path")
-                        if result.get("thumbnail_path"):
-                            media.thumbnail_path = result.get("thumbnail_path")
-                        if result.get("duration"):
-                            media.duration = result.get("duration")
-                    else:
-                        media.status = "failed"
-                    db.commit()
-
-            except Exception as e:
-                logger.error(f"PPT conversion task failed: {e}")
-                if media:
-                    media.status = "failed"
-                    db.commit()
-            finally:
-                db.close()
-
-        task_manager.register_handler("convert_ppt", handle_ppt_conversion)
 
     yield
 
@@ -170,7 +125,6 @@ async def health_check():
 
 
 # 注册 API 路由
-from app.api import auth, devices, media, playlists, player
 
 app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
 app.include_router(devices.router, prefix="/api/devices", tags=["设备"])
@@ -208,7 +162,8 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
             # 处理设备状态上报
             elif data.get("type") == "status":
                 # 记录设备状态
-                logger.debug(f"Device {device_id} status: {data.get('status')}")
+                logger.debug(
+                    f"Device {device_id} status: {data.get('status')}")
 
     except WebSocketDisconnect:
         connection_manager.disconnect(device_id)

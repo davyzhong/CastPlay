@@ -52,15 +52,51 @@ def _convert_ppt_task(media_id: int, file_path: str):
         file_path: PPT 文件路径
     """
     from app.services.converter import PPTConverter
+    from app.database import SessionLocal
+    from app.models.media import MediaFile
 
+    db = None
     try:
         logger.info(f"Starting PPT conversion: media_id={media_id}")
         converter = PPTConverter()
-        result = converter.convert(file_path)
+        result = converter.convert(file_path, media_id)
+
+        # 更新数据库中的媒体文件记录
+        if result.get("success"):
+            db = SessionLocal()
+            media = db.query(MediaFile).filter(MediaFile.id == media_id).first()
+            if media:
+                media.converted_path = result.get("converted_path")
+                media.thumbnail_path = result.get("thumbnail_path")
+                media.duration = result.get("duration")
+                media.status = "ready"
+                db.commit()
+                logger.info(f"Media record updated: media_id={media_id}")
+        else:
+            # 转换失败，更新状态
+            db = SessionLocal()
+            media = db.query(MediaFile).filter(MediaFile.id == media_id).first()
+            if media:
+                media.status = "failed"
+                db.commit()
+            logger.error(f"PPT conversion failed: {result.get('error')}")
+
         logger.info(f"PPT conversion completed: {result}")
     except Exception as e:
         logger.error(f"PPT conversion failed: {e}", exc_info=True)
-        raise
+        # 更新失败状态
+        try:
+            if db is None:
+                db = SessionLocal()
+            media = db.query(MediaFile).filter(MediaFile.id == media_id).first()
+            if media:
+                media.status = "failed"
+                db.commit()
+        except Exception as db_error:
+            logger.error(f"Failed to update media status: {db_error}")
+    finally:
+        if db:
+            db.close()
 
 
 def start():

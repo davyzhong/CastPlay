@@ -26,27 +26,56 @@ from app.config import settings
 from app.utils.logger import logger
 from app.scheduler import submit_ppt_conversion
 
-router = APIRouter()
+router = APIRouter(
+    tags=["媒体"],
+    responses={
+        404: {"description": "媒体文件未找到"},
+        413: {"description": "文件大小超过限制"},
+    }
+)
 
 
-@router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload",
+    response_model=UploadResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="上传媒体文件",
+    description="""
+上传媒体文件到服务器。
+
+**支持的文件类型：**
+| 类型 | 支持格式 |
+|------|----------|
+| image | jpg, jpeg, png, gif, bmp |
+| video | mp4, avi, mov, mkv, flv |
+| ppt | ppt, pptx |
+
+**请求参数：**
+- `file`: 上传的文件（multipart/form-data）
+- `file_type`: 文件类型，可选值：image、video、ppt
+
+**处理流程：**
+1. 验证文件扩展名和 Magic Number
+2. 检查文件大小（最大 500MB）
+3. 生成唯一文件名并保存
+4. 计算 MD5 哈希值
+5. 图片类型自动生成缩略图
+6. PPT 类型自动提交后台转换任务
+
+**认证：** 需要 Bearer Token
+""",
+    responses={
+        201: {"description": "上传成功"},
+        400: {"description": "文件类型不支持或内容验证失败"},
+        413: {"description": "文件大小超过限制（500MB）"}
+    }
+)
 async def upload_media(
-    file: UploadFile = File(...),
-    file_type: str = Query(..., pattern="^(image|video|ppt)$"),
+    file: UploadFile = File(..., description="上传的媒体文件"),
+    file_type: str = Query(..., pattern="^(image|video|ppt)$", description="文件类型：image/video/ppt"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    上传媒体文件
-
-    - **file**: 上传的文件
-    - **file_type**: 文件类型（image/video/ppt）
-
-    支持的格式：
-    - image: jpg, jpeg, png, gif, bmp
-    - video: mp4, avi, mov, mkv, flv
-    - ppt: ppt, pptx
-    """
     # 验证文件扩展名
     if not validate_file_type(file.filename, file_type):
         raise HTTPException(
@@ -134,23 +163,27 @@ async def upload_media(
     }
 
 
-@router.get("/", response_model=MediaFileListResponse)
+@router.get(
+    "/",
+    response_model=MediaFileListResponse,
+    summary="获取媒体文件列表",
+    description="""
+获取媒体文件列表，支持分页和过滤。
+
+**查询参数：**
+- `skip`: 跳过数量，默认 0
+- `limit`: 返回数量，默认 20，最大 100
+- `file_type`: 按类型过滤（image/video/ppt）
+- `status_filter`: 按状态过滤（ready/processing/failed）
+"""
+)
 def list_media(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     file_type: Optional[str] = Query(None, pattern="^(image|video|ppt)$"),
-    status_filter: Optional[str] = Query(
-        None, pattern="^(ready|processing|failed)$"),
+    status_filter: Optional[str] = Query(None, pattern="^(ready|processing|failed)$"),
     db: Session = Depends(get_db)
 ):
-    """
-    获取媒体文件列表
-
-    - **skip**: 跳过数量（分页）
-    - **limit**: 返回数量（分页）
-    - **file_type**: 过滤文件类型
-    - **status_filter**: 过滤状态
-    """
     query = db.query(MediaFile)
 
     if file_type:

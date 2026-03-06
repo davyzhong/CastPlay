@@ -21,7 +21,12 @@ from app.api.auth import get_current_user
 from app.models.user import User
 from app.utils.logger import logger
 
-router = APIRouter()
+router = APIRouter(
+    tags=["设备"],
+    responses={
+        404: {"description": "设备未找到"},
+    }
+)
 
 
 def generate_friendly_code(length: int = 4) -> str:
@@ -59,29 +64,40 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "0.0.0.0"
 
 
-@router.post("/register", response_model=DeviceResponse)
+@router.post(
+    "/register",
+    response_model=DeviceResponse,
+    summary="注册新设备",
+    description="""
+注册或更新播放设备。
+
+**注册方式：**
+1. 优先使用客户端提供的 device_id（UUID 格式）
+2. 如果没有 device_id，服务端自动生成 UUID
+3. MAC 地址仅作为辅助标识
+
+**请求体：**
+- `device_id` (可选): 设备唯一标识（UUID），不提供则自动生成
+- `device_name` (可选): 设备名称，默认为 CastPlay-XXXXXXXX
+- `timezone` (可选): 时区，默认 Asia/Shanghai
+- `mac_address` (可选): MAC 地址，仅作为辅助标识
+- `ip_address` (可选): IP 地址，默认从请求获取
+
+**行为：**
+- 如果设备已存在，更新在线状态并返回 200
+- 如果是新设备，创建记录并返回 201
+""",
+    responses={
+        200: {"description": "设备已存在，更新状态"},
+        201: {"description": "新设备注册成功"}
+    }
+)
 def register_device(
     device_data: DeviceCreate,
     request: Request,
     response: Response,
     db: Session = Depends(get_db)
 ):
-    """
-    注册新设备
-
-    注册方式：
-    1. 优先使用客户端提供的 device_id（真正的 UUID）
-    2. 如果没有 device_id，服务端生成 UUID 作为 device_id
-    3. MAC 地址仅作为辅助信息，不用于生成 ID
-
-    - **device_id**: 设备唯一标识（UUID，可选，不提供则自动生成）
-    - **device_name**: 设备名称
-    - **timezone**: 时区（默认 Asia/Shanghai）
-    - **mac_address**: MAC 地址（可选，仅作为辅助标识）
-    - **ip_address**: IP 地址（可选，自动从请求获取）
-
-    如果设备已存在，更新在线状态
-    """
     # 获取客户端 IP
     client_ip = device_data.ip_address or get_client_ip(request)
 
@@ -175,20 +191,24 @@ def device_heartbeat(device_id: int, db: Session = Depends(get_db)):
     return {"message": "Heartbeat received", "device_id": device.device_id}
 
 
-@router.get("/")
+@router.get(
+    "/",
+    summary="获取设备列表",
+    description="""
+获取所有注册设备的列表，支持分页和状态过滤。
+
+**查询参数：**
+- `skip`: 跳过数量（用于分页），默认 0
+- `limit`: 返回数量，默认 20，最大 100
+- `status_filter`: 按状态过滤，可选值：online、offline
+"""
+)
 def list_devices(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     status_filter: Optional[str] = Query(None, pattern="^(online|offline)$"),
     db: Session = Depends(get_db)
 ):
-    """
-    获取设备列表
-
-    - **skip**: 跳过数量（分页）
-    - **limit**: 返回数量（分页）
-    - **status_filter**: 过滤状态（online/offline）
-    """
     query = db.query(Device)
 
     if status_filter:

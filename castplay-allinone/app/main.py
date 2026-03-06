@@ -60,10 +60,35 @@ async def lifespan(app: FastAPI):
 # 创建 FastAPI 应用
 app = FastAPI(
     title=settings.APP_NAME,
-    description="一体化数字标牌管理系统",
+    description="""
+## CastPlay All-in-One 数字标牌管理系统
+
+一体化数字标牌管理平台，支持设备管理、媒体文件管理、播放列表管理和实时推送。
+
+### 主要功能
+
+* **设备管理** - 设备注册、心跳监控、定时配置、状态管理
+* **媒体管理** - 图片/视频/PPT 上传、自动转换、缩略图生成
+* **播放列表** - 创建、编辑、排序、设备分配
+* **实时推送** - WebSocket 实时通知播放列表更新
+
+### 认证方式
+
+使用 JWT Bearer Token 认证，通过 `/api/auth/login` 获取令牌。
+
+### 技术栈
+
+FastAPI + SQLAlchemy + SQLite + React + Ant Design
+""",
     version=settings.APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
+    contact={
+        "name": "CastPlay Team",
+    },
+    license_info={
+        "name": "MIT",
+    },
     lifespan=lifespan
 )
 

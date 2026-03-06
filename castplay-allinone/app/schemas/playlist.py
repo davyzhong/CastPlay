@@ -39,6 +39,11 @@ class PlaylistItemCreate(BaseModel):
     display_duration: int = Field(default=5, ge=1, le=3600, description="显示时长（秒）")
 
 
+class PlaylistItemUpdate(BaseModel):
+    """更新播放列表项请求"""
+    display_duration: int = Field(..., ge=1, le=3600, description="显示时长（秒）")
+
+
 class PlaylistItemResponse(BaseModel):
     """播放列表项响应"""
     id: int

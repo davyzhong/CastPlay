@@ -94,6 +94,8 @@ export interface PlaylistDetail {
 export interface DeviceAssignment {
   id: number
   device_id: number
+  device_name: string
+  device_status: string
   is_active: boolean
   assigned_at: string
 }

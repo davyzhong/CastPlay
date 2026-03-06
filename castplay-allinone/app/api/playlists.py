@@ -11,7 +11,7 @@ from app.models.media import MediaFile
 from app.schemas.playlist import (
     PlaylistCreate, PlaylistResponse, PlaylistUpdate,
     PlaylistListResponse, PlaylistDetailResponse,
-    PlaylistItemCreate, PlaylistItemResponse,
+    PlaylistItemCreate, PlaylistItemResponse, PlaylistItemUpdate,
     DevicePlaylistResponse, ReorderItemsRequest,
     PlaylistItemBatchCreate, PlaylistItemBatchResponse
 )
@@ -19,21 +19,34 @@ from app.api.auth import get_current_user
 from app.models.user import User
 from app.utils.logger import logger
 
-router = APIRouter()
+router = APIRouter(
+    tags=["播放列表"],
+    responses={
+        404: {"description": "播放列表未找到"},
+    }
+)
 
 
-@router.post("/", response_model=PlaylistResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=PlaylistResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建播放列表",
+    description="""
+创建新的播放列表。
+
+**请求体：**
+- `name` (必需): 播放列表名称
+- `description` (可选): 播放列表描述
+
+**认证：** 需要 Bearer Token
+"""
+)
 def create_playlist(
     playlist_data: PlaylistCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    创建播放列表
-
-    - **name**: 播放列表名称
-    - **description**: 描述（可选）
-    """
     new_playlist = Playlist(
         name=playlist_data.name,
         description=playlist_data.description
@@ -46,18 +59,28 @@ def create_playlist(
     return new_playlist
 
 
-@router.get("/", response_model=PlaylistListResponse)
+@router.get(
+    "/",
+    response_model=PlaylistListResponse,
+    summary="获取播放列表列表",
+    description="""
+获取所有播放列表，包含媒体项数量和关联设备数量。
+
+**查询参数：**
+- `skip`: 跳过数量，默认 0
+- `limit`: 返回数量，默认 20，最大 100
+
+**返回信息包含：**
+- 播放列表基本信息
+- 媒体项数量 (item_count)
+- 关联设备数量 (device_count)
+"""
+)
 def list_playlists(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """
-    获取播放列表列表
-
-    - **skip**: 跳过数量（分页）
-    - **limit**: 返回数量（分页）
-    """
     from sqlalchemy import func
 
     query = db.query(Playlist)
@@ -149,19 +172,26 @@ def get_playlist(playlist_id: int, db: Session = Depends(get_db)):
         for item in items_query
     ]
 
-    # 获取关联设备
-    device_assignments = db.query(DevicePlaylist).filter(
-        DevicePlaylist.playlist_id == playlist_id
-    ).all()
+    # 获取关联设备（包含设备名称和状态）
+    from app.models.device import Device as DeviceModel
+
+    device_assignments = (
+        db.query(DevicePlaylist, DeviceModel)
+        .join(DeviceModel, DevicePlaylist.device_id == DeviceModel.id)
+        .filter(DevicePlaylist.playlist_id == playlist_id)
+        .all()
+    )
 
     devices = [
         {
             "id": dp.id,
             "device_id": dp.device_id,
+            "device_name": device.device_name,
+            "device_status": device.status,
             "is_active": bool(dp.is_active),
             "assigned_at": dp.created_at.isoformat() if dp.created_at else None
         }
-        for dp in device_assignments
+        for dp, device in device_assignments
     ]
 
     return PlaylistDetailResponse(
@@ -366,6 +396,65 @@ def add_playlist_items_batch(
         added_count=len(added_items),
         items=added_items,
         failed_media_ids=failed_media_ids
+    )
+
+
+@router.put("/{playlist_id}/items/{item_id}", response_model=PlaylistItemResponse)
+def update_playlist_item(
+    playlist_id: int,
+    item_id: int,
+    item_data: PlaylistItemUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    更新播放列表项的显示时长
+
+    需要认证
+    """
+    # 检查播放列表是否存在
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist not found"
+        )
+
+    # 查找播放列表项
+    item = db.query(PlaylistItem).filter(
+        PlaylistItem.id == item_id,
+        PlaylistItem.playlist_id == playlist_id
+    ).first()
+
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist item not found"
+        )
+
+    # 获取关联的媒体文件信息
+    media = db.query(MediaFile).filter(MediaFile.id == item.media_id).first()
+    if not media:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Associated media file not found"
+        )
+
+    # 更新显示时长
+    item.display_duration = item_data.display_duration
+    db.commit()
+    db.refresh(item)
+
+    logger.info(f"Playlist item updated: playlist_id={playlist_id}, item_id={item_id}, duration={item_data.display_duration}")
+
+    return PlaylistItemResponse(
+        id=item.id,
+        media_id=item.media_id,
+        file_name=media.file_name,
+        file_type=media.file_type,
+        display_order=item.display_order,
+        display_duration=item.display_duration,
+        created_at=item.created_at
     )
 
 

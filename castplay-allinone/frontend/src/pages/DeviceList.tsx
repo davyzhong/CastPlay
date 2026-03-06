@@ -30,6 +30,7 @@ import {
   StopOutlined,
   CheckCircleOutlined,
   InfoCircleOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import type { Device, DeviceSchedule, DevicePlaylist, Playlist } from '../types';
 import { getDeviceList, setDeviceSchedule, getDeviceSchedule, getDevicePlaylists, toggleDeviceDisabled } from '../api/device';
@@ -54,6 +55,11 @@ const DeviceListPage: React.FC = () => {
   const { setDevices: setStoreDevices } = useStore();
   const [form] = Form.useForm();
 
+  // 新增：设备附加信息状态
+  const [deviceSchedules, setDeviceSchedules] = useState<Record<number, DeviceSchedule>>({});
+  const [devicePlaylistsMap, setDevicePlaylistsMap] = useState<Record<number, DevicePlaylist[]>>({});
+  const [infoLoading, setInfoLoading] = useState(false);
+
   const fetchDevices = async () => {
     setLoading(true);
     try {
@@ -74,6 +80,46 @@ const DeviceListPage: React.FC = () => {
   useEffect(() => {
     fetchDevices();
   }, []);
+
+  // 批量获取设备附加信息（定时配置和播放列表）
+  const fetchDeviceExtraInfo = async (deviceList: Device[]) => {
+    if (deviceList.length === 0) return;
+
+    setInfoLoading(true);
+    const schedules: Record<number, DeviceSchedule> = {};
+    const playlistsMap: Record<number, DevicePlaylist[]> = {};
+
+    await Promise.all(
+      deviceList.map(async (device) => {
+        // 获取定时配置
+        try {
+          const scheduleData = await getDeviceSchedule(device.id);
+          schedules[device.id] = scheduleData;
+        } catch {
+          // 404 表示未配置，忽略
+        }
+
+        // 获取播放列表
+        try {
+          const response = await getDevicePlaylists(device.id);
+          playlistsMap[device.id] = response.playlists || [];
+        } catch {
+          // 忽略错误
+        }
+      })
+    );
+
+    setDeviceSchedules(schedules);
+    setDevicePlaylistsMap(playlistsMap);
+    setInfoLoading(false);
+  };
+
+  // 设备列表加载后获取附加信息
+  useEffect(() => {
+    if (devices.length > 0) {
+      fetchDeviceExtraInfo(devices);
+    }
+  }, [devices.map(d => d.id).join(',')]);
 
   const handleScheduleModal = async (device: Device) => {
     setSelectedDevice(device);
@@ -126,6 +172,8 @@ const DeviceListPage: React.FC = () => {
 
       message.success('定时配置已更新');
       setScheduleModalVisible(false);
+      // 刷新该设备的定时配置信息
+      fetchDeviceExtraInfo([selectedDevice]);
     } catch (error: any) {
       console.error('Set schedule error:', error);
       message.error(error.message || '设置定时配置失败');
@@ -200,6 +248,11 @@ const DeviceListPage: React.FC = () => {
       setSelectedPlaylistId(null);
       const response = await getDevicePlaylists(selectedDevice.id);
       setDevicePlaylists(response.playlists || []);
+      // 同时更新列表页显示
+      setDevicePlaylistsMap(prev => ({
+        ...prev,
+        [selectedDevice.id]: response.playlists || []
+      }));
     } catch (error: any) {
       console.error('Assign playlist error:', error);
       message.error(error.response?.data?.detail || '分配播放列表失败');
@@ -216,6 +269,11 @@ const DeviceListPage: React.FC = () => {
       message.success('已取消播放列表分配');
       const response = await getDevicePlaylists(selectedDevice.id);
       setDevicePlaylists(response.playlists || []);
+      // 同时更新列表页显示
+      setDevicePlaylistsMap(prev => ({
+        ...prev,
+        [selectedDevice.id]: response.playlists || []
+      }));
     } catch (error: any) {
       console.error('Unassign playlist error:', error);
       message.error('取消分配失败');
@@ -230,6 +288,11 @@ const DeviceListPage: React.FC = () => {
       message.success(isActive ? '播放列表已激活' : '播放列表已停用');
       const response = await getDevicePlaylists(selectedDevice.id);
       setDevicePlaylists(response.playlists || []);
+      // 同时更新列表页显示
+      setDevicePlaylistsMap(prev => ({
+        ...prev,
+        [selectedDevice.id]: response.playlists || []
+      }));
     } catch (error: any) {
       console.error('Toggle playlist active error:', error);
       message.error('操作失败');
@@ -313,37 +376,104 @@ const DeviceListPage: React.FC = () => {
       },
     },
     {
-      title: '定时',
-      key: 'schedule',
-      width: 80,
-      align: 'center',
-      render: (_: any, record: Device) => (
-        <Button
-          type="link"
-          size="small"
-          icon={<ClockCircleOutlined />}
-          onClick={() => handleScheduleModal(record)}
-        >
-          配置
-        </Button>
-      ),
+      title: '定时配置',
+      key: 'schedule_info',
+      width: 160,
+      render: (_: any, record: Device) => {
+        if (infoLoading) {
+          return <LoadingOutlined spin style={{ color: '#1890ff' }} />;
+        }
+
+        const scheduleInfo = deviceSchedules[record.id];
+
+        if (!scheduleInfo || !scheduleInfo.is_enabled) {
+          return (
+            <Tooltip title="点击配置定时开关机">
+              <Button
+                type="link"
+                size="small"
+                onClick={() => handleScheduleModal(record)}
+              >
+                未配置
+              </Button>
+            </Tooltip>
+          );
+        }
+
+        const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+        const weekdaysText = scheduleInfo.weekdays.length === 7
+          ? '每天'
+          : `周${scheduleInfo.weekdays.map(d => weekdayNames[d]).join('、')}`;
+
+        return (
+          <Tooltip title="点击修改配置">
+            <div
+              style={{ cursor: 'pointer', fontSize: 12 }}
+              onClick={() => handleScheduleModal(record)}
+            >
+              <div style={{ color: '#1890ff', fontWeight: 500 }}>
+                <ClockCircleOutlined style={{ marginRight: 4 }} />
+                {scheduleInfo.power_on_time} - {scheduleInfo.power_off_time}
+              </div>
+              <div style={{ color: '#52c41a', marginTop: 2 }}>
+                ✓ {weekdaysText}
+              </div>
+            </div>
+          </Tooltip>
+        );
+      },
     },
     {
       title: '播放列表',
-      key: 'playlists',
-      width: 90,
-      align: 'center',
-      render: (_: any, record: Device) => (
-        <Button
-          type="link"
-          size="small"
-          icon={<UnorderedListOutlined />}
-          onClick={() => handlePlaylistModal(record)}
-          disabled={record.is_disabled}
-        >
-          管理
-        </Button>
-      ),
+      key: 'playlist_info',
+      width: 200,
+      render: (_: any, record: Device) => {
+        if (infoLoading) {
+          return <LoadingOutlined spin style={{ color: '#1890ff' }} />;
+        }
+
+        const playlists = devicePlaylistsMap[record.id] || [];
+
+        if (playlists.length === 0) {
+          return (
+            <Tooltip title="点击分配播放列表">
+              <Button
+                type="link"
+                size="small"
+                onClick={() => handlePlaylistModal(record)}
+                disabled={record.is_disabled}
+              >
+                未分配
+              </Button>
+            </Tooltip>
+          );
+        }
+
+        return (
+          <div
+            style={{ cursor: record.is_disabled ? 'default' : 'pointer' }}
+            onClick={() => !record.is_disabled && handlePlaylistModal(record)}
+          >
+            {playlists.map((pl) => (
+              <div key={pl.assignment_id} style={{ marginBottom: 4 }}>
+                <Space size={4}>
+                  <UnorderedListOutlined style={{ color: '#1890ff', fontSize: 12 }} />
+                  <Text style={{ fontSize: 12, fontWeight: 500 }}>{pl.playlist_name}</Text>
+                </Space>
+                <div style={{ fontSize: 11, color: '#666', paddingLeft: 18 }}>
+                  {pl.item_count}个媒体
+                  <Tag
+                    color={pl.is_active ? 'success' : 'default'}
+                    style={{ fontSize: 10, padding: '0 4px', marginLeft: 4, lineHeight: '16px' }}
+                  >
+                    {pl.is_active ? '激活' : '未激活'}
+                  </Tag>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      },
     },
     {
       title: '操作',

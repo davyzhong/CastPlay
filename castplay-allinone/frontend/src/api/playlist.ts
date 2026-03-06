@@ -96,3 +96,11 @@ export const togglePlaylistActivation = (
 // 批量添加媒体到播放列表
 export const addItemsToPlaylistBatch = (playlistId: number, params: BatchAddItemsParams) =>
   api.post<BatchAddItemsResponse>(`/playlists/${playlistId}/items/batch`, params);
+
+// 更新播放列表项的显示时长
+export const updatePlaylistItem = (
+  playlistId: number,
+  itemId: number,
+  data: { display_duration: number }
+) =>
+  api.put<PlaylistItem>(`/playlists/${playlistId}/items/${itemId}`, data);

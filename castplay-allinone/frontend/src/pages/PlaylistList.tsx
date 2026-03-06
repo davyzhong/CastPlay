@@ -20,6 +20,8 @@ import {
   Row,
   Col,
   Tooltip,
+  Checkbox,
+  Input,
 } from 'antd';
 import {
   PlusOutlined,
@@ -29,10 +31,9 @@ import {
   HolderOutlined,
   PlayCircleOutlined,
   EyeOutlined,
-  VideoCameraOutlined,
-  PictureOutlined,
   CloseCircleOutlined,
   DesktopOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type {
@@ -41,6 +42,7 @@ import type {
   Device,
   PlaylistItem,
   MediaFile,
+  DeviceAssignment,
 } from '../types';
 import {
   getPlaylistList,
@@ -52,6 +54,7 @@ import {
   unassignPlaylistFromDevice,
   reorderPlaylistItems,
   addItemsToPlaylistBatch,
+  updatePlaylistItem,
 } from '../api/playlist';
 import { getMediaList, getMediaFileUrl } from '../api/media';
 import { getDeviceList } from '../api/device';
@@ -79,10 +82,18 @@ const { Title } = Typography;
 interface SortableRowProps {
   item: PlaylistItem;
   onRemove: (id: number) => void;
-  onPreview: (item: PlaylistItem) => void;
+  mediaFiles: MediaFile[];
+  onUpdateDuration: (itemId: number, duration: number) => void;
+  updatingItemId: number | null;
 }
 
-const SortablePlaylistItem: React.FC<SortableRowProps> = ({ item, onRemove, onPreview }) => {
+const SortablePlaylistItem: React.FC<SortableRowProps> = ({
+  item,
+  onRemove,
+  mediaFiles,
+  onUpdateDuration,
+  updatingItemId
+}) => {
   const {
     attributes,
     listeners,
@@ -105,49 +116,132 @@ const SortablePlaylistItem: React.FC<SortableRowProps> = ({ item, onRemove, onPr
 
   const getFileTypeColor = (type: string) => {
     switch (type) {
-      case 'image': return 'blue';
-      case 'video': return 'green';
+      case 'image': return 'green';
+      case 'video': return 'blue';
       case 'ppt': return 'orange';
       default: return 'default';
     }
   };
 
+  // 根据 media_id 查找对应的媒体信息（用于缩略图）
+  const media = mediaFiles.find(m => m.id === item.media_id);
+  const isUpdating = updatingItemId === item.id;
+
+  // 渲染缩略图
+  const renderThumbnail = () => {
+    if (media?.thumbnail_path) {
+      return (
+        <Image
+          src={media.thumbnail_path}
+          alt={item.file_name}
+          width={160}
+          height={120}
+          style={{ borderRadius: 4, objectFit: 'cover' }}
+          fallback={`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='120' viewBox='0 0 160 120'%3E%3Crect fill='%23f0f0f0' width='160' height='120'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载失败%3C/text%3E%3C/svg%3E`}
+          preview={{
+            src: media.file_type === 'image' ? getMediaFileUrl(media.id) : undefined,
+          }}
+        />
+      );
+    }
+
+    // 无缩略图时显示类型图标占位符
+    const typeConfig: Record<string, { color: string; icon: string }> = {
+      image: { color: '#52c41a', icon: '🖼️' },
+      video: { color: '#1890ff', icon: '🎬' },
+      ppt: { color: '#fa8c16', icon: '📊' },
+    };
+    const config = typeConfig[item.file_type] || { color: '#999', icon: '📄' };
+
+    return (
+      <div
+        style={{
+          width: 160,
+          height: 120,
+          backgroundColor: config.color,
+          borderRadius: 4,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '40px',
+          color: '#fff',
+        }}
+        title={item.file_name}
+      >
+        {config.icon}
+      </div>
+    );
+  };
+
   return (
     <div ref={setNodeRef} style={style}>
+      {/* 拖拽手柄 */}
       <div {...attributes} {...listeners} style={{ cursor: 'grab', marginRight: 12 }}>
         <HolderOutlined />
       </div>
-      <div style={{ width: 60, textAlign: 'center' }}>
+
+      {/* 序号 */}
+      <div style={{ width: 40, textAlign: 'center' }}>
         <Tag color="purple">{item.display_order + 1}</Tag>
       </div>
-      <div style={{ flex: 1, marginLeft: 12 }}>
-        <div style={{ fontWeight: 500 }}>{item.file_name}</div>
-        <Space style={{ marginTop: 4 }}>
-          <Tag color={getFileTypeColor(item.file_type)}>{item.file_type}</Tag>
-          <span style={{ color: '#666' }}>时长: {item.display_duration}秒</span>
+
+      {/* 缩略图 */}
+      <div style={{ width: 180, marginRight: 12 }}>
+        {renderThumbnail()}
+      </div>
+
+      {/* 文件信息 */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Tooltip title={item.file_name}>
+          <div style={{
+            fontWeight: 500,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}>
+            {item.file_name}
+          </div>
+        </Tooltip>
+        <Space style={{ marginTop: 4 }} size="small">
+          <Tag color={getFileTypeColor(item.file_type)}>{item.file_type.toUpperCase()}</Tag>
+          <span style={{ color: '#666', whiteSpace: 'nowrap' }}>时长:</span>
+          <InputNumber
+            size="small"
+            min={1}
+            max={3600}
+            value={item.display_duration}
+            onBlur={(e) => {
+              const value = parseInt(e.target.value);
+              if (value && value !== item.display_duration && value >= 1 && value <= 3600) {
+                onUpdateDuration(item.id, value);
+              }
+            }}
+            onPressEnter={(e) => {
+              const value = parseInt((e.target as HTMLInputElement).value);
+              if (value && value !== item.display_duration && value >= 1 && value <= 3600) {
+                onUpdateDuration(item.id, value);
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            style={{ width: 60 }}
+            disabled={isUpdating}
+          />
+          <span style={{ color: '#666' }}>秒</span>
+          {isUpdating && <LoadingOutlined style={{ color: '#1890ff' }} />}
         </Space>
       </div>
-      <Space>
-        {item.file_type === 'image' && (
-          <Button
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => onPreview(item)}
-          >
-            预览
-          </Button>
-        )}
-        <Popconfirm
-          title="确定要移除这个媒体项吗？"
-          onConfirm={() => onRemove(item.id)}
-          okText="确定"
-          cancelText="取消"
-        >
-          <Button size="small" danger icon={<DeleteOutlined />}>
-            删除
-          </Button>
-        </Popconfirm>
-      </Space>
+
+      {/* 操作按钮 */}
+      <Popconfirm
+        title="确定要移除这个媒体项吗？"
+        onConfirm={() => onRemove(item.id)}
+        okText="确定"
+        cancelText="取消"
+      >
+        <Button size="small" danger icon={<DeleteOutlined />}>
+          删除
+        </Button>
+      </Popconfirm>
     </div>
   );
 };
@@ -158,20 +252,113 @@ const PlaylistListPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [addItemModalVisible, setAddItemModalVisible] = useState(false);
-  const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [playlistPreviewVisible, setPlaylistPreviewVisible] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistDetail | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<number | null>(null);
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [availableDevices, setAvailableDevices] = useState<Device[]>([]);
   const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
-  const [previewItem, setPreviewItem] = useState<PlaylistItem | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [previewSpeed, setPreviewSpeed] = useState(1);
   const [batchPreviewMedia, setBatchPreviewMedia] = useState<MediaFile | null>(null);
   const [deviceInfoModalVisible, setDeviceInfoModalVisible] = useState(false);
   const [selectedPlaylistForDevices, setSelectedPlaylistForDevices] = useState<Playlist | null>(null);
+  const [mediaSearchText, setMediaSearchText] = useState('');
+  const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
+
+  // 新增：播放列表设备信息状态
+  const [playlistDevicesMap, setPlaylistDevicesMap] = useState<Record<number, DeviceAssignment[]>>({});
+  const [devicesInfoLoading, setDevicesInfoLoading] = useState(false);
+
+  // 切换媒体选中状态
+  const toggleMediaSelection = (mediaId: number) => {
+    setSelectedMediaIds(prev =>
+      prev.includes(mediaId)
+        ? prev.filter(id => id !== mediaId)
+        : [...prev, mediaId]
+    );
+  };
+
+  // 批量获取播放列表的设备信息
+  const fetchPlaylistDevices = async (playlistList: Playlist[]) => {
+    if (playlistList.length === 0) return;
+
+    setDevicesInfoLoading(true);
+    const devicesMap: Record<number, DeviceAssignment[]> = {};
+
+    await Promise.all(
+      playlistList.map(async (playlist) => {
+        try {
+          const detail = await getPlaylistDetail(playlist.id);
+          devicesMap[playlist.id] = (detail as unknown as { devices: DeviceAssignment[] }).devices || [];
+        } catch {
+          // 忽略错误
+        }
+      })
+    );
+
+    setPlaylistDevicesMap(devicesMap);
+    setDevicesInfoLoading(false);
+  };
+
+  // 播放列表加载后获取设备信息
+  useEffect(() => {
+    if (playlists.length > 0) {
+      fetchPlaylistDevices(playlists);
+    }
+  }, [playlists.map(p => p.id).join(',')]);
+
+  // 缩略图渲染函数（复用 MediaList.tsx 模式）
+  const renderMediaThumbnail = (media: MediaFile, size: { width: number; height: number } = { width: 120, height: 90 }) => {
+    const { width, height } = size;
+
+    if (media.thumbnail_path) {
+      return (
+        <Image
+          src={media.thumbnail_path}
+          alt={media.file_name}
+          width={width}
+          height={height}
+          style={{ borderRadius: 4, objectFit: 'cover' }}
+          fallback={`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}' viewBox='0 0 ${width} ${height}'%3E%3Crect fill='%23f0f0f0' width='${width}' height='${height}'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载失败%3C/text%3E%3C/svg%3E`}
+          preview={false}
+        />
+      );
+    }
+
+    // 无缩略图时显示类型图标占位符
+    const typeConfig: Record<string, { color: string; icon: string }> = {
+      image: { color: '#52c41a', icon: '🖼️' },
+      video: { color: '#1890ff', icon: '🎬' },
+      ppt: { color: '#fa8c16', icon: '📊' },
+    };
+    const config = typeConfig[media.file_type] || { color: '#999', icon: '📄' };
+
+    return (
+      <div
+        style={{
+          width,
+          height,
+          backgroundColor: config.color,
+          borderRadius: 4,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '24px',
+          color: '#fff',
+        }}
+        title={media.file_name}
+      >
+        {config.icon}
+      </div>
+    );
+  };
+
+  // 过滤后的媒体列表
+  const filteredMediaFiles = mediaFiles.filter(media =>
+    media.file_name.toLowerCase().includes(mediaSearchText.toLowerCase())
+  );
 
   // 拖拽传感器配置
   const sensors = useSensors(
@@ -302,6 +489,34 @@ const PlaylistListPage: React.FC = () => {
     }
   };
 
+  // 更新单个项的显示时长
+  const handleUpdateItemDuration = async (itemId: number, duration: number) => {
+    if (!selectedPlaylist) return;
+
+    setUpdatingItemId(itemId);
+    try {
+      await updatePlaylistItem(selectedPlaylist.id, itemId, { display_duration: duration });
+
+      // 更新本地状态
+      setSelectedPlaylist(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: prev.items.map(item =>
+            item.id === itemId ? { ...item, display_duration: duration } : item
+          )
+        };
+      });
+
+      message.success('时长已更新');
+    } catch (error: any) {
+      console.error('Update item duration error:', error);
+      message.error('更新时长失败');
+    } finally {
+      setUpdatingItemId(null);
+    }
+  };
+
   // 拖拽结束处理
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
@@ -377,12 +592,6 @@ const PlaylistListPage: React.FC = () => {
     });
   };
 
-  // 预览单个媒体
-  const handlePreviewItem = (item: PlaylistItem) => {
-    setPreviewItem(item);
-    setPreviewModalVisible(true);
-  };
-
   // 播放列表预览
   const handlePlaylistPreview = () => {
     if (!selectedPlaylist || selectedPlaylist.items.length === 0) {
@@ -443,22 +652,89 @@ const PlaylistListPage: React.FC = () => {
     },
     {
       title: '分配设备',
-      dataIndex: 'device_count',
-      width: 120,
-      render: (count: number, record: Playlist) => (
-        <Tooltip title="点击查看设备详情">
-          <Tag
-            color={count > 0 ? 'green' : 'default'}
+      key: 'assigned_devices',
+      width: 250,
+      render: (_: any, record: Playlist) => {
+        // 系统默认播放列表显示"全部设备"
+        if (record.is_system) {
+          return (
+            <Tag color="gold" icon={<DesktopOutlined />}>
+              全部设备（默认）
+            </Tag>
+          );
+        }
+
+        if (devicesInfoLoading) {
+          return <LoadingOutlined spin style={{ color: '#1890ff' }} />;
+        }
+
+        const devices = playlistDevicesMap[record.id] || [];
+
+        if (devices.length === 0) {
+          return (
+            <Tooltip title="点击分配设备">
+              <Tag
+                color="default"
+                style={{ cursor: 'pointer' }}
+                onClick={async () => {
+                  try {
+                    const detail = await getPlaylistDetail(record.id);
+                    setSelectedPlaylistForDevices(detail as unknown as Playlist);
+                  } catch (error) {
+                    console.error('Failed to get playlist detail:', error);
+                    setSelectedPlaylistForDevices(record);
+                  }
+                  setDeviceInfoModalVisible(true);
+                }}
+              >
+                <DesktopOutlined /> 未分配
+              </Tag>
+            </Tooltip>
+          );
+        }
+
+        return (
+          <div
             style={{ cursor: 'pointer' }}
-            onClick={() => {
-              setSelectedPlaylistForDevices(record);
+            onClick={async () => {
+              try {
+                const detail = await getPlaylistDetail(record.id);
+                setSelectedPlaylistForDevices(detail as unknown as Playlist);
+              } catch (error) {
+                console.error('Failed to get playlist detail:', error);
+                setSelectedPlaylistForDevices(record);
+              }
               setDeviceInfoModalVisible(true);
             }}
           >
-            <DesktopOutlined /> {count || 0} 台设备
-          </Tag>
-        </Tooltip>
-      ),
+            {devices.slice(0, 3).map((device) => (
+              <div key={device.id} style={{ marginBottom: 4, fontSize: 12 }}>
+                <Space size={4}>
+                  <DesktopOutlined
+                    style={{
+                      color: device.device_status === 'online' ? '#52c41a' : '#999'
+                    }}
+                  />
+                  <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>
+                    {device.device_name}
+                  </span>
+                  <Tag
+                    color={device.is_active ? 'success' : 'default'}
+                    style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', margin: 0 }}
+                  >
+                    {device.is_active ? '激活' : '未激活'}
+                  </Tag>
+                </Space>
+              </div>
+            ))}
+            {devices.length > 3 && (
+              <span style={{ fontSize: 11, color: '#999' }}>
+                +{devices.length - 3} 更多设备
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: '创建时间',
@@ -479,14 +755,16 @@ const PlaylistListPage: React.FC = () => {
           >
             管理
           </Button>
-          <Button
-            danger
-            size="small"
-            icon={<DeleteOutlined />}
-            onClick={() => handleDeletePlaylist(record)}
-          >
-            删除
-          </Button>
+          {!record.is_system && (
+            <Button
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeletePlaylist(record)}
+            >
+              删除
+            </Button>
+          )}
         </Space>
       ),
     },
@@ -577,7 +855,9 @@ const PlaylistListPage: React.FC = () => {
                         key={item.id}
                         item={item}
                         onRemove={handleRemoveItem}
-                        onPreview={handlePreviewItem}
+                        mediaFiles={mediaFiles}
+                        onUpdateDuration={handleUpdateItemDuration}
+                        updatingItemId={updatingItemId}
                       />
                     ))}
                   </div>
@@ -605,33 +885,89 @@ const PlaylistListPage: React.FC = () => {
                 setAddItemModalVisible(false);
                 setSelectedMediaIds([]);
                 setBatchPreviewMedia(null);
+                setMediaSearchText('');
               }}
               footer={null}
-              width={800}
+              width={900}
             >
               <Form
                 layout="vertical"
                 onFinish={handleBatchAddItems}
               >
+                {/* 搜索框 */}
+                <Form.Item style={{ marginBottom: 12 }}>
+                  <Input.Search
+                    placeholder="搜索媒体文件名..."
+                    allowClear
+                    value={mediaSearchText}
+                    onChange={(e) => setMediaSearchText(e.target.value)}
+                    style={{ marginBottom: 8 }}
+                  />
+                </Form.Item>
+
+                {/* 媒体卡片网格选择器 */}
                 <Form.Item
                   label={`选择媒体（已选: ${selectedMediaIds.length} 个）`}
-                  name="media_ids"
-                  rules={[{ required: true, message: '请选择至少一个媒体' }]}
+                  style={{ marginBottom: 16 }}
                 >
-                  <Select
-                    mode="multiple"
-                    placeholder="请选择媒体文件（支持多选）"
-                    value={selectedMediaIds}
-                    onChange={setSelectedMediaIds}
-                    showSearch
-                    filterOption={(input, option) =>
-                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                    }
-                    options={mediaFiles.map((m) => ({
-                      label: `${m.file_name} (${m.file_type})`,
-                      value: m.id,
-                    }))}
-                  />
+                  <div style={{ maxHeight: 350, overflow: 'auto', padding: 4 }}>
+                    {filteredMediaFiles.length > 0 ? (
+                      <Checkbox.Group
+                        value={selectedMediaIds}
+                        onChange={(values) => setSelectedMediaIds(values as number[])}
+                        style={{ width: '100%' }}
+                      >
+                        <Row gutter={[12, 12]}>
+                          {filteredMediaFiles.map((media) => (
+                            <Col span={6} key={media.id}>
+                              <Card
+                                hoverable
+                                size="small"
+                                cover={renderMediaThumbnail(media)}
+                                style={{
+                                  border: selectedMediaIds.includes(media.id) ? '2px solid #1890ff' : '1px solid #d9d9d9',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                }}
+                                onClick={() => toggleMediaSelection(media.id)}
+                              >
+                                <Card.Meta
+                                  title={
+                                    <Checkbox
+                                      value={media.id}
+                                      style={{ fontSize: 12 }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <Tooltip title={media.file_name}>
+                                        <span style={{
+                                          display: 'inline-block',
+                                          maxWidth: 100,
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap'
+                                        }}>
+                                          {media.file_name}
+                                        </span>
+                                      </Tooltip>
+                                    </Checkbox>
+                                  }
+                                  description={
+                                    <Tag color={media.file_type === 'image' ? 'green' : media.file_type === 'video' ? 'blue' : 'orange'} style={{ fontSize: 10 }}>
+                                      {media.file_type.toUpperCase()}
+                                    </Tag>
+                                  }
+                                />
+                              </Card>
+                            </Col>
+                          ))}
+                        </Row>
+                      </Checkbox.Group>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
+                        {mediaSearchText ? '未找到匹配的媒体' : '暂无可用的媒体文件'}
+                      </div>
+                    )}
+                  </div>
                 </Form.Item>
 
                 {/* 已选媒体预览 */}
@@ -647,25 +983,7 @@ const PlaylistListPage: React.FC = () => {
                             <Card
                               size="small"
                               hoverable
-                              cover={
-                                media.file_type === 'image' ? (
-                                  <div style={{ height: 80, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5' }}>
-                                    <img
-                                      src={getMediaFileUrl(id)}
-                                      alt={media.file_name}
-                                      style={{ maxWidth: '100%', maxHeight: 80, objectFit: 'contain' }}
-                                    />
-                                  </div>
-                                ) : (
-                                  <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5' }}>
-                                    {media.file_type === 'video' ? (
-                                      <VideoCameraOutlined style={{ fontSize: 32, color: '#1890ff' }} />
-                                    ) : (
-                                      <PictureOutlined style={{ fontSize: 32, color: '#fa8c16' }} />
-                                    )}
-                                  </div>
-                                )
-                              }
+                              cover={renderMediaThumbnail(media)}
                               actions={[
                                 <EyeOutlined key="preview" onClick={() => setBatchPreviewMedia(media)} />,
                                 <CloseCircleOutlined key="remove" onClick={() => {
@@ -674,8 +992,18 @@ const PlaylistListPage: React.FC = () => {
                               ]}
                             >
                               <Card.Meta
-                                title={<span style={{ fontSize: 11 }}>{media.file_name}</span>}
-                                description={<Tag color="blue" style={{ fontSize: 10 }}>{media.file_type}</Tag>}
+                                title={
+                                  <Tooltip title={media.file_name}>
+                                    <span style={{ fontSize: 11, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {media.file_name}
+                                    </span>
+                                  </Tooltip>
+                                }
+                                description={
+                                  <Tag color={media.file_type === 'image' ? 'green' : media.file_type === 'video' ? 'blue' : 'orange'} style={{ fontSize: 10 }}>
+                                    {media.file_type.toUpperCase()}
+                                  </Tag>
+                                }
                               />
                             </Card>
                           </Col>
@@ -702,6 +1030,7 @@ const PlaylistListPage: React.FC = () => {
                       setAddItemModalVisible(false);
                       setSelectedMediaIds([]);
                       setBatchPreviewMedia(null);
+                      setMediaSearchText('');
                     }}>
                       取消
                     </Button>
@@ -743,118 +1072,100 @@ const PlaylistListPage: React.FC = () => {
               )}
             </Modal>
 
-            {/* 设备分配 */}
-            <div style={{ marginTop: 24 }}>
-              <Typography.Text strong>设备分配</Typography.Text>
-            </div>
-
-            {selectedPlaylist.devices && selectedPlaylist.devices.length > 0 ? (
-              <div style={{ marginTop: 16 }}>
-                <Table
-                  rowKey="id"
-                  columns={[
-                    {
-                      title: '设备 ID',
-                      dataIndex: 'device_id',
-                      render: (deviceId: number) => `设备 #${deviceId}`
-                    },
-                    {
-                      title: '状态',
-                      dataIndex: 'is_active',
-                      render: (isActive: boolean) => (
-                        <Tag color={isActive ? 'success' : 'default'}>
-                          {isActive ? '激活' : '未激活'}
-                        </Tag>
-                      )
-                    },
-                    {
-                      title: '分配时间',
-                      dataIndex: 'assigned_at',
-                      render: (time: string) => time ? new Date(time).toLocaleString('zh-CN') : '-'
-                    },
-                    {
-                      title: '操作',
-                      key: 'action',
-                      render: (_: any, record: any) => (
-                        <Button
-                          size="small"
-                          danger
-                          onClick={() => handleUnassignDevice(record.device_id)}
-                        >
-                          取消分配
-                        </Button>
-                      )
-                    },
-                  ]}
-                  dataSource={selectedPlaylist.devices}
-                  pagination={false}
-                  size="small"
-                />
+            {/* 设备分配 - 系统默认播放列表显示特殊提示 */}
+            {selectedPlaylist.is_system ? (
+              <div style={{ marginTop: 24, padding: 24, textAlign: 'center', backgroundColor: '#fffbe6', borderRadius: 8 }}>
+                <Tag color="gold" style={{ fontSize: 14, padding: '8px 16px', marginBottom: 12 }}>
+                  <DesktopOutlined style={{ marginRight: 8 }} />
+                  全部设备（默认播放列表）
+                </Tag>
+                <div style={{ color: '#666', fontSize: 13 }}>
+                  系统默认播放列表会自动应用到所有设备，无需手动分配。
+                </div>
               </div>
             ) : (
-              <div style={{ marginTop: 16, textAlign: 'center', color: '#999' }}>
-                <Typography.Text>暂无设备分配</Typography.Text>
-              </div>
-            )}
+              <>
+                {/* 设备分配 */}
+                <div style={{ marginTop: 24 }}>
+                  <Typography.Text strong>设备分配</Typography.Text>
+                </div>
 
-            <div style={{ marginTop: 24 }}>
-              <Typography.Text strong>分配到新设备</Typography.Text>
-            </div>
+                {selectedPlaylist.devices && selectedPlaylist.devices.length > 0 ? (
+                  <div style={{ marginTop: 16 }}>
+                    <Table
+                      rowKey="id"
+                      columns={[
+                        {
+                          title: '设备 ID',
+                          dataIndex: 'device_id',
+                          render: (deviceId: number) => `设备 #${deviceId}`
+                        },
+                        {
+                          title: '状态',
+                          dataIndex: 'is_active',
+                          render: (isActive: boolean) => (
+                            <Tag color={isActive ? 'success' : 'default'}>
+                              {isActive ? '激活' : '未激活'}
+                            </Tag>
+                          )
+                        },
+                        {
+                          title: '分配时间',
+                          dataIndex: 'assigned_at',
+                          render: (time: string) => time ? new Date(time).toLocaleString('zh-CN') : '-'
+                        },
+                        {
+                          title: '操作',
+                          key: 'action',
+                          render: (_: any, record: any) => (
+                            <Button
+                              size="small"
+                              danger
+                              onClick={() => handleUnassignDevice(record.device_id)}
+                            >
+                              取消分配
+                            </Button>
+                          )
+                        },
+                      ]}
+                      dataSource={selectedPlaylist.devices}
+                      pagination={false}
+                      size="small"
+                    />
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 16, textAlign: 'center', color: '#999' }}>
+                    <Typography.Text>暂无设备分配</Typography.Text>
+                  </div>
+                )}
 
-            <div style={{ marginTop: 16 }}>
-              <Select
-                style={{ width: '100%' }}
-                placeholder={availableDevices.length === 0 ? '暂无可用设备' : '选择设备'}
-                onChange={(value) => setSelectedDevice(value)}
-              >
-                {(availableDevices || []).map((device) => (
-                  <Select.Option key={device.id} value={device.id}>
-                    {device.device_name} ({device.status})
-                  </Select.Option>
-                ))}
-              </Select>
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <Button
-                type="primary"
-                onClick={handleAssignToDevice}
-                disabled={!selectedDevice}
-              >
-                分配
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+                <div style={{ marginTop: 24 }}>
+                  <Typography.Text strong>分配到新设备</Typography.Text>
+                </div>
 
-      {/* 单个媒体预览模态框 */}
-      <Modal
-        title={previewItem?.file_name || '媒体预览'}
-        open={previewModalVisible}
-        onCancel={() => {
-          setPreviewModalVisible(false);
-          setPreviewItem(null);
-        }}
-        footer={null}
-        width={800}
-        centered
-      >
-        {previewItem && (
-          <div style={{ textAlign: 'center' }}>
-            {previewItem.file_type === 'image' && (
-              <Image
-                src={getMediaFileUrl(previewItem.media_id)}
-                alt={previewItem.file_name}
-                style={{ maxWidth: '100%', maxHeight: '70vh' }}
-              />
-            )}
-            {(previewItem.file_type === 'video' || previewItem.file_type === 'ppt') && (
-              <video
-                src={getMediaFileUrl(previewItem.media_id)}
-                controls
-                autoPlay
-                style={{ maxWidth: '100%', maxHeight: '70vh' }}
-              />
+                <div style={{ marginTop: 16 }}>
+                  <Select
+                    style={{ width: '100%' }}
+                    placeholder={availableDevices.length === 0 ? '暂无可用设备' : '选择设备'}
+                    onChange={(value) => setSelectedDevice(value)}
+                  >
+                    {(availableDevices || []).map((device) => (
+                      <Select.Option key={device.id} value={device.id}>
+                        {device.device_name} ({device.status})
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </div>
+                <div style={{ marginTop: 16 }}>
+                  <Button
+                    type="primary"
+                    onClick={handleAssignToDevice}
+                    disabled={!selectedDevice}
+                  >
+                    分配
+                  </Button>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -971,49 +1282,74 @@ const PlaylistListPage: React.FC = () => {
       >
         {selectedPlaylistForDevices && (
           <div>
-            {selectedPlaylistForDevices.devices && selectedPlaylistForDevices.devices.length > 0 ? (
-              <Table
-                columns={[
-                  {
-                    title: '设备 ID',
-                    dataIndex: 'device_id',
-                    width: 100,
-                    render: (deviceId: number) => `设备 #${deviceId}`,
-                  },
-                  {
-                    title: '状态',
-                    dataIndex: 'is_active',
-                    render: (isActive: boolean) => (
-                      <Tag color={isActive ? 'success' : 'default'}>
-                        {isActive ? '激活' : '未激活'}
-                      </Tag>
-                    ),
-                  },
-                  {
-                    title: '分配时间',
-                    dataIndex: 'assigned_at',
-                    render: (time: string) => time ? new Date(time).toLocaleString('zh-CN') : '-',
-                  },
-                ]}
-                dataSource={selectedPlaylistForDevices.devices}
-                rowKey="id"
-                pagination={false}
-                size="small"
-              />
-            ) : (
-              <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
-                暂未分配到任何设备
+            {/* 系统默认播放列表特殊提示 */}
+            {selectedPlaylistForDevices.is_system ? (
+              <div style={{ textAlign: 'center', padding: 40 }}>
+                <Tag color="gold" style={{ fontSize: 14, padding: '8px 16px' }}>
+                  <DesktopOutlined style={{ marginRight: 8 }} />
+                  全部设备（默认播放列表）
+                </Tag>
+                <div style={{ marginTop: 16, color: '#666', fontSize: 13 }}>
+                  系统默认播放列表会自动应用到所有设备，无需手动分配。
+                </div>
               </div>
+            ) : (
+              <>
+                {selectedPlaylistForDevices.devices && selectedPlaylistForDevices.devices.length > 0 ? (
+                  <Table
+                    columns={[
+                      {
+                        title: '设备名称',
+                        dataIndex: 'device_name',
+                        render: (name: string, record: DeviceAssignment) => (
+                          <Space size={4}>
+                            <DesktopOutlined
+                              style={{
+                                color: record.device_status === 'online' ? '#52c41a' : '#999'
+                              }}
+                            />
+                            {name || `设备 #${record.device_id}`}
+                          </Space>
+                        ),
+                      },
+                      {
+                        title: '状态',
+                        dataIndex: 'is_active',
+                        width: 100,
+                        render: (isActive: boolean) => (
+                          <Tag color={isActive ? 'success' : 'default'}>
+                            {isActive ? '激活' : '未激活'}
+                          </Tag>
+                        ),
+                      },
+                      {
+                        title: '分配时间',
+                        dataIndex: 'assigned_at',
+                        width: 180,
+                        render: (time: string) => time ? new Date(time).toLocaleString('zh-CN') : '-',
+                      },
+                    ]}
+                    dataSource={selectedPlaylistForDevices.devices}
+                    rowKey="id"
+                    pagination={false}
+                    size="small"
+                  />
+                ) : (
+                  <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
+                    暂未分配到任何设备
+                  </div>
+                )}
+                <div style={{ marginTop: 16, textAlign: 'center' }}>
+                  <Button type="primary" onClick={() => {
+                    setDeviceInfoModalVisible(false);
+                    setSelectedPlaylistForDevices(null);
+                    handleShowDetail(selectedPlaylistForDevices);
+                  }}>
+                    管理设备分配
+                  </Button>
+                </div>
+              </>
             )}
-            <div style={{ marginTop: 16, textAlign: 'center' }}>
-              <Button onClick={() => {
-                setDeviceInfoModalVisible(false);
-                setSelectedPlaylistForDevices(null);
-                handleShowDetail(selectedPlaylistForDevices);
-              }}>
-                前往管理页面分配设备
-              </Button>
-            </div>
           </div>
         )}
       </Modal>

@@ -306,7 +306,7 @@ class PPTConverter:
             cmd = [
                 self.ffmpeg_path,
                 "-i", video_path,
-                "-ss", "00:00:01",  # 从第 1 秒开始
+                "-ss", "00:00:00",  # 从第 0 秒开始（对于短视频更可靠）
                 "-vframes", "1",  # 只取 1 帧
                 "-vf", "scale=640:-1",  # 缩放到宽度 640
                 "-y",
@@ -344,7 +344,7 @@ class PPTConverter:
                 "-"
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, stderr=subprocess.STDOUT, timeout=30)
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
 
             # 解析输出获取时长
             for line in result.stdout.split('\n'):

@@ -52,22 +52,8 @@ class Settings(BaseSettings):
     ALLOWED_PPT_TYPES: List[str] = ["ppt", "pptx"]
 
     # JWT 认证配置
-    @property
-    def SECRET_KEY(self) -> str:
-        """JWT 密钥 - 内网简化版"""
-        env_key = os.getenv("SECRET_KEY")
-
-        if self.ENVIRONMENT == "production":
-            # 生产环境必须设置
-            if not env_key:
-                raise ValueError(
-                    "生产环境必须通过环境变量设置 SECRET_KEY"
-                )
-            return env_key
-        else:
-            # 开发/内网环境使用固定密钥
-            return env_key or "castplay-dev-secret-key-2026-do-not-use-in-production"
-
+    # SECRET_KEY 从 .env 文件加载，如果没有则使用默认值（仅开发环境）
+    SECRET_KEY: Optional[str] = None
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 天
 
@@ -85,8 +71,17 @@ class Settings(BaseSettings):
         """CORS 白名单 - 内网简化版"""
         if self.ENVIRONMENT == "production":
             # 生产环境从环境变量读取
-            origins_str = os.getenv("CORS_ORIGINS", "")
-            return [o.strip() for o in origins_str.split(",") if o.strip()]
+            origins_str = os.getenv(
+                "CORS_ORIGINS", '["http://localhost:3000"]')
+            # 如果是字符串（JSON 格式），需要解析
+            if isinstance(origins_str, str):
+                import json
+                try:
+                    return json.loads(origins_str)
+                except:
+                    # 如果是逗号分隔的字符串
+                    return [o.strip() for o in origins_str.split(",") if o.strip()]
+            return origins_str
         else:
             # 开发环境允许所有来源
             return ["*"]
@@ -123,16 +118,16 @@ class Settings(BaseSettings):
         # 生产环境安全检查
         if self.ENVIRONMENT == "production":
             # 检查 SECRET_KEY 是否设置
-            try:
-                secret_key = self.SECRET_KEY
-                if not secret_key or len(secret_key) < 32:
-                    warnings.warn(
-                        "生产环境 SECRET_KEY 长度不足 32 字符，建议使用强随机密钥！",
-                        UserWarning
-                    )
-            except ValueError as e:
-                # SECRET_KEY 未设置会抛出异常
-                warnings.warn(str(e), UserWarning)
+            if not self.SECRET_KEY:
+                warnings.warn(
+                    "生产环境必须设置 SECRET_KEY！",
+                    UserWarning
+                )
+            elif len(self.SECRET_KEY) < 32:
+                warnings.warn(
+                    "生产环境 SECRET_KEY 长度不足 32 字符，建议使用强随机密钥！",
+                    UserWarning
+                )
 
             # 检查管理员密码
             if len(self.DEFAULT_ADMIN_PASSWORD) == 22 and '-' in self.DEFAULT_ADMIN_PASSWORD:
@@ -145,6 +140,15 @@ class Settings(BaseSettings):
                     "生产环境不建议使用 CORS_ORIGINS=['*']，请配置具体域名！",
                     UserWarning
                 )
+
+    def get_secret_key(self) -> str:
+        """获取有效的 SECRET_KEY"""
+        if self.SECRET_KEY:
+            return self.SECRET_KEY
+        if self.ENVIRONMENT == "production":
+            raise ValueError("生产环境必须设置 SECRET_KEY")
+        # 开发环境使用默认密钥
+        return "castplay-dev-secret-key-2026-do-not-use-in-production"
 
 
 # 创建全局配置实例

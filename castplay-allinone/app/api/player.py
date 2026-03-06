@@ -62,35 +62,58 @@ def check_rate_limit(device_id: str, limit_per_minute: int = HEARTBEAT_RATE_LIMI
     return True
 
 
-router = APIRouter()
+router = APIRouter(
+    tags=["播放端"],
+    responses={
+        404: {"description": "设备或资源未找到"},
+        429: {"description": "请求过于频繁，触发速率限制"}
+    }
+)
 
 
-@router.post("/init")
+@router.post(
+    "/init",
+    summary="播放端初始化",
+    description="""
+播放端设备初始化接口，返回设备信息、激活的播放列表和定时配置。
+
+**请求体：**
+```json
+{
+    "device_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**响应包含：**
+- `device`: 设备信息（名称、时区、注册码等）
+- `playlists`: 分配给该设备的播放列表数组
+- `schedule`: 定时配置（开关机时间、工作日）
+- `websocket_url`: WebSocket 连接地址
+- `is_disabled`: 设备是否被禁用
+
+**注意：** 被禁用的设备只能获取系统默认播放列表。
+""",
+    responses={
+        200: {
+            "description": "初始化成功",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "device": {"id": 1, "device_id": "xxx", "device_name": "CastPlay-XXX"},
+                        "playlists": [{"id": 1, "name": "默认播放列表", "items": []}],
+                        "schedule": {"power_on_time": "08:00", "power_off_time": "18:00"},
+                        "websocket_url": "ws://xxx",
+                        "is_disabled": False
+                    }
+                }
+            }
+        }
+    }
+)
 def player_init(
-    device_id: str = Body(..., embed=True),
+    device_id: str = Body(..., embed=True, description="设备唯一标识（UUID）"),
     db: Session = Depends(get_db)
 ):
-    """
-    播放端初始化
-
-    返回设备信息、激活的播放列表、定时配置和 WebSocket URL
-
-    注意：被禁用的设备只能获取默认播放列表
-
-    请求：
-    {
-        "device_id": "550e8400-e29b-41d4-a716-446655440000"
-    }
-
-    响应：
-    {
-        "device": {...},
-        "playlists": [...],
-        "schedule": {...},
-        "websocket_url": "ws://localhost:5000/ws/{device_id}",
-        "is_disabled": false
-    }
-    """
     # 查找设备
     device = db.query(Device).filter(Device.device_id == device_id).first()
 
@@ -538,33 +561,39 @@ async def get_available_playlists(db: Session = Depends(get_db)):
     return {"playlists": result}
 
 
-@router.post("/heartbeat")
+@router.post(
+    "/heartbeat",
+    summary="播放端心跳上报",
+    description="""
+播放端定期上报心跳，用于保持在线状态和检查更新。
+
+**请求体：**
+```json
+{
+    "device_id": "550e8400-e29b-41d4-a716-446655440000",
+    "device_type": "android_tv",
+    "current_playlist_id": 123,
+    "last_media_id": 456,
+    "status": "playing"
+}
+```
+
+**响应：**
+- `acknowledged`: 确认接收
+- `server_time`: 服务器时间
+- `playlist_update`: 播放列表更新信息（如有）
+
+**速率限制：** 每设备每分钟最多 10 次请求
+""",
+    responses={
+        200: {"description": "心跳接收成功"},
+        429: {"description": "请求过于频繁"}
+    }
+)
 async def player_heartbeat(
     request: HeartbeatRequest,
     db: Session = Depends(get_db)
 ):
-    """
-    播放端心跳上报
-
-    接收：
-    {
-        "device_id": "550e8400-e29b-41d4-a716-446655440000",
-        "device_type": "android_tv",
-        "current_playlist_id": 123,
-        "last_media_id": 456,
-        "status": "playing"
-    }
-
-    响应：
-    {
-        "acknowledged": true,
-        "server_time": "2026-03-06T10:30:00Z",
-        "playlist_update": null  // 或更新信息
-    }
-
-    注意：
-    - 速率限制：每设备每分钟最多 10 次请求
-    """
     # 速率限制检查
     if not check_rate_limit(request.device_id):
         logger.warning(f"Rate limit exceeded for device: {request.device_id}")

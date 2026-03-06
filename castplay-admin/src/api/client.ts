@@ -5,6 +5,8 @@
  * 所有 API 相关的 URL 配置都从这里获取
  */
 import axios, { AxiosError, AxiosResponse } from 'axios';
+import { message } from 'antd';
+import { apiLogger } from '../utils/logger';
 
 // API 基础 URL - 从环境变量获取，避免硬编码
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
@@ -113,7 +115,7 @@ apiClient.interceptors.response.use(
 
     // 开发环境打印详细错误
     if (import.meta.env.DEV) {
-      console.error('API Error:', {
+      apiLogger.error('API Error', {
         url: error.config?.url,
         method: error.config?.method,
         status: error.response?.status,

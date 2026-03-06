@@ -11,7 +11,7 @@ from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, UserLogin, TokenResponse
 from app.utils.security import verify_password, get_password_hash, create_access_token
 from app.utils.logger import logger
-from app.middleware.rate_limit import limiter, limit_login
+from app.utils.simple_rate_limiter import rate_limiter
 
 router = APIRouter()
 security = HTTPBearer()
@@ -81,7 +81,8 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     - **full_name**: 全名（可选）
     """
     # 检查用户名是否已存在
-    existing = db.query(User).filter(User.username == user_data.username).first()
+    existing = db.query(User).filter(
+        User.username == user_data.username).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -90,7 +91,8 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
     # 检查邮箱是否已存在
     if user_data.email:
-        existing_email = db.query(User).filter(User.email == user_data.email).first()
+        existing_email = db.query(User).filter(
+            User.email == user_data.email).first()
         if existing_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -112,8 +114,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 
-@router.post("/login", response_model=TokenResponse)
-@limit_login()
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(rate_limiter)])
 def login(request: Request, credentials: UserLogin, db: Session = Depends(get_db)):
     """
     用户登录
@@ -123,14 +124,15 @@ def login(request: Request, credentials: UserLogin, db: Session = Depends(get_db
 
     返回访问令牌
 
-    速率限制：5 次/分钟
+    注意：使用简单速率限制器（100 次/分钟）
     """
     # 查询用户
     user = db.query(User).filter(User.username == credentials.username).first()
 
     # 验证用户和密码
     if not user or not verify_password(credentials.password, user.password_hash):
-        logger.warning(f"Failed login attempt for username: {credentials.username}")
+        logger.warning(
+            f"Failed login attempt for username: {credentials.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

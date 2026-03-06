@@ -1,9 +1,8 @@
 """
 后台任务模块
+
+注意：TaskQueue 已移除，改用 APScheduler (app.scheduler)
 """
-from app.workers.task_queue import TaskQueueManager
 
-# 全局任务队列管理器实例
-task_manager = TaskQueueManager(num_workers=3)
-
-__all__ = ["task_manager"]
+# 空模块，仅保留用于向后兼容
+__all__ = []

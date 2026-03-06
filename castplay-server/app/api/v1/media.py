@@ -148,7 +148,12 @@ async def upload_media(
     await db.commit()
     await db.refresh(media_file)
 
-    # TODO: 如果是 PPT，触发转换任务 (RQ)
+    # 如果是 PPT，触发转换任务
+    if file_type == 'ppt':
+        from app.tasks.rq_tasks import convert_ppt_to_video
+        logger.info(f"Queuing PPT conversion task for media {media_file.id}")
+        # 使用后台任务队列异步执行转换
+        convert_ppt_to_video(media_file.id)
 
     return {
         "message": "File uploaded successfully",
@@ -406,42 +411,3 @@ async def get_thumbnail_noauth(
 ):
     """获取缩略图（无需认证，用于开发和调试）"""
     return await get_thumbnail_impl(media_id, db)
-    """获取缩略图"""
-    result = await db.execute(select(MediaFile).where(MediaFile.id == media_id))
-    media = result.scalar_one_or_none()
-
-    if not media:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Media not found"
-        )
-
-    # 1. 优先使用已生成的缩略图
-    if media.thumbnail_path:
-        try:
-            thumbnail_path = resolve_file_path(media.thumbnail_path)
-            if os.path.exists(thumbnail_path):
-                return FileResponse(thumbnail_path, media_type='image/jpeg')
-        except Exception:
-            pass  # 缩略图路径无效，继续尝试其他方式
-
-    # 2. 图片类型：直接返回原图
-    if media.file_type == 'image':
-        try:
-            file_path = resolve_file_path(media.file_path)
-            if os.path.exists(file_path):
-                ext = os.path.splitext(media.file_name)[1].lower()
-                mime_map = {
-                    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-                    '.png': 'image/png', '.gif': 'image/gif',
-                    '.bmp': 'image/bmp', '.webp': 'image/webp'
-                }
-                mime = mime_map.get(ext, 'image/jpeg')
-                return FileResponse(file_path, media_type=mime)
-        except Exception:
-            pass  # 原图路径无效
-
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Thumbnail not available"
-    )

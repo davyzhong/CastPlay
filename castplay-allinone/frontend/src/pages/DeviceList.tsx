@@ -359,24 +359,17 @@ const DeviceListPage: React.FC = () => {
               onClick={() => handleShowDetail(record)}
             />
           </Tooltip>
-          <Popconfirm
-            title={record.is_disabled ? '启用设备' : '禁用设备'}
-            description={record.is_disabled
-              ? '启用后设备将恢复正常播放功能'
-              : '禁用后设备只能播放默认内容'}
-            onConfirm={() => handleToggleDisabled(record)}
-            okText="确定"
-            cancelText="取消"
-          >
+          <Tooltip title={record.is_disabled ? '启用设备' : '禁用设备'}>
             <Button
               type="text"
               size="small"
               danger={!record.is_disabled}
               icon={record.is_disabled ? <CheckCircleOutlined /> : <StopOutlined />}
+              onClick={() => handleToggleDisabled(record)}
             >
               {record.is_disabled ? '启用' : '禁用'}
             </Button>
-          </Popconfirm>
+          </Tooltip>
         </Space>
       ),
     },
@@ -424,7 +417,9 @@ const DeviceListPage: React.FC = () => {
             </Descriptions.Item>
             <Descriptions.Item label="注册码">
               {selectedDevice.registration_code ? (
-                <Text copyable>{{ text: selectedDevice.registration_code }}</Text>
+                <Text copyable={{ text: selectedDevice.registration_code }}>
+                  {selectedDevice.registration_code}
+                </Text>
               ) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="时区">

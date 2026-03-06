@@ -4,6 +4,7 @@
  */
 import { io, Socket } from 'socket.io-client';
 import { message } from 'antd';
+import { wsLogger } from '../utils/logger';
 
 type EventCallback = (...args: any[]) => void;
 
@@ -24,7 +25,7 @@ class WebSocketService {
    */
   connect(): void {
     if (this.socket?.connected) {
-      console.log('WebSocket already connected');
+      wsLogger.debug('WebSocket already connected');
       return;
     }
 
@@ -46,16 +47,16 @@ class WebSocketService {
 
     // 连接成功
     this.socket.on('connect', () => {
-      console.log('WebSocket connected');
+      wsLogger.info('WebSocket connected');
       this.reconnectAttempts = 0;
       message.success('实时连接已建立');
     });
 
     // 连接失败
     this.socket.on('connect_error', (error: Error) => {
-      console.error('WebSocket connection error:', error);
+      wsLogger.error('WebSocket connection error', error);
       this.reconnectAttempts++;
-      
+
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
         message.error('无法连接到服务器，请检查网络');
       }
@@ -63,7 +64,7 @@ class WebSocketService {
 
     // 断开连接
     this.socket.on('disconnect', (reason: string) => {
-      console.log('WebSocket disconnected:', reason);
+      wsLogger.info('WebSocket disconnected', reason);
       if (reason === 'io server disconnect') {
         // 服务器主动断开，需要手动重连
         this.socket?.connect();
@@ -72,34 +73,34 @@ class WebSocketService {
 
     // 设备状态更新
     this.socket.on('device_status_update', (data: any) => {
-      console.log('Device status update:', data);
+      wsLogger.debug('Device status update', data);
       this.emit('device_status_update', data);
     });
 
     // 播放列表更新
     this.socket.on('playlist_update', (data: any) => {
-      console.log('Playlist update:', data);
+      wsLogger.debug('Playlist update', data);
       message.info(`播放列表已更新：${data.playlist_id}`);
       this.emit('playlist_update', data);
     });
 
     // 定时配置更新
     this.socket.on('schedule_update', (data: any) => {
-      console.log('Schedule update:', data);
+      wsLogger.debug('Schedule update', data);
       message.info('定时配置已更新');
       this.emit('schedule_update', data);
     });
 
     // 媒体文件处理完成
     this.socket.on('media_processing_complete', (data: any) => {
-      console.log('Media processing complete:', data);
+      wsLogger.debug('Media processing complete', data);
       message.success(`媒体文件处理完成：${data.file_name}`);
       this.emit('media_processing_complete', data);
     });
 
     // 媒体文件处理失败
     this.socket.on('media_processing_failed', (data: any) => {
-      console.log('Media processing failed:', data);
+      wsLogger.warn('Media processing failed', data);
       message.error(`媒体文件处理失败：${data.file_name}`);
       this.emit('media_processing_failed', data);
     });
@@ -122,7 +123,7 @@ class WebSocketService {
     if (this.socket?.connected) {
       this.socket.emit(event, data);
     } else {
-      console.warn('WebSocket not connected, cannot send message');
+      wsLogger.warn('WebSocket not connected, cannot send message');
     }
   }
 

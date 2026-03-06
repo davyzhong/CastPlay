@@ -2,18 +2,65 @@
 播放端 API 路由
 供 Android 播放端使用的专用 API
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from sqlalchemy.orm import Session
-from typing import List
-from datetime import datetime
+from typing import List, Optional
+from datetime import datetime, timedelta
+from pydantic import BaseModel, Field
 import logging
+import os
+import time
+from collections import defaultdict
 
 from app.database import get_db
 from app.models.device import Device, DeviceSchedule
 from app.models.playlist import Playlist, PlaylistItem, DevicePlaylist
 from app.models.media import MediaFile
+from app.models.device_enhancement import DeviceNotificationLog, PlaylistDownloadTask, PlaylistCleanupSchedule
 
 logger = logging.getLogger(__name__)
+
+# 常量定义
+DEVICE_ONLINE_THRESHOLD_MINUTES = 5  # 设备在线阈值（分钟）
+HEARTBEAT_TIMEOUT_SECONDS = 5000  # 心跳超时（毫秒）
+HEARTBEAT_RATE_LIMIT_PER_MINUTE = 10  # 每分钟最多允许的心跳次数
+
+# 速率限制字典（内存存储）
+_rate_limit_cache: dict[str, list[float]] = defaultdict(list)
+
+# P1-3 修复：心跳推送缓存（减少数据库查询）
+_playlist_update_cache: dict[str, tuple[dict, float]] = {}
+_PLAYLIST_UPDATE_CACHE_TTL = 300  # 5 分钟缓存有效期
+
+
+def check_rate_limit(device_id: str, limit_per_minute: int = HEARTBEAT_RATE_LIMIT_PER_MINUTE) -> bool:
+    """
+    检查设备请求频率
+
+    Args:
+        device_id: 设备 ID
+        limit_per_minute: 每分钟限制次数
+
+    Returns:
+        bool: True 表示未超限，False 表示已超限
+    """
+    current_time = time.time()
+    window_start = current_time - 60  # 1 分钟窗口
+
+    # 清理旧记录
+    _rate_limit_cache[device_id] = [
+        t for t in _rate_limit_cache[device_id]
+        if t > window_start
+    ]
+
+    # 检查是否超限
+    if len(_rate_limit_cache[device_id]) >= limit_per_minute:
+        return False
+
+    # 添加新记录
+    _rate_limit_cache[device_id].append(current_time)
+    return True
+
 
 router = APIRouter()
 
@@ -80,8 +127,10 @@ def player_init(
 
     if is_disabled:
         # 禁用设备只能获取默认播放列表
-        logger.info(f"Device {device_id} is disabled, returning default playlist only")
-        default_playlist = db.query(Playlist).filter(Playlist.is_system == True).first()
+        logger.info(
+            f"Device {device_id} is disabled, returning default playlist only")
+        default_playlist = db.query(Playlist).filter(
+            Playlist.is_system == True).first()
         if default_playlist:
             # 获取播放列表项
             items_query = (
@@ -134,16 +183,19 @@ def player_init(
 
         # 如果没有分配播放列表，使用系统默认播放列表
         if not playlist_assignments:
-            default_playlist = db.query(Playlist).filter(Playlist.is_system == True).first()
+            default_playlist = db.query(Playlist).filter(
+                Playlist.is_system == True).first()
             if default_playlist:
                 class DefaultPlaylistAssignment:
                     def __init__(self, playlist_id):
                         self.playlist_id = playlist_id
                         self.is_active = True
-                playlist_assignments = [DefaultPlaylistAssignment(default_playlist.id)]
+                playlist_assignments = [
+                    DefaultPlaylistAssignment(default_playlist.id)]
 
         for assignment in playlist_assignments:
-            playlist = db.query(Playlist).filter(Playlist.id == assignment.playlist_id).first()
+            playlist = db.query(Playlist).filter(
+                Playlist.id == assignment.playlist_id).first()
             if not playlist:
                 continue
 
@@ -190,7 +242,8 @@ def player_init(
                 "items": items
             })
 
-    logger.info(f"Player initialized for device {device_id} ({device.device_name}), disabled={is_disabled}")
+    logger.info(
+        f"Player initialized for device {device_id} ({device.device_name}), disabled={is_disabled}")
 
     return {
         "device": {
@@ -343,3 +396,435 @@ def report_player_status(
     db.commit()
 
     return {"message": "Status reported successfully"}
+
+
+# ============== 新增简化版 API ==============
+
+class PlayerInitRequest(BaseModel):
+    """播放端初始化请求"""
+    device_id: str = Field(..., description="设备唯一标识")
+    device_type: Optional[str] = Field(
+        "web_browser", description="设备类型：android_tv | web_browser")
+
+
+class HeartbeatRequest(BaseModel):
+    """心跳上报请求"""
+    device_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="设备唯一标识（UUID 格式，建议仅使用字母、数字、连字符）"
+    )
+    device_type: Optional[str] = Field(
+        "web_browser", description="设备类型：android_tv | web_browser")
+    current_playlist_id: Optional[int] = Field(None, description="当前播放列表 ID")
+    last_media_id: Optional[int] = Field(None, description="最后播放的媒体 ID")
+    status: str = Field(default="playing",
+                        description="播放状态：playing | idle | paused")
+
+
+class VersionCheckRequest(BaseModel):
+    """版本检查请求"""
+    version: str = Field(..., description="当前版本号（ISO 8601 格式）")
+
+
+class PlaylistAvailableResponse(BaseModel):
+    """可用播放列表响应"""
+    id: int
+    name: str
+    media_count: int
+    total_size_mb: float
+
+
+class DeviceNotificationCreate(BaseModel):
+    """设备通知创建请求"""
+    device_id: str = Field(..., description="设备唯一标识")
+    type: str = Field(..., description="通知类型：download_success/download_failed/insufficient_storage/switch_failed")
+    playlist_id: Optional[int] = Field(None, description="关联的播放列表 ID")
+    error_message: Optional[str] = Field(None, description="错误消息或详细信息")
+
+
+@router.post("/devices/notifications")
+async def receive_device_notification(
+    notification: DeviceNotificationCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    接收设备通知（新增）
+
+    接收播放端推送的通知，记录到数据库并触发告警
+
+    支持的通知类型：
+    - download_success: 下载成功
+    - download_failed: 下载失败（3 次重试后）
+    - insufficient_storage: 存储空间不足
+    - switch_failed: 切换失败
+
+    响应：
+    {
+        "acknowledged": true
+    }
+    """
+    # 记录到数据库
+    log = DeviceNotificationLog(
+        device_id=notification.device_id,
+        notification_type=notification.type,
+        message=notification.error_message,
+        playlist_id=notification.playlist_id
+    )
+    db.add(log)
+
+    # 告警（如果是错误类型）
+    if notification.type in ['download_failed', 'insufficient_storage', 'switch_failed']:
+        logger.warning(
+            f"Device alert received: {notification.type}",
+            extra={
+                "device_id": notification.device_id,
+                "playlist_id": notification.playlist_id,
+                "error": notification.error_message,
+                "event": "device_alert"
+            }
+        )
+
+    db.commit()
+
+    return {"acknowledged": True}
+
+
+@router.get("/playlists/available")
+async def get_available_playlists(db: Session = Depends(get_db)):
+    """
+    获取可用播放列表列表（简化版）
+
+    返回所有激活的播放列表，供首次安装时选择
+
+    响应：
+    {
+        "playlists": [
+            {
+                "id": 1,
+                "name": "企业宣传片",
+                "media_count": 5,
+                "total_size_mb": 1250
+            }
+        ]
+    }
+    """
+    # 查询所有激活的播放列表
+    playlists = db.query(Playlist).filter(
+        Playlist.is_system == True  # 或者添加 is_active 字段
+    ).all()
+
+    result = []
+    for playlist in playlists:
+        # 统计媒体数量和总大小
+        items = db.query(PlaylistItem).join(MediaFile).filter(
+            PlaylistItem.playlist_id == playlist.id
+        ).all()
+
+        media_count = len(items)
+        total_size_mb = sum(
+            item.media_file.file_size or 0
+            for item in items
+        ) / (1024 * 1024)
+
+        result.append({
+            "id": playlist.id,
+            "name": playlist.name,
+            "media_count": media_count,
+            "total_size_mb": round(total_size_mb, 2)
+        })
+
+    return {"playlists": result}
+
+
+@router.post("/heartbeat")
+async def player_heartbeat(
+    request: HeartbeatRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    播放端心跳上报
+
+    接收：
+    {
+        "device_id": "550e8400-e29b-41d4-a716-446655440000",
+        "device_type": "android_tv",
+        "current_playlist_id": 123,
+        "last_media_id": 456,
+        "status": "playing"
+    }
+
+    响应：
+    {
+        "acknowledged": true,
+        "server_time": "2026-03-06T10:30:00Z",
+        "playlist_update": null  // 或更新信息
+    }
+
+    注意：
+    - 速率限制：每设备每分钟最多 10 次请求
+    """
+    # 速率限制检查
+    if not check_rate_limit(request.device_id):
+        logger.warning(f"Rate limit exceeded for device: {request.device_id}")
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many requests. Maximum {HEARTBEAT_RATE_LIMIT_PER_MINUTE} per minute."
+        )
+
+    try:
+        # 查找设备
+        device = db.query(Device).filter(
+            Device.device_id == request.device_id).first()
+
+        if not device:
+            # 设备未注册，先注册
+            device = Device(
+                device_id=request.device_id,
+                device_name=f"Player-{request.device_id[-8:]}",
+                device_type=request.device_type,
+                status="online",
+                last_online=datetime.utcnow(),
+                current_playlist_id=request.current_playlist_id,
+                last_media_id=request.last_media_id
+            )
+            db.add(device)
+            logger.info(
+                f"New device registered via heartbeat: {request.device_id}",
+                extra={
+                    "device_id": request.device_id,
+                    "device_type": request.device_type,
+                    "event": "device_registered"
+                }
+            )
+            db.commit()
+        else:
+            # 更新设备状态
+            device.status = "online"
+            device.last_online = datetime.utcnow()
+
+            # 更新播放状态（如果有）
+            if request.current_playlist_id is not None:
+                device.current_playlist_id = request.current_playlist_id
+
+            if request.last_media_id is not None:
+                device.last_media_id = request.last_media_id
+
+            # 更新设备类型（如果变化）
+            if request.device_type and device.device_type != request.device_type:
+                device.device_type = request.device_type
+
+            db.commit()
+            logger.debug(
+                f"Heartbeat received from device: {request.device_id}",
+                extra={
+                    "device_id": request.device_id,
+                    "playlist_id": request.current_playlist_id,
+                    "media_id": request.last_media_id,
+                    "status": request.status,
+                    "event": "heartbeat_received"
+                }
+            )
+
+        # 检查是否有播放列表更新需要推送
+        playlist_update = await check_playlist_update(db, request.device_id, request.current_playlist_id)
+
+        return {
+            "acknowledged": True,
+            "server_time": datetime.utcnow().isoformat() + "Z",
+            "playlist_update": playlist_update
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            f"Heartbeat processing error: {str(e)}",
+            extra={
+                "device_id": request.device_id,
+                "error": str(e),
+                "event": "heartbeat_error"
+            },
+            exc_info=True
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def check_playlist_update(
+    db: Session,
+    device_id: str,
+    current_playlist_id: Optional[int]
+) -> Optional[dict]:
+    """
+    检查是否有播放列表更新需要推送（P1-3 修复：添加缓存）
+
+    查询是否有该设备的下载任务，如果有且状态为 completed，则返回更新信息
+    使用内存缓存减少数据库查询频率（5 分钟有效期）
+    """
+    import time
+
+    # P1-3 修复：检查缓存
+    if device_id in _playlist_update_cache:
+        cached_result, cache_time = _playlist_update_cache[device_id]
+        if time.time() - cache_time < _PLAYLIST_UPDATE_CACHE_TTL:
+            logger.debug(f"Cache hit for device {device_id}")
+            return cached_result
+
+    # 缓存未命中，查询数据库
+    logger.debug(f"Cache miss for device {device_id}, querying database")
+
+    # 查询已完成的下载任务
+    task = db.query(PlaylistDownloadTask).filter(
+        PlaylistDownloadTask.device_id == device_id,
+        PlaylistDownloadTask.status == 'completed'
+    ).first()
+
+    if not task:
+        # 缓存空结果，避免频繁查询
+        result = None
+        _playlist_update_cache[device_id] = (result, time.time())
+        return None
+
+    # 获取播放列表信息
+    playlist = db.query(Playlist).filter(
+        Playlist.id == task.playlist_id).first()
+    if not playlist:
+        result = None
+        _playlist_update_cache[device_id] = (result, time.time())
+        return None
+
+    # 统计媒体数量
+    items = db.query(PlaylistItem).filter(
+        PlaylistItem.playlist_id == playlist.id
+    ).all()
+
+    result = {
+        "has_update": True,
+        "playlist_id": playlist.id,
+        "version": playlist.updated_at.isoformat() + "Z" if playlist.updated_at else None,
+        "media_count": len(items),
+        "name": playlist.name
+    }
+
+    # 更新缓存
+    _playlist_update_cache[device_id] = (result, time.time())
+
+    return result
+
+
+@router.get("/status")
+async def get_device_status(
+    status_filter: Optional[str] = Query(
+        None, description="过滤条件：online|offline"),
+    db: Session = Depends(get_db)
+):
+    """
+    获取设备状态列表
+
+    查询参数：
+    - status_filter: online | offline | None（全部）
+
+    返回：
+    [
+        {
+            "device_id": "xxx",
+            "device_name": "Player-xxx",
+            "status": "online",
+            "last_online": "2026-03-06T10:30:00Z",
+            "current_playlist": {
+                "id": 123,
+                "name": "会议室播放列表"
+            },
+            "last_media": {
+                "id": 456,
+                "file_name": "企业宣传片.mp4"
+            }
+        }
+    ]
+    """
+    query = db.query(Device)
+
+    if status_filter:
+        if status_filter == "online":
+            # 5 分钟内有心跳视为在线
+            threshold = datetime.utcnow() - timedelta(minutes=DEVICE_ONLINE_THRESHOLD_MINUTES)
+            query = query.filter(Device.last_online > threshold)
+        elif status_filter == "offline":
+            threshold = datetime.utcnow() - timedelta(minutes=DEVICE_ONLINE_THRESHOLD_MINUTES)
+            query = query.filter(Device.last_online <= threshold)
+
+    devices = query.all()
+
+    result = []
+    for device in devices:
+        # 判断是否在线
+        time_diff = datetime.utcnow() - device.last_online
+        is_online = time_diff.total_seconds() < (DEVICE_ONLINE_THRESHOLD_MINUTES * 60)
+
+        # 获取播放列表信息
+        playlist_info = None
+        if device.current_playlist_id:
+            playlist = db.query(Playlist).filter(
+                Playlist.id == device.current_playlist_id
+            ).first()
+            if playlist:
+                playlist_info = {
+                    "id": playlist.id,
+                    "name": playlist.name
+                }
+
+        # 获取媒体信息
+        media_info = None
+        if device.last_media_id:
+            media = db.query(MediaFile).filter(
+                MediaFile.id == device.last_media_id
+            ).first()
+            if media:
+                media_info = {
+                    "id": media.id,
+                    "file_name": media.file_name,
+                    "file_type": media.file_type
+                }
+
+        result.append({
+            "device_id": device.device_id,
+            "device_name": device.device_name,
+            "device_type": device.device_type,
+            "status": "online" if is_online else "offline",
+            "last_online": device.last_online.isoformat() + "Z",
+            "current_playlist": playlist_info,
+            "last_media": media_info
+        })
+
+    return result
+
+
+@router.post("/playlist/{playlist_id}/check")
+async def check_playlist_version(
+    playlist_id: int,
+    request: VersionCheckRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    检查播放列表版本
+
+    请求：
+    {
+        "version": "2026-03-06T10:00:00Z"
+    }
+
+    响应：
+    {
+        "needs_update": true,
+        "current_version": "2026-03-06T12:00:00Z"
+    }
+    """
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+
+    needs_update = playlist.updated_at.isoformat() != request.version
+
+    return {
+        "needs_update": needs_update,
+        "current_version": playlist.updated_at.isoformat() + "Z"
+    }

@@ -38,6 +38,7 @@ import {
 import { mediaApi, MediaFile } from '../api/media';
 import { folderApi, MediaFolder } from '../api/folder';
 import { getMediaUrl } from '../api/client';
+import { uiLogger } from '../utils/logger';
 import type { UploadFile } from 'antd';
 import type { DataNode } from 'antd/es/tree';
 import dayjs from 'dayjs';
@@ -78,7 +79,7 @@ const MediaList: React.FC = () => {
       const response = await folderApi.list(parentId);
       setFolders(response.folders || []);
     } catch (error) {
-      console.error('加载文件夹失败', error);
+      uiLogger.error('加载文件夹失败', error);
     }
   };
 
@@ -101,7 +102,7 @@ const MediaList: React.FC = () => {
         { key: 0, title: '根目录', icon: <HomeOutlined />, children: convertToTreeData(tree) }
       ]);
     } catch (error) {
-      console.error('加载文件夹树失败', error);
+      uiLogger.error('加载文件夹树失败', error);
     }
   };
 

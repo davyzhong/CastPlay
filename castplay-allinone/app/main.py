@@ -14,8 +14,7 @@ import uvicorn
 from app.config import settings
 from app.database import init_database, get_db, SessionLocal
 from app.middleware.cors import setup_cors
-from app.middleware.rate_limit import setup_rate_limit
-from app.workers import task_manager
+from app.scheduler import start as start_scheduler, stop as stop_scheduler
 from app.utils.logger import logger
 # 使用全局单例 manager，不要创建新实例
 from app.websocket.handler import manager as connection_manager
@@ -28,10 +27,10 @@ async def lifespan(app: FastAPI):
 
     启动时：
     1. 初始化数据库
-    2. 启动后台任务队列
+    2. 启动后台任务调度器
 
     关闭时：
-    1. 停止后台任务队列
+    1. 停止后台任务调度器
     """
     import os
     is_testing = os.environ.get("TESTING")
@@ -45,16 +44,16 @@ async def lifespan(app: FastAPI):
     if not is_testing:
         init_database()
 
-    # 启动后台任务队列（测试模式下跳过）
+    # 启动后台任务调度器（测试模式下跳过）
     if not is_testing:
-        task_manager.start()
+        start_scheduler()
 
     yield
 
     # 关闭时执行（测试模式下跳过）
     if not is_testing:
         logger.info("Shutting down...")
-        task_manager.stop()
+        stop_scheduler()
         logger.info("Shutdown complete")
 
 
@@ -71,8 +70,8 @@ app = FastAPI(
 # 配置 CORS
 setup_cors(app)
 
-# 配置速率限制
-setup_rate_limit(app)
+# 注意：已移除 SlowAPI 速率限制，改用简单限流器（见 app/utils/simple_rate_limiter.py）
+# 小规模内网场景不需要复杂的速率限制
 
 # 挂载静态文件（如果存在）
 static_dir = Path("frontend/dist")

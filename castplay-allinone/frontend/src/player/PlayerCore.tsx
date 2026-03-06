@@ -8,6 +8,7 @@ import { usePlaylistSync } from './usePlaylistSync';
 import { useMediaCache } from './useMediaCache';
 import { useOfflineMode } from './useOfflineMode';
 import { usePlaybackScheduler } from './usePlaybackScheduler';
+import { DeviceIdDisplay } from './components/DeviceIdDisplay';
 import type { PlayerPlaylistItem, PlayerState } from './types';
 
 interface PlayerCoreProps {
@@ -179,8 +180,16 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
     };
   }, [isRegistered, deviceInfo, isPlaying]);
 
-  // 渲染（这个组件主要用于逻辑，实际 UI 由外部处理）
-  return null;
+  // 渲染（显示设备 ID）
+  if (!deviceInfo?.device_id) {
+    return null;
+  }
+
+  return (
+    <DeviceIdDisplay
+      deviceId={deviceInfo.device_id}
+    />
+  );
 };
 
 // 导出播放器控制接口

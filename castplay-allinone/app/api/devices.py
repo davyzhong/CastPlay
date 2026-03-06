@@ -32,15 +32,14 @@ def generate_friendly_code(length: int = 4) -> str:
     return ''.join(random.choices(chars, k=length))
 
 
-def generate_registration_code(device_id: str = None, mac_address: str = None) -> str:
+def generate_registration_code(device_id: str = None) -> str:
     """
     生成友好的注册码（格式: CP-XXXX-XXXX-XXXX）
-    基于设备 ID 或 MAC 地址生成确定性注册码
+    基于设备 ID 生成确定性注册码
     """
-    source = (device_id or '') + (mac_address or '')
-    if source:
+    if device_id:
         # 使用哈希确保同一设备始终生成相同注册码
-        hash_obj = hashlib.sha256(source.encode())
+        hash_obj = hashlib.sha256(device_id.encode())
         # 使用哈希的前 12 个字符作为基础
         hex_digest = hash_obj.hexdigest()[:12].upper()
         # 转换为易读格式
@@ -50,12 +49,6 @@ def generate_registration_code(device_id: str = None, mac_address: str = None) -
         code = f"{generate_friendly_code()}-{generate_friendly_code()}-{generate_friendly_code()}"
 
     return f"CP-{code}"
-
-
-def generate_device_id_from_mac(mac_address: str) -> str:
-    """基于 MAC 地址生成设备 ID"""
-    clean_mac = mac_address.replace(':', '').upper()
-    return f"device-{clean_mac}"
 
 
 def get_client_ip(request: Request) -> str:
@@ -76,84 +69,51 @@ def register_device(
     """
     注册新设备
 
-    支持两种注册方式：
-    1. MAC 地址注册（推荐）：提供 mac_address，自动生成 device_id 和 registration_code
-    2. 传统 device_id 注册：提供 device_id
+    注册方式：
+    1. 优先使用客户端提供的 device_id（真正的 UUID）
+    2. 如果没有 device_id，服务端生成 UUID 作为 device_id
+    3. MAC 地址仅作为辅助信息，不用于生成 ID
 
-    - **device_id**: 设备唯一标识（UUID）
+    - **device_id**: 设备唯一标识（UUID，可选，不提供则自动生成）
     - **device_name**: 设备名称
     - **timezone**: 时区（默认 Asia/Shanghai）
-    - **mac_address**: MAC 地址 (XX:XX:XX:XX:XX:XX)
+    - **mac_address**: MAC 地址（可选，仅作为辅助标识）
     - **ip_address**: IP 地址（可选，自动从请求获取）
-    - **registration_code**: 注册码（可选，MAC 注册时自动生成）
 
     如果设备已存在，更新在线状态
     """
     # 获取客户端 IP
     client_ip = device_data.ip_address or get_client_ip(request)
 
-    # MAC 地址优先注册
+    # 处理 MAC 地址（仅作为辅助信息）
+    mac_address = None
     if device_data.mac_address:
         mac_address = device_data.mac_address.upper()
-        registration_code = device_data.registration_code or generate_registration_code(mac_address)
-        device_id = generate_device_id_from_mac(mac_address)
 
-        # 检查 MAC 是否已存在
+    # 确定设备 ID（UUID 优先）
+    if device_data.device_id:
+        device_id = device_data.device_id
+    else:
+        # 服务端生成 UUID
+        device_id = str(uuid.uuid4())
+
+    # 检查设备是否已存在（优先按 device_id 查找）
+    existing = db.query(Device).filter(Device.device_id == device_id).first()
+
+    # 如果 device_id 不存在但有 MAC 地址，尝试按 MAC 查找
+    if not existing and mac_address:
         existing = db.query(Device).filter(Device.mac_address == mac_address).first()
-
         if existing:
-            # 更新最后在线时间和状态
-            existing.last_online = datetime.utcnow()
-            existing.status = "online"
-            existing.ip_address = client_ip
-            if device_data.device_name and device_data.device_name != "Default Device":
-                existing.device_name = device_data.device_name
-            if device_data.timezone and device_data.timezone != "Asia/Shanghai":
-                existing.timezone = device_data.timezone
-
-            db.commit()
-            db.refresh(existing)
-            response.status_code = status.HTTP_200_OK
-            logger.info(f"Device updated via MAC: {existing.device_name} ({existing.mac_address})")
-            return existing
-
-        # 生成设备名称
-        device_name = device_data.device_name
-        if device_name == "Default Device":
-            device_name = f"CastPlay-{mac_address.replace(':', '')[-6:]}"
-
-        # 创建新设备
-        new_device = Device(
-            device_id=device_id,
-            device_name=device_name,
-            timezone=device_data.timezone,
-            mac_address=mac_address,
-            ip_address=client_ip,
-            registration_code=registration_code,
-            last_online=datetime.utcnow(),
-            status="online"
-        )
-        db.add(new_device)
-        db.commit()
-        db.refresh(new_device)
-
-        logger.info(f"New device registered via MAC: {new_device.device_name} ({new_device.mac_address})")
-        response.status_code = status.HTTP_201_CREATED
-        return new_device
-
-    # 传统 device_id 注册
-    if not device_data.device_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Either device_id or mac_address is required"
-        )
-
-    existing = db.query(Device).filter(Device.device_id == device_data.device_id).first()
+            # 更新设备的 device_id（以最新的为准）
+            existing.device_id = device_id
 
     if existing:
+        # 更新最后在线时间和状态
         existing.last_online = datetime.utcnow()
         existing.status = "online"
         existing.ip_address = client_ip
+        if mac_address:
+            existing.mac_address = mac_address
         if device_data.device_name and device_data.device_name != "Default Device":
             existing.device_name = device_data.device_name
         if device_data.timezone and device_data.timezone != "Asia/Shanghai":
@@ -162,17 +122,24 @@ def register_device(
         db.commit()
         db.refresh(existing)
         response.status_code = status.HTTP_200_OK
-        logger.info(f"Device updated: {existing.device_name} ({existing.device_id})")
+        logger.info(f"Device updated: {existing.device_name} (ID: {existing.device_id})")
         return existing
 
     # 生成注册码（基于 device_id）
-    registration_code = generate_registration_code(device_id=device_data.device_id)
+    registration_code = generate_registration_code(device_id=device_id)
+
+    # 生成设备名称
+    device_name = device_data.device_name
+    if device_name == "Default Device":
+        # 使用 device_id 的前 8 位作为名称后缀
+        device_name = f"CastPlay-{device_id[:8].upper()}"
 
     # 创建新设备
     new_device = Device(
-        device_id=device_data.device_id,
-        device_name=device_data.device_name or f"新设备-{device_data.device_id[:8]}",
+        device_id=device_id,
+        device_name=device_name,
         timezone=device_data.timezone,
+        mac_address=mac_address,
         ip_address=client_ip,
         registration_code=registration_code,
         last_online=datetime.utcnow(),
@@ -182,7 +149,7 @@ def register_device(
     db.commit()
     db.refresh(new_device)
 
-    logger.info(f"New device registered: {new_device.device_name} ({new_device.device_id}), 注册码: {registration_code}")
+    logger.info(f"New device registered: {new_device.device_name} (ID: {device_id}, 注册码: {registration_code})")
     response.status_code = status.HTTP_201_CREATED
     return new_device
 
@@ -412,48 +379,6 @@ def get_device_schedule(device_id: int, db: Session = Depends(get_db)):
         created_at=schedule.created_at,
         updated_at=schedule.updated_at
     )
-
-
-@router.put("/{device_id}/playback-speed", response_model=DeviceResponse)
-async def set_playback_speed(
-    device_id: int,
-    speed: int = Body(..., embed=True, ge=1, le=8),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    设置设备播放速度
-
-    - **speed**: 播放速度倍数 (1, 2, 4, 8)
-
-    需要认证
-    """
-    device = db.query(Device).filter(Device.id == device_id).first()
-    if not device:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device not found"
-        )
-
-    # 验证速度值
-    valid_speeds = [1, 2, 4, 8]
-    if speed not in valid_speeds:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid speed value. Must be one of: {valid_speeds}"
-        )
-
-    device.playback_speed = speed
-    db.commit()
-    db.refresh(device)
-
-    logger.info(f"Playback speed set to {speed}x for device {device_id}")
-
-    # 发送 WebSocket 通知
-    from app.services.notification import NotificationService
-    await NotificationService.notify_config_update(device_id, {"playback_speed": speed})
-
-    return device
 
 
 @router.get("/{device_id}/cached-media")

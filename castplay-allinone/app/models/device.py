@@ -16,27 +16,48 @@ class Device(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
 
     # 设备信息
-    device_id = Column(String(50), unique=True, index=True, nullable=False, doc="设备唯一标识（UUID）")
+    device_id = Column(String(50), unique=True, index=True,
+                       nullable=False, doc="设备唯一标识（UUID）")
     device_name = Column(String(100), nullable=False, doc="设备名称")
     timezone = Column(String(50), default='Asia/Shanghai', doc="时区")
 
     # 网络标识
-    mac_address = Column(String(17), unique=True, nullable=True, index=True, doc="MAC 地址 (XX:XX:XX:XX:XX:XX)")
+    mac_address = Column(String(17), unique=True, nullable=True,
+                         index=True, doc="MAC 地址 (XX:XX:XX:XX:XX:XX)")
     ip_address = Column(String(45), nullable=True, doc="IP 地址（支持 IPv6）")
-    registration_code = Column(String(20), unique=True, nullable=True, index=True, doc="注册码")
+    registration_code = Column(
+        String(20), unique=True, nullable=True, index=True, doc="注册码")
 
     # 设备状态
-    is_disabled = Column(Boolean, default=False, index=True, doc="是否禁用（禁用后只能播放默认内容）")
+    is_disabled = Column(Boolean, default=False,
+                         index=True, doc="是否禁用（禁用后只能播放默认内容）")
     last_online = Column(DateTime, nullable=True, doc="最后在线时间")
-    status = Column(String(20), default='offline', index=True, doc="在线状态: online/offline")
+    status = Column(String(20), default='offline',
+                    index=True, doc="在线状态: online/offline")
 
     # 设备标识
     api_key = Column(String(100), nullable=True, doc="API 密钥")
     hardware_id = Column(String(100), nullable=True, doc="硬件 ID")
+    device_type = Column(String(50), default='web_browser',
+                         doc="设备类型：android_tv | web_browser")
+
+    # 播放状态（新增）
+    current_playlist_id = Column(Integer, ForeignKey(
+        'playlists.id'), nullable=True, doc="当前播放列表 ID")
+    last_media_id = Column(Integer, ForeignKey(
+        'media_files.id'), nullable=True, doc="最后播放的媒体 ID")
+
+    # 元数据（JSON 格式，可选）
+    device_metadata = Column(Text, nullable=True, doc="元数据（JSON 格式）")
 
     # 关系
-    schedules = relationship("DeviceSchedule", back_populates="device", cascade="all, delete-orphan")
-    cached_media = relationship("CachedMedia", back_populates="device", cascade="all, delete-orphan")
+    current_playlist = relationship(
+        "Playlist", foreign_keys=[current_playlist_id])
+    last_media = relationship("MediaFile", foreign_keys=[last_media_id])
+    schedules = relationship(
+        "DeviceSchedule", back_populates="device", cascade="all, delete-orphan")
+    cached_media = relationship(
+        "CachedMedia", back_populates="device", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Device(id={self.id}, device_id='{self.device_id}', name='{self.device_name}', disabled={self.is_disabled})>"

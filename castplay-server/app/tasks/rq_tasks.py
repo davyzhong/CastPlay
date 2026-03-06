@@ -137,16 +137,41 @@ def convert_ppt_to_video(media_id: int) -> bool:
                     f"{os.path.splitext(os.path.basename(media.file_path))[0]}.mp4"
                 )
 
-                # TODO: 实际的 PPT 转换逻辑
-                # 这里需要根据系统环境选择合适的转换工具
-                # 例如 LibreOffice + ffmpeg
+                # 实际的 PPT 转换逻辑
+                from app.services.converter import PPTConverter
+
+                converter = PPTConverter(
+                    libreoffice_path=settings.LIBREOFFICE_PATH,
+                    ffmpeg_path=settings.FFMPEG_PATH
+                )
+
+                logger.info(
+                    f"Starting PPT conversion: {media.file_path} -> {output_path}")
+
+                # 执行转换
+                video_path = converter.convert_to_video(
+                    media.file_path,
+                    converted_dir,
+                    duration_per_slide=5
+                )
+
+                # 生成缩略图
+                thumbnail_dir = settings.THUMBNAIL_FOLDER
+                os.makedirs(thumbnail_dir, exist_ok=True)
+                thumbnail_path = os.path.join(
+                    thumbnail_dir,
+                    f"{os.path.splitext(os.path.basename(media.file_path))[0]}.jpg"
+                )
+                converter.generate_thumbnail(video_path, thumbnail_path)
 
                 # 更新数据库记录
-                media.converted_path = output_path
+                media.converted_path = video_path
+                media.thumbnail_path = thumbnail_path
                 media.status = 'ready'
                 await db.commit()
 
-                logger.info(f"PPT {media_id} converted successfully")
+                logger.info(
+                    f"PPT {media_id} converted successfully to {video_path}")
                 return True
 
             except Exception as e:

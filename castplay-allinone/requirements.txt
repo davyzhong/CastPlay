@@ -6,8 +6,8 @@ fastapi==0.110.0
 uvicorn[standard]==0.27.1
 python-multipart==0.0.6
 
-# 速率限制
-slowapi==0.1.9
+# 后台任务调度
+APScheduler==3.10.4
 
 # 数据库
 sqlalchemy==2.0.25

@@ -24,7 +24,7 @@ from app.utils.file_utils import (
 )
 from app.config import settings
 from app.utils.logger import logger
-from app.workers import task_manager
+from app.scheduler import submit_ppt_conversion
 
 router = APIRouter()
 
@@ -68,7 +68,8 @@ async def upload_media(
     # 验证文件实际内容（Magic Number 检查）
     content_valid, content_error = validate_file_content(contents, file_type)
     if not content_valid:
-        logger.warning(f"File content validation failed for {file.filename}: {content_error}")
+        logger.warning(
+            f"File content validation failed for {file.filename}: {content_error}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File content validation failed: {content_error}"
@@ -120,14 +121,12 @@ async def upload_media(
             db.commit()
         else:
             # 提交后台转换任务
-            task_manager.submit_task(
-                "convert_ppt",
-                {
-                    "media_id": new_media.id,
-                    "file_path": file_path
-                }
+            job_id = submit_ppt_conversion(
+                media_id=new_media.id,
+                file_path=file_path
             )
-            logger.info(f"PPT conversion task submitted for media {new_media.id}")
+            logger.info(
+                f"PPT conversion task submitted for media {new_media.id}, job_id={job_id}")
 
     return {
         "message": "File uploaded successfully",
@@ -140,7 +139,8 @@ def list_media(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     file_type: Optional[str] = Query(None, pattern="^(image|video|ppt)$"),
-    status_filter: Optional[str] = Query(None, pattern="^(ready|processing|failed)$"),
+    status_filter: Optional[str] = Query(
+        None, pattern="^(ready|processing|failed)$"),
     db: Session = Depends(get_db)
 ):
     """
@@ -160,7 +160,8 @@ def list_media(
         query = query.filter(MediaFile.status == status_filter)
 
     total = query.count()
-    media_list = query.order_by(MediaFile.id.desc()).offset(skip).limit(limit).all()
+    media_list = query.order_by(
+        MediaFile.id.desc()).offset(skip).limit(limit).all()
 
     pages = (total + limit - 1) // limit if total > 0 else 0
 
@@ -333,13 +334,11 @@ def retry_conversion(
     db.commit()
 
     # 提交转换任务
-    task_manager.submit_task(
-        "convert_ppt",
-        {
-            "media_id": media.id,
-            "file_path": media.file_path
-        }
+    job_id = submit_ppt_conversion(
+        media_id=media.id,
+        file_path=media.file_path
     )
-    logger.info(f"PPT conversion retry submitted for media {media.id}")
+    logger.info(
+        f"PPT conversion retry submitted for media {media.id}, job_id={job_id}")
 
     return media

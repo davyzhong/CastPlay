@@ -397,7 +397,9 @@ async def assign_playlist_to_device(
     await db.commit()
     await db.refresh(device_playlist)
 
-    # TODO: 触发 WebSocket 推送
+    # 触发 WebSocket 推送通知设备
+    from app.websocket.emitter import emit_schedule_update
+    emit_schedule_update(device_id)
 
     return {
         "message": "Playlist assigned to device successfully",

@@ -45,6 +45,7 @@ import { playlistApi, Playlist, PlaylistDetail } from '../api/playlist';
 import { mediaApi, MediaFile } from '../api/media';
 import { deviceApi, Device } from '../api/device';
 import { getMediaUrl } from '../api/client';
+import { uiLogger } from '../utils/logger';
 import {
   DndContext,
   closestCenter,

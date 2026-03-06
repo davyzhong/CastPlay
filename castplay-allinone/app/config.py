@@ -52,9 +52,24 @@ class Settings(BaseSettings):
     ALLOWED_PPT_TYPES: List[str] = ["ppt", "pptx"]
 
     # JWT 认证配置
-    SECRET_KEY: Optional[str] = None  # 必须通过环境变量设置
+    @property
+    def SECRET_KEY(self) -> str:
+        """JWT 密钥 - 内网简化版"""
+        env_key = os.getenv("SECRET_KEY")
+
+        if self.ENVIRONMENT == "production":
+            # 生产环境必须设置
+            if not env_key:
+                raise ValueError(
+                    "生产环境必须通过环境变量设置 SECRET_KEY"
+                )
+            return env_key
+        else:
+            # 开发/内网环境使用固定密钥
+            return env_key or "castplay-dev-secret-key-2026-do-not-use-in-production"
+
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7天
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 天
 
     # WebSocket 配置
     WS_PING_INTERVAL: int = 30  # 秒
@@ -65,7 +80,17 @@ class Settings(BaseSettings):
     TASK_TIMEOUT: int = 600  # 任务超时时间（秒）
 
     # CORS 配置
-    CORS_ORIGINS: List[str] = ["*"]
+    @property
+    def CORS_ORIGINS(self) -> list[str]:
+        """CORS 白名单 - 内网简化版"""
+        if self.ENVIRONMENT == "production":
+            # 生产环境从环境变量读取
+            origins_str = os.getenv("CORS_ORIGINS", "")
+            return [o.strip() for o in origins_str.split(",") if o.strip()]
+        else:
+            # 开发环境允许所有来源
+            return ["*"]
+
     CORS_ALLOW_CREDENTIALS: bool = True
 
     # 默认管理员
@@ -77,13 +102,13 @@ class Settings(BaseSettings):
     RATE_LIMIT_LOGIN: str = "5/minute"  # 登录限制
     RATE_LIMIT_API: str = "100/minute"  # API 限制
 
-    @field_validator('SECRET_KEY', mode='before')
-    @classmethod
-    def validate_secret_key(cls, v):
-        if v is None:
-            # 生成随机密钥（仅用于开发环境）
-            return secrets.token_urlsafe(32)
-        return v
+    @property
+    def LOG_LEVEL(self) -> str:
+        """日志级别 - 根据环境自动调整"""
+        if self.ENVIRONMENT == "production":
+            return "INFO"  # 生产环境仅记录关键日志
+        else:
+            return "DEBUG"  # 开发环境记录详细日志
 
     @field_validator('DEFAULT_ADMIN_PASSWORD', mode='before')
     @classmethod
@@ -95,19 +120,27 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # 生产环境安全检查（仅在密钥是随机生成的长度时警告）
+        # 生产环境安全检查
         if self.ENVIRONMENT == "production":
-            # 检查是否使用自动生成的 32 字节密钥（43 个 base64 字符）
-            if len(self.SECRET_KEY) == 43:
-                warnings.warn(
-                    "生产环境检测到自动生成的 SECRET_KEY，建议通过 .env 或环境变量设置固定密钥！"
-                    "重启后会导致所有 JWT Token 失效。",
-                    UserWarning
-                )
-            # 检查是否使用自动生成的 16 字节密码（22 个 base64 字符）
+            # 检查 SECRET_KEY 是否设置
+            try:
+                secret_key = self.SECRET_KEY
+                if not secret_key or len(secret_key) < 32:
+                    warnings.warn(
+                        "生产环境 SECRET_KEY 长度不足 32 字符，建议使用强随机密钥！",
+                        UserWarning
+                    )
+            except ValueError as e:
+                # SECRET_KEY 未设置会抛出异常
+                warnings.warn(str(e), UserWarning)
+
+            # 检查管理员密码
             if len(self.DEFAULT_ADMIN_PASSWORD) == 22 and '-' in self.DEFAULT_ADMIN_PASSWORD:
-                print(f"ℹ️  管理员密码: {self.DEFAULT_ADMIN_PASSWORD} (请保存此密码)")
-            if "*" in self.CORS_ORIGINS:
+                print(f"ℹ️  管理员密码：{self.DEFAULT_ADMIN_PASSWORD} (请保存此密码)")
+
+            # 检查 CORS 配置
+            cors_origins = self.CORS_ORIGINS
+            if "*" in cors_origins:
                 warnings.warn(
                     "生产环境不建议使用 CORS_ORIGINS=['*']，请配置具体域名！",
                     UserWarning

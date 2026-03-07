@@ -161,6 +161,137 @@ class ConnectionManager:
         }
         await self.send_to_device(str(device_id), message)
 
+    # ==================== 新增远程控制指令 ====================
+
+    async def send_pause_command(self, device_id: str):
+        """
+        发送暂停播放指令
+
+        Args:
+            device_id: 设备 ID (UUID)
+        """
+        message = {
+            "event": "control",
+            "action": "pause",
+            "timestamp": self._now()
+        }
+        await self.send_to_device(device_id, message)
+        logger.info(f"Pause command sent to device {device_id}")
+
+    async def send_resume_command(self, device_id: str):
+        """
+        发送恢复播放指令
+
+        Args:
+            device_id: 设备 ID (UUID)
+        """
+        message = {
+            "event": "control",
+            "action": "resume",
+            "timestamp": self._now()
+        }
+        await self.send_to_device(device_id, message)
+        logger.info(f"Resume command sent to device {device_id}")
+
+    async def send_volume_command(self, device_id: str, volume: int):
+        """
+        发送音量调节指令
+
+        Args:
+            device_id: 设备 ID (UUID)
+            volume: 音量值 (0-100)
+        """
+        if not 0 <= volume <= 100:
+            raise ValueError("Volume must be between 0 and 100")
+
+        message = {
+            "event": "control",
+            "action": "volume",
+            "volume": volume,
+            "timestamp": self._now()
+        }
+        await self.send_to_device(device_id, message)
+        logger.info(f"Volume command sent to device {device_id}: {volume}")
+
+    async def send_reload_command(self, device_id: str):
+        """
+        发送重新加载指令
+
+        Args:
+            device_id: 设备 ID (UUID)
+        """
+        message = {
+            "event": "control",
+            "action": "reload",
+            "timestamp": self._now()
+        }
+        await self.send_to_device(device_id, message)
+        logger.info(f"Reload command sent to device {device_id}")
+
+    async def send_seek_command(self, device_id: str, position: int):
+        """
+        发送跳转指令
+
+        Args:
+            device_id: 设备 ID (UUID)
+            position: 跳转位置（秒）
+        """
+        message = {
+            "event": "control",
+            "action": "seek",
+            "position": position,
+            "timestamp": self._now()
+        }
+        await self.send_to_device(device_id, message)
+        logger.info(f"Seek command sent to device {device_id}: {position}s")
+
+    async def send_next_command(self, device_id: str):
+        """
+        发送下一个指令
+
+        Args:
+            device_id: 设备 ID (UUID)
+        """
+        message = {
+            "event": "control",
+            "action": "next",
+            "timestamp": self._now()
+        }
+        await self.send_to_device(device_id, message)
+        logger.info(f"Next command sent to device {device_id}")
+
+    async def send_prev_command(self, device_id: str):
+        """
+        发送上一个指令
+
+        Args:
+            device_id: 设备 ID (UUID)
+        """
+        message = {
+            "event": "control",
+            "action": "prev",
+            "timestamp": self._now()
+        }
+        await self.send_to_device(device_id, message)
+        logger.info(f"Prev command sent to device {device_id}")
+
+    async def send_switch_playlist_command(self, device_id: str, playlist_id: int):
+        """
+        发送切换播放列表指令
+
+        Args:
+            device_id: 设备 ID (UUID)
+            playlist_id: 播放列表 ID
+        """
+        message = {
+            "event": "control",
+            "action": "switch_playlist",
+            "playlist_id": playlist_id,
+            "timestamp": self._now()
+        }
+        await self.send_to_device(device_id, message)
+        logger.info(f"Switch playlist command sent to device {device_id}: playlist {playlist_id}")
+
     def get_connected_devices(self) -> List[str]:
         """
         获取已连接的设备 ID 列表

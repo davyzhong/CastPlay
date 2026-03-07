@@ -97,6 +97,14 @@ class Settings(BaseSettings):
     RATE_LIMIT_LOGIN: str = "5/minute"  # 登录限制
     RATE_LIMIT_API: str = "100/minute"  # API 限制
 
+    # GLM5 AI模型配置
+    ZHIPU_AI_ENABLED: bool = False
+    ZHIPU_API_KEY: Optional[str] = None
+    ZHIPU_MODEL_NAME: str = "glm-5-plus"  # GLM5系列模型名称
+    ZHIPU_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4/"
+    ZHIPU_DEFAULT_TEMPERATURE: float = 0.7
+    ZHIPU_MAX_TOKENS: int = 2048
+
     @property
     def LOG_LEVEL(self) -> str:
         """日志级别 - 根据环境自动调整"""

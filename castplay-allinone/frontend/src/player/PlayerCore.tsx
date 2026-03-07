@@ -8,6 +8,8 @@ import { usePlaylistSync } from './usePlaylistSync';
 import { useMediaCache } from './useMediaCache';
 import { useOfflineMode } from './useOfflineMode';
 import { usePlaybackScheduler } from './usePlaybackScheduler';
+import { useHeartbeat } from './hooks/useHeartbeat';
+import { ErrorReporter } from './services/ErrorReporter';
 import { DeviceIdDisplay } from './components/DeviceIdDisplay';
 import type { PlayerPlaylistItem, PlayerState } from './types';
 
@@ -61,11 +63,18 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
   const [playbackSpeed] = useState(defaultSpeed);
   const [loopEnabled] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 当前播放项
   const currentItems = currentPlaylist?.items || [];
   const currentItem = currentItems[currentIndex] || null;
+
+  // 心跳上报（使用 2 小时间隔的 useHeartbeat hook）
+  useHeartbeat(
+    deviceInfo?.device_id || null,
+    currentPlaylist?.id || null,
+    currentItem?.media_id || null,
+    isPlaying ? 'playing' : 'idle'
+  );
 
   // 更新外部状态
   useEffect(() => {
@@ -89,6 +98,16 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
       register().catch(console.error);
     }
   }, [isRegistered, isRegistering, register]);
+
+  // 初始化错误上报服务
+  useEffect(() => {
+    if (deviceInfo?.device_id) {
+      ErrorReporter.init(deviceInfo.device_id);
+    }
+    return () => {
+      ErrorReporter.stop();
+    };
+  }, [deviceInfo?.device_id]);
 
   // 预加载播放列表媒体
   useEffect(() => {
@@ -150,35 +169,6 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
       }
     };
   }, [isPlaying, currentItem, playbackSpeed, next]);
-
-  // 心跳上报
-  useEffect(() => {
-    if (!isRegistered || !deviceInfo) return;
-
-    const sendHeartbeat = async () => {
-      try {
-        await fetch('/api/player/status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            device_id: deviceInfo.device_id,
-            player_status: isPlaying ? 'playing' : 'idle',
-          }),
-        });
-      } catch (error) {
-        console.error('Heartbeat failed:', error);
-      }
-    };
-
-    heartbeatRef.current = setInterval(sendHeartbeat, 30000);
-    sendHeartbeat(); // 立即发送一次
-
-    return () => {
-      if (heartbeatRef.current) {
-        clearInterval(heartbeatRef.current);
-      }
-    };
-  }, [isRegistered, deviceInfo, isPlaying]);
 
   // 渲染（显示设备 ID）
   if (!deviceInfo?.device_id) {

@@ -7,6 +7,7 @@ from app.models.user import User
 from app.models.device import Device, DeviceSchedule, CachedMedia
 from app.models.media import MediaFile
 from app.models.playlist import Playlist, PlaylistItem, DevicePlaylist
+from app.models.alert import AlertConfig, AlertHistory
 
 # 导出所有模型
 __all__ = [
@@ -20,4 +21,6 @@ __all__ = [
     "Playlist",
     "PlaylistItem",
     "DevicePlaylist",
+    "AlertConfig",
+    "AlertHistory",
 ]

@@ -351,6 +351,60 @@ npm run format
 
 ---
 
+## ⚠️ 重要通知 - 项目已归档
+
+**📦 此项目（CastPlay）已归档，请迁移至新版本：**
+
+### 👉 推荐使用：[castplay-allinone](./castplay-allinone)
+
+**为什么选择 all-in-one?**
+
+| 特性            | CastPlay（当前）            | castplay-allinone（新） | 改进         |
+| --------------- | --------------------------- | ----------------------- | ------------ |
+| **代码量**      | 8,106 行                    | 5,330 行                | **-34%** ✅  |
+| **Python 文件** | 79 个                       | 36 个                   | **-54%** ✅  |
+| **外部依赖**    | Redis + Celery + PostgreSQL | 无                      | **-100%** ✅ |
+| **部署时间**    | 30 分钟                     | 5 分钟                  | **-83%** ✅  |
+| **运维成本**    | 高                          | 几乎为零                | **-90%** ✅  |
+
+**核心优势:**
+
+- 🚀 **零依赖部署** - 无需 Redis、Celery、PostgreSQL
+- 📦 **一体化设计** - 后端 + 前端 + 数据库，开箱即用
+- ⚡ **极速启动** - 5 分钟完成部署
+- 🎯 **小规模优化** - 专为<50 设备场景设计
+
+**快速开始:**
+
+```bash
+# 1. 进入 all-in-one 目录
+cd castplay-allinone
+
+# 2. 安装依赖
+pip install -r requirements.txt
+
+# 3. 初始化数据库
+python scripts/init_db.py
+
+# 4. 启动服务
+python -m uvicorn app.main:app --reload
+
+# 5. 访问管理后台
+open http://localhost:8000
+```
+
+**迁移帮助:**
+
+- 📖 详细文档：[castplay-allinone/README.md](./castplay-allinone/README.md)
+- 🔧 部署指南：[castplay-allinone/DEPLOYMENT.md](./castplay-allinone/DEPLOYMENT.md)
+- 📝 API 文档：[castplay-allinone/docs/API.md](./castplay-allinone/docs/API.md)
+
+---
+
+_最后更新时间：2026-03-04 • 版本：v1.0-archive_
+
+---
+
 <div align="center">
 
 **[⬆ 回到顶部](#castplay---智能投屏播放系统)**

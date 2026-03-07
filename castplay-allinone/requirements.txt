@@ -45,3 +45,5 @@ faker==23.1.0
 # 系统依赖（需要单独安装）
 # - LibreOffice (用于 PPT 转换)
 # - ffmpeg (用于视频处理)
+
+openai==1.52.2

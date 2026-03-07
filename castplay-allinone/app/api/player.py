@@ -21,7 +21,7 @@ from app.models.device_enhancement import DeviceNotificationLog, PlaylistDownloa
 logger = logging.getLogger(__name__)
 
 # 常量定义
-DEVICE_ONLINE_THRESHOLD_MINUTES = 5  # 设备在线阈值（分钟）
+DEVICE_ONLINE_THRESHOLD_HOURS = 3  # 设备在线阈值（小时），配合 2 小时心跳间隔
 HEARTBEAT_TIMEOUT_SECONDS = 5000  # 心跳超时（毫秒）
 HEARTBEAT_RATE_LIMIT_PER_MINUTE = 10  # 每分钟最多允许的心跳次数
 
@@ -774,11 +774,11 @@ async def get_device_status(
 
     if status_filter:
         if status_filter == "online":
-            # 5 分钟内有心跳视为在线
-            threshold = datetime.utcnow() - timedelta(minutes=DEVICE_ONLINE_THRESHOLD_MINUTES)
+            # 3 小时内有心跳视为在线（配合 2 小时心跳间隔）
+            threshold = datetime.utcnow() - timedelta(hours=DEVICE_ONLINE_THRESHOLD_HOURS)
             query = query.filter(Device.last_online > threshold)
         elif status_filter == "offline":
-            threshold = datetime.utcnow() - timedelta(minutes=DEVICE_ONLINE_THRESHOLD_MINUTES)
+            threshold = datetime.utcnow() - timedelta(hours=DEVICE_ONLINE_THRESHOLD_HOURS)
             query = query.filter(Device.last_online <= threshold)
 
     devices = query.all()
@@ -787,7 +787,7 @@ async def get_device_status(
     for device in devices:
         # 判断是否在线
         time_diff = datetime.utcnow() - device.last_online
-        is_online = time_diff.total_seconds() < (DEVICE_ONLINE_THRESHOLD_MINUTES * 60)
+        is_online = time_diff.total_seconds() < (DEVICE_ONLINE_THRESHOLD_HOURS * 3600)
 
         # 获取播放列表信息
         playlist_info = None

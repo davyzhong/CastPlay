@@ -3,7 +3,7 @@
 """
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import QueuePool
 from typing import Generator
 import sqlite3
 from pathlib import Path
@@ -16,16 +16,20 @@ DB_PATH.parent.mkdir(exist_ok=True)
 
 # SQLite 连接字符串
 # 使用 check_same_thread=False 允许多线程访问
-# 使用 StaticPool 连接池提高性能
+# 使用 QueuePool 连接池支持高并发
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH.absolute()}"
 
 # 创建数据库引擎
+# 使用 QueuePool 提供连接池管理，支持高并发场景
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     connect_args={
         "check_same_thread": False,  # SQLite 多线程需要
     },
-    poolclass=StaticPool,  # 使用静态连接池
+    poolclass=QueuePool,  # 使用队列连接池
+    pool_size=20,  # 连接池大小
+    max_overflow=40,  # 最大溢出连接数
+    pool_pre_ping=True,  # 使用前检查连接是否有效
     echo=settings.DEBUG,  # 开发模式下打印 SQL
 )
 

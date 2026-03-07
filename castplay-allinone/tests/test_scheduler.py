@@ -34,14 +34,14 @@ class TestScheduler:
         """测试 PPT 转换成功场景"""
         # Mock 转换器
         mock_converter = Mock()
-        mock_converter.convert.return_value = "/tmp/output/"
+        mock_converter.convert.return_value = {"status": "success", "output_dir": "/tmp/output/"}
         mock_converter_class.return_value = mock_converter
 
         # 执行转换任务
         _convert_ppt_task(media_id=1, file_path="/tmp/test.pptx")
 
-        # 验证调用了转换方法
-        mock_converter.convert.assert_called_once_with("/tmp/test.pptx")
+        # 验证调用了转换方法（带 media_id 参数）
+        mock_converter.convert.assert_called_once_with("/tmp/test.pptx", 1)
 
     @patch('app.services.converter.PPTConverter')
     def test_convert_ppt_task_failure(self, mock_converter_class):

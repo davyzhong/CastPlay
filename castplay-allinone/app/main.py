@@ -5,9 +5,12 @@ CastPlay All-in-One - FastAPI 主应用
 简化版：使用 bootstrap 模块负责所有初始化，避免 main.py 膨胀
 """
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pathlib import Path
 import uvicorn
+from pydantic import ValidationError
 
 from app.bootstrap.application import bootstrap
 from app.utils.logger import logger
@@ -37,6 +40,59 @@ async def lifespan(app: FastAPI):
 # 创建 FastAPI 应用实例
 app = bootstrap.get_app()
 app.router.lifespan_context = lifespan
+
+
+# ========== 异常处理器 ==========
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """
+    HTTP 异常处理器
+    处理所有 HTTPException 及其子类（404, 403, 400 等）
+    """
+    logger.warning(f"HTTP Exception: {exc.status_code} - {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    请求验证异常处理器
+    处理 Pydantic 验证错误
+    """
+    logger.warning(f"Validation error: {exc.errors()}")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors()}
+    )
+
+
+@app.exception_handler(ValidationError)
+async def pydantic_validation_exception_handler(request: Request, exc: ValidationError):
+    """
+    Pydantic 验证异常处理器
+    """
+    logger.error(f"Pydantic validation error: {exc.errors()}")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": str(exc)}
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """
+    全局异常处理器
+    捕获所有未处理的异常，避免泄露敏感信息
+    """
+    logger.error(f"Unhandled exception: {type(exc).__name__} - {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal server error"}
+    )
 
 
 # WebSocket 路由（保留在主文件中，因为需要直接处理连接）

@@ -35,9 +35,9 @@ echo "📦 步骤 2: 复制前端文件到 Android assets..."
 rm -rf "$ASSETS_DIR"/*
 mkdir -p "$ASSETS_DIR"
 cp -r dist/* "$ASSETS_DIR/"
-cp dist/player.html "$ASSETS_DIR/index.html
+cp dist/player.html "$ASSETS_DIR/index.html"
 cp dist/favicon.svg "$ASSETS_DIR/" 2>/dev/null || true
-echo "✅ 巻加资源复制成功!"
+echo "✅ 前端资源复制成功!"
 echo ""
 
 # 3. 构建 Android APK

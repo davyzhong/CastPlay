@@ -2,8 +2,8 @@
 
 ## 📋 执行摘要
 
-**检查时间**: 2026-03-09  
-**检查范围**: 全项目（CastPlay + castplay-allinone + castplay-admin）  
+**检查时间**: 2026-03-09
+**检查范围**: 全项目（CastPlay + castplay-allinone + castplay-admin）
 **检查状态**: ✅ **已完善配置**
 
 ---
@@ -47,6 +47,7 @@ CastPlay/
 **文件**: `castplay-allinone/requirements.txt`
 
 **核心依赖**:
+
 ```txt
 fastapi==0.110.0              # FastAPI 框架
 uvicorn[standard]==0.27.1     # ASGI 服务器
@@ -58,6 +59,7 @@ loguru==0.7.2                 # 日志
 ```
 
 **测试依赖**:
+
 ```txt
 pytest==7.4.4
 pytest-asyncio==0.23.4
@@ -67,6 +69,7 @@ httpx==0.26.0
 ```
 
 **系统依赖说明**（需单独安装）:
+
 - LibreOffice - PPT 转换
 - ffmpeg - 视频处理
 - imagemagick - 图片处理
@@ -78,12 +81,14 @@ httpx==0.26.0
 
 #### castplay-server (独立服务器)
 
-**文件**: 
+**文件**:
+
 - `castplay-server/requirements.txt` (50 行)
 - `castplay-server/requirements-fastapi.txt` (56 行)
 - `castplay-server/requirements-test.txt` (23 行)
 
 **特点**:
+
 - 分离了核心依赖和 FastAPI 迁移依赖
 - 独立的测试依赖配置
 - 版本锁定完整
@@ -97,6 +102,7 @@ httpx==0.26.0
 **文件**: `e2e-tests/requirements.txt` (16 行)
 
 **依赖**:
+
 ```txt
 selenium>=4.15.0
 pytest>=7.4.0
@@ -114,6 +120,7 @@ allure-pytest>=2.13.0
 **文件**: `castplay-admin/package.json`
 
 **生产依赖**:
+
 ```json
 {
   "@ant-design/icons": "^5.2.6",
@@ -127,6 +134,7 @@ allure-pytest>=2.13.0
 ```
 
 **开发依赖**:
+
 ```json
 {
   "@vitejs/plugin-react": "^4.2.1",
@@ -138,6 +146,7 @@ allure-pytest>=2.13.0
 ```
 
 **脚本命令**:
+
 ```bash
 npm run dev          # 开发模式
 npm run build        # 生产构建
@@ -154,6 +163,7 @@ npm run lint         # 代码检查
 **文件**: `castplay-allinone/frontend/package.json`
 
 **技术栈**:
+
 - React 18
 - TypeScript 5
 - Vite 5
@@ -172,6 +182,7 @@ npm run lint         # 代码检查
 **文件**: `castplay-allinone/android/app/build.gradle.kts`
 
 **配置**:
+
 ```kotlin
 android {
     compileSdk = 34
@@ -189,6 +200,7 @@ dependencies {
 ```
 
 **特点**:
+
 - 使用 Kotlin DSL (`build.gradle.kts`)
 - 支持 ViewBinding
 - 配置了服务器 URL 构建参数
@@ -203,6 +215,7 @@ dependencies {
 **文件**: `android-app/app/build.gradle`
 
 **依赖**:
+
 ```gradle
 // Kotlin Coroutines
 implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
@@ -224,6 +237,7 @@ implementation 'com.google.dagger:hilt-android:2.48'
 ```
 
 **特点**:
+
 - 功能完整（ExoPlayer, Retrofit, Room, Hilt）
 - 分离了 debug/release 配置
 - 包含完整的测试依赖
@@ -235,10 +249,12 @@ implementation 'com.google.dagger:hilt-android:2.48'
 ### 4. Gradle Wrapper ✅
 
 **文件**:
+
 - `android-app/gradle/wrapper/gradle-wrapper.properties`
 - `castplay-allinone/android/gradle/wrapper/gradle-wrapper.properties`
 
 **配置**:
+
 ```properties
 distributionUrl=https\://services.gradle.org/distributions/gradle-8.2.1-bin.zip
 ```
@@ -251,11 +267,13 @@ distributionUrl=https\://services.gradle.org/distributions/gradle-8.2.1-bin.zip
 
 ### 1. castplay-allinone (一体化部署) ✅
 
-**文件**: 
+**文件**:
+
 - `castplay-allinone/Dockerfile` (41 行)
 - `castplay-allinone/docker-compose.yml` (30 行)
 
 **Dockerfile 关键点**:
+
 ```dockerfile
 FROM python:3.12-slim
 
@@ -278,6 +296,7 @@ HEALTHCHECK CMD python -c "import requests; requests.get('http://localhost:8000/
 ```
 
 **docker-compose.yml 配置**:
+
 ```yaml
 services:
   castplay:
@@ -285,7 +304,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - castplay-data:/app/data  # 持久化
+      - castplay-data:/app/data # 持久化
     environment:
       - DATABASE_PATH=/app/data/castplay.db
       - SECRET_KEY=${SECRET_KEY}
@@ -297,6 +316,7 @@ services:
 ```
 
 ✅ **优点**:
+
 - 多阶段构建（虽然当前是单阶段）
 - 数据持久化
 - 健康检查
@@ -304,6 +324,7 @@ services:
 - 无缓存安装（减小镜像体积）
 
 ⚠️ **建议改进**:
+
 - 可使用多阶段构建进一步减小镜像大小
 - 添加非 root 用户运行
 
@@ -314,6 +335,7 @@ services:
 **文件**: `castplay-server/Dockerfile` (45 行)
 
 **配置**:
+
 ```dockerfile
 FROM python:3.12-slim
 WORKDIR /app
@@ -333,6 +355,7 @@ CMD ["python", "run.py"]
 **文件**: `castplay-admin/Dockerfile` (57 行)
 
 **配置**:
+
 ```dockerfile
 FROM node:18-alpine AS builder
 WORKDIR /app
@@ -348,6 +371,7 @@ EXPOSE 80
 ```
 
 ✅ **优点**:
+
 - 多阶段构建（构建 + 运行分离）
 - 使用 Nginx 静态托管
 - 镜像体积极小
@@ -361,6 +385,7 @@ EXPOSE 80
 **文件**: `castplay-allinone/build-android.sh` (71 行)
 
 **功能**:
+
 ```bash
 #!/bin/bash
 # 用法: ./build-android.sh [serverUrl]
@@ -378,6 +403,7 @@ gradle assembleDebug -PserverUrl="$SERVER_URL"
 ```
 
 **检查项**:
+
 - ✅ 错误处理 (`set -e`)
 - ✅ 参数验证
 - ✅ 前端构建检查
@@ -385,6 +411,7 @@ gradle assembleDebug -PserverUrl="$SERVER_URL"
 - ✅ APK 输出路径提示
 
 ⚠️ **发现问题**: 第 38 行有语法错误
+
 ```bash
 # 原文（错误）:
 cp dist/player.html "$ASSETS_DIR/index.html
@@ -398,11 +425,13 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 ### 2. 测试脚本 ✅
 
 **文件**:
+
 - `castplay-allinone/tests/run_all_tests.sh` (371 行)
 - `e2e-tests/run.sh` (160 行)
 - `e2e-tests/run_full_e2e.sh` (178 行)
 
 **功能**:
+
 - 单元测试
 - API 测试
 - E2E 测试
@@ -421,12 +450,14 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 **关键排除规则**:
 
 #### 1. Android SDK（最重要！）
+
 ```gitignore
 # Android SDK（最重要！绝对不要提交）
 android-sdk/
 ```
 
 #### 2. Gradle 安装包
+
 ```gitignore
 # Gradle 安装包
 *.zip
@@ -435,12 +466,14 @@ android-sdk/
 ```
 
 #### 3. Node Modules
+
 ```gitignore
 # Node modules（所有子目录）
 **/node_modules/
 ```
 
 #### 4. Android 构建产物
+
 ```gitignore
 # Android 构建产物
 android-app/build/
@@ -452,6 +485,7 @@ castplay-allinone/android/app/build/
 ```
 
 #### 5. 用户上传文件
+
 ```gitignore
 # 用户上传文件（确保排除）
 castplay-server/storage/uploads/*
@@ -465,6 +499,7 @@ castplay-server/storage/thumbnails/*
 ```
 
 #### 6. Python 虚拟环境和缓存
+
 ```gitignore
 venv/
 .venv/
@@ -474,6 +509,7 @@ __pycache__/
 ```
 
 #### 7. IDE 配置
+
 ```gitignore
 .idea/
 .vscode/
@@ -482,6 +518,7 @@ __pycache__/
 ```
 
 #### 8. 临时文件
+
 ```gitignore
 *.tmp
 *.cache
@@ -499,11 +536,13 @@ __pycache__/
 #### 前置要求
 
 **系统要求**:
+
 - macOS / Linux / Windows (WSL2)
 - 至少 8GB RAM（推荐 16GB）
 - 至少 20GB 可用磁盘空间
 
 **必需软件**:
+
 ```bash
 # Python 3.12+
 python --version
@@ -546,7 +585,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-##### 3. 安装 Node.js依赖
+##### 3. 安装 Node.js 依赖
 
 ```bash
 # castplay-admin
@@ -666,6 +705,7 @@ docker-compose down
 ```
 
 **预期输出**:
+
 ```
 [+] Running 1/1
  ✔ Container castplay-allinone Started
@@ -698,14 +738,14 @@ spec:
   template:
     spec:
       containers:
-      - name: castplay
-        image: registry.example.com/castplay:latest
-        env:
-        - name: SECRET_KEY
-          valueFrom:
-            secretKeyRef:
-              name: castplay-secret
-              key: secret-key
+        - name: castplay
+          image: registry.example.com/castplay:latest
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: castplay-secret
+                  key: secret-key
 ```
 
 ---
@@ -715,6 +755,7 @@ spec:
 ### 问题 1: build-android.sh 语法错误 ❌
 
 **原文** (第 38 行):
+
 ```bash
 cp dist/player.html "$ASSETS_DIR/index.html
 ```
@@ -722,6 +763,7 @@ cp dist/player.html "$ASSETS_DIR/index.html
 **问题**: 缺少闭合引号
 
 **修复后**:
+
 ```bash
 cp dist/player.html "$ASSETS_DIR/index.html"
 ```
@@ -731,6 +773,7 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 ### 问题 2: .gitignore 缺失关键规则 ✅
 
 **之前缺失**:
+
 - `android-sdk/` (导致 3GB+ 文件被提交)
 - `**/node_modules/` (导致依赖被提交)
 - `*.zip` (导致 Gradle 包被提交)
@@ -752,15 +795,17 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 ### 1. 依赖管理
 
 ✅ **应该做的**:
+
 - 使用版本号锁定（`==` 或 `^`）
 - 分离生产/测试依赖
 - 定期更新依赖（使用 Dependabot/Renovate）
 - 使用虚拟环境（Python venv, Node nvm）
 
 ❌ **不应该做的**:
+
 - 提交 node_modules/
 - 提交 venv/ 或 .venv/
-- 提交 *.pyc 或 __pycache__/
+- 提交 \*.pyc 或 **pycache**/
 - 硬编码依赖版本为 `*`
 
 ---
@@ -768,13 +813,15 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 ### 2. 构建产物
 
 ✅ **应该做的**:
+
 - 使用 CI/CD 自动构建
 - 将 APK 上传到制品库（如 JFrog Artifactory）
 - 使用 Docker Registry 存储镜像
 
 ❌ **不应该做的**:
+
 - 提交 build/ 或 dist/
-- 提交 *.apk 或 *.aab
+- 提交 _.apk 或 _.aab
 - 提交前端构建产物（应在 CI 中构建）
 
 ---
@@ -782,11 +829,13 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 ### 3. 敏感信息
 
 ✅ **应该做的**:
+
 - 使用环境变量
 - 使用 .env.example 模板
 - 使用密钥管理服务（Vault, AWS Secrets Manager）
 
 ❌ **不应该做的**:
+
 - 提交 .env 文件
 - 硬编码密码/API Key
 - 提交证书私钥
@@ -796,12 +845,14 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 ### 4. Docker 优化
 
 ✅ **应该做的**:
+
 - 使用多阶段构建
 - 使用 .dockerignore
 - 使用非 root 用户
 - 最小化基础镜像（Alpine）
 
 ❌ **不应该做的**:
+
 - 在镜像中保留缓存
 - 以 root 用户运行应用
 - 一次性安装过多不必要的包
@@ -810,14 +861,14 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 
 ## 📊 项目健康度评分
 
-| 类别 | 得分 | 说明 |
-|------|------|------|
-| **包管理配置** | ⭐⭐⭐⭐⭐ 5/5 | 完整且规范 |
-| **Docker 配置** | ⭐⭐⭐⭐☆ 4/5 | 良好，可优化多阶段构建 |
-| **.gitignore** | ⭐⭐⭐⭐⭐ 5/5 | 极其完善 |
-| **部署文档** | ⭐⭐⭐⭐☆ 4/5 | 良好，已补充完整 |
-| **构建脚本** | ⭐⭐⭐⭐☆ 4/5 | 良好（已修复语法错误） |
-| **测试覆盖** | ⭐⭐⭐⭐☆ 4/5 | 完整，可增加集成测试 |
+| 类别            | 得分           | 说明                   |
+| --------------- | -------------- | ---------------------- |
+| **包管理配置**  | ⭐⭐⭐⭐⭐ 5/5 | 完整且规范             |
+| **Docker 配置** | ⭐⭐⭐⭐☆ 4/5  | 良好，可优化多阶段构建 |
+| **.gitignore**  | ⭐⭐⭐⭐⭐ 5/5 | 极其完善               |
+| **部署文档**    | ⭐⭐⭐⭐☆ 4/5  | 良好，已补充完整       |
+| **构建脚本**    | ⭐⭐⭐⭐☆ 4/5  | 良好（已修复语法错误） |
+| **测试覆盖**    | ⭐⭐⭐⭐☆ 4/5  | 完整，可增加集成测试   |
 
 **总体评分**: ⭐⭐⭐⭐☆ **4.5/5** (优秀)
 
@@ -828,20 +879,24 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 ### 已完成的工作
 
 1. ✅ **全面检查包管理器配置**
+
    - Python (pip + requirements.txt)
    - Node.js (npm + package.json)
    - Android (Gradle + build.gradle)
 
 2. ✅ **验证 Docker 部署流程**
+
    - castplay-allinone (一体化)
    - castplay-server (独立)
    - castplay-admin (Nginx 静态)
 
 3. ✅ **完善 .gitignore 配置**
+
    - 添加 32 条新规则
    - 防止大文件再次被提交
 
 4. ✅ **修复构建脚本错误**
+
    - build-android.sh 语法错误已修复
 
 5. ✅ **编写完整入职指南**
@@ -854,14 +909,16 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 ### 开发者注意事项
 
 🔴 **严禁提交**:
+
 - android-sdk/ (3GB+)
 - node_modules/ (100MB+)
 - build/, dist/ (构建产物)
-- *.apk, *.aab (APK 包)
+- _.apk, _.aab (APK 包)
 - storage/uploads/ (用户数据)
 - venv/, .venv/ (虚拟环境)
 
 🟢 **应该提交**:
+
 - 源代码 (.py, .kt, .ts, .tsx)
 - 配置文件 (package.json, requirements.txt)
 - 文档 (.md)
@@ -873,15 +930,18 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 ### 下一步建议
 
 1. **添加 CI/CD 配置**
+
    - GitHub Actions / GitLab CI
    - 自动测试
    - 自动构建 Docker 镜像
 
 2. **实施 Dependabot**
+
    - 自动更新依赖
    - 安全漏洞扫描
 
 3. **优化 Docker 镜像**
+
    - 多阶段构建
    - 减小镜像体积
 
@@ -891,6 +951,6 @@ cp dist/player.html "$ASSETS_DIR/index.html"
 
 ---
 
-**生成时间**: 2026-03-09  
-**检查者**: AI Assistant  
+**生成时间**: 2026-03-09
+**检查者**: AI Assistant
 **状态**: ✅ **配置完善，可安全开发**

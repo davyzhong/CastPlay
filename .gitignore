@@ -40,11 +40,41 @@ htmlcov/
 *.sqlite
 instance/
 
-# Uploaded/Generated files
+# === 重要新增配置 ===
+
+# Android SDK（最重要！绝对不要提交）
+android-sdk/
+
+# Gradle 安装包
+*.zip
+!gradle/wrapper/gradle-wrapper.jar
+!android-app/gradle/wrapper/gradle-wrapper.jar
+
+# Node modules（所有子目录）
+**/node_modules/
+
+# Android 构建产物
+android-app/build/
+android-app/app/build/
+castplay-allinone/android/app/build/
+*.apk
+*.aab
+*.iml
+
+# 用户上传文件（确保排除）
 castplay-server/storage/uploads/*
+!castplay-server/storage/uploads/.gitkeep
+
 castplay-server/storage/converted/*
+!castplay-server/storage/converted/.gitkeep
+
 castplay-server/storage/thumbnails/*
-!castplay-server/storage/*/.gitkeep
+!castplay-server/storage/thumbnails/.gitkeep
+
+# 临时文件和缓存
+*.tmp
+*.cache
+*.log
 
 # Test artifacts
 .pytest_cache/

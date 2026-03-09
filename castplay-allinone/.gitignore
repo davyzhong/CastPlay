@@ -37,6 +37,12 @@ ENV/
 logs/
 *.log
 
+# Test Coverage
+htmlcov/
+.coverage
+coverage.xml
+*.coveragerc
+
 # Database
 data/*.db
 data/*.db-shm
@@ -66,6 +72,8 @@ android-sdk/
 android/.gradle/
 android/app/build/
 android/build/
+android/android/app/src/main/assets/www/
+android/app/src/main/assets/www/
 *.apk
 *.aab
 *.iml

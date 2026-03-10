@@ -40,8 +40,8 @@ export const usePlaybackScheduler = (
       return { shouldPlay: true, timeUntilChange: null };
     }
 
-    // 获取设备本地时区
-    const deviceTimezone = getCurrentTimezone();
+    // 获取设备本地时区（用于未来扩展）
+    getCurrentTimezone(); // 保留调用以备将来使用
     const now = new Date();
 
     // 计算本地时间（考虑时区）

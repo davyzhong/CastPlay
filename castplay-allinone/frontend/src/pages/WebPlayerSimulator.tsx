@@ -52,15 +52,6 @@ import type { PlayerPlaylist, PlaylistItem, PlayerInitResponse } from '../api/pl
 
 const { Title, Text } = Typography;
 
-// 生成 UUID v4
-const generateUUID = (): string => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-};
-
 // 生成随机 MAC 地址（用于显示）
 const generateRandomMAC = (): string => {
   const prefix = '02:00:00';
@@ -70,24 +61,23 @@ const generateRandomMAC = (): string => {
   return `${prefix}:${suffix}`.toUpperCase();
 };
 
-// 获取或创建设备 UUID（存储在 localStorage 中，确保同一浏览器始终使用相同的设备 ID）
+// 使用独立的 localStorage key（与 PlayerCore 区分，作为模拟器设备）
+const DEVICE_STORAGE_KEY = 'simulator_device_id';
+
+// 使用固定的设备 ID（用于持久化测试配置）
+const FIXED_SIMULATOR_DEVICE_ID = 'web-player-sim-01';
+
+// 获取设备 UUID（使用固定 ID，确保配置持久化）
 const getOrCreateDeviceUUID = (): string => {
-  const STORAGE_KEY = 'webplayer_device_uuid';
-  const storedUUID = localStorage.getItem(STORAGE_KEY);
-
-  if (storedUUID) {
-    return storedUUID;
-  }
-
-  // 生成新的 UUID 并存储
-  const newUUID = generateUUID();
-  localStorage.setItem(STORAGE_KEY, newUUID);
-  return newUUID;
+  // 始终使用固定的设备 ID
+  localStorage.setItem(DEVICE_STORAGE_KEY, FIXED_SIMULATOR_DEVICE_ID);
+  return FIXED_SIMULATOR_DEVICE_ID;
 };
 
-// 清除设备 UUID
+// 清除设备 UUID（实际上不会清除，因为使用固定 ID）
 const clearDeviceUUID = (): void => {
-  localStorage.removeItem('webplayer_device_uuid');
+  localStorage.removeItem(DEVICE_STORAGE_KEY);
+  localStorage.removeItem('webplayer_device_uuid'); // 清理旧 key
   localStorage.removeItem('webplayer_mac_address'); // 清理旧数据
 };
 
@@ -220,7 +210,7 @@ const WebPlayerSimulator: React.FC = () => {
       setInitState('registering');
       addLog('info', '正在注册设备...');
       try {
-        const registerResponse = await registerDevice(uuid, `Web播放器-${displayMAC.slice(-5)}`);
+        const registerResponse = await registerDevice(uuid, 'web_browser');
         if (registerResponse.registration_code) {
           setRegistrationCode(registerResponse.registration_code);
           addLog('info', `设备注册成功，注册码: ${registerResponse.registration_code}`);

@@ -1,12 +1,11 @@
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, theme, Menu } from 'antd';
-import { AppstoreOutlined, DatabaseOutlined, FolderOutlined, PlayCircleOutlined, ExperimentOutlined, DesktopOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, DatabaseOutlined, FolderOutlined, PlayCircleOutlined, DesktopOutlined } from '@ant-design/icons';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DeviceList from './pages/DeviceList';
 import MediaList from './pages/MediaList';
 import PlaylistList from './pages/PlaylistList';
-import PlayerSimulator from './pages/PlayerSimulator';
 import WebPlayerSimulator from './pages/WebPlayerSimulator';
 import { useState, useEffect } from 'react';
 
@@ -48,14 +47,8 @@ const MainLayout: React.FC = () => {
     {
       key: 'webplayer',
       icon: <DesktopOutlined />,
-      label: 'Web 播放端',
+      label: 'Web播放端模拟器',
       path: '/webplayer',
-    },
-    {
-      key: 'simulator',
-      icon: <ExperimentOutlined />,
-      label: '播放端测试',
-      path: '/simulator',
     },
   ];
 
@@ -111,7 +104,6 @@ const MainLayout: React.FC = () => {
             <Route path="/media" element={<MediaList />} />
             <Route path="/playlists" element={<PlaylistList />} />
             <Route path="/webplayer" element={<WebPlayerSimulator />} />
-            <Route path="/simulator" element={<PlayerSimulator />} />
           </Routes>
         </Content>
       </Layout>

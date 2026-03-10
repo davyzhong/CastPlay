@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [react()],
@@ -8,6 +9,15 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src')
     }
+  },
+  // 多页面应用配置
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        player: resolve(__dirname, 'player.html'),
+      },
+    },
   },
   server: {
     port: 3000,

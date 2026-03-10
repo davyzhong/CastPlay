@@ -58,6 +58,10 @@ class Device(Base, TimestampMixin):
         "DeviceSchedule", back_populates="device", cascade="all, delete-orphan")
     cached_media = relationship(
         "CachedMedia", back_populates="device", cascade="all, delete-orphan")
+    alert_config = relationship(
+        "AlertConfig", back_populates="device", uselist=False, cascade="all, delete-orphan")
+    alert_histories = relationship(
+        "AlertHistory", back_populates="device", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Device(id={self.id}, device_id='{self.device_id}', name='{self.device_name}', disabled={self.is_disabled})>"

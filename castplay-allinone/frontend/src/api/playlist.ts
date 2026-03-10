@@ -43,11 +43,11 @@ export interface BatchAddItemsResponse {
 
 // 创建播放列表
 export const createPlaylist = (params: CreatePlaylistParams) =>
-  api.post<ApiResponse<{ playlist: Playlist }>>('/playlists', params);
+  api.post<ApiResponse<{ playlist: Playlist }>>('/playlists/', params);
 
 // 获取播放列表列表
 export const getPlaylistList = (params: { skip?: number; limit?: number } = {}) =>
-  api.get<PaginatedResponse<Playlist>>('/playlists', { params });
+  api.get<PaginatedResponse<Playlist>>('/playlists/', { params });
 
 // 获取播放列表详情
 export const getPlaylistDetail = (playlistId: number) =>

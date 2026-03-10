@@ -3,10 +3,10 @@
  * 首次安装时让用户选择播放列表
  */
 import React from 'react';
-import { Modal, List, Button, Typography, Space, Spin, Alert } from 'antd';
+import { Modal, List, Button, Typography, Spin, Alert } from 'antd';
 import { usePlaylistSelection, PlaylistInfo } from '../hooks/usePlaylistSelection';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface PlaylistSelectionModalProps {
     deviceId: string;
@@ -21,7 +21,7 @@ export const PlaylistSelectionModal: React.FC<PlaylistSelectionModalProps> = ({
 }) => {
     const {
         availablePlaylists,
-        selectedPlaylist,
+        selectedPlaylist: _selectedPlaylist,
         isLoading,
         isDownloading,
         error,

@@ -544,6 +544,8 @@ async def assign_playlist_to_device(
 
     需要认证
     """
+    from app.services.notification import NotificationService
+
     # 检查播放列表是否存在
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     if not playlist:
@@ -573,6 +575,12 @@ async def assign_playlist_to_device(
             detail="Playlist already assigned to this device"
         )
 
+    # 获取播放列表媒体项数量和总大小
+    from sqlalchemy import func
+    item_count = db.query(func.count(PlaylistItem.id)).filter(
+        PlaylistItem.playlist_id == playlist_id
+    ).scalar() or 0
+
     # 创建关联
     new_assignment = DevicePlaylist(
         device_id=device_id,
@@ -585,15 +593,22 @@ async def assign_playlist_to_device(
 
     logger.info(f"Playlist {playlist_id} assigned to device {device_id}")
 
-    # 发送 WebSocket 通知（播放列表更新）
-    from app.services.notification import NotificationService
-    await NotificationService.notify_playlist_update(device_id)
+    # 发送 WebSocket 通知（播放列表已分配）
+    # 设备 ID 使用 device.device_id (UUID)
+    await NotificationService.notify_playlist_assigned(
+        device_id=device.device_id,
+        playlist_id=playlist_id,
+        playlist_name=playlist.name,
+        version=playlist.version or "1.0.0",
+        item_count=item_count,
+        total_size=0  # TODO: 计算实际总大小
+    )
 
     return DevicePlaylistResponse.from_orm_with_assigned_at(new_assignment)
 
 
 @router.delete("/{playlist_id}/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
-def unassign_playlist_from_device(
+async def unassign_playlist_from_device(
     playlist_id: int,
     device_id: int,
     current_user: User = Depends(get_current_user),
@@ -604,6 +619,8 @@ def unassign_playlist_from_device(
 
     需要认证
     """
+    from app.services.notification import NotificationService
+
     assignment = db.query(DevicePlaylist).filter(
         DevicePlaylist.device_id == device_id,
         DevicePlaylist.playlist_id == playlist_id
@@ -615,15 +632,27 @@ def unassign_playlist_from_device(
             detail="Assignment not found"
         )
 
+    # 获取设备信息（用于发送通知）
+    from app.models.device import Device
+    device = db.query(Device).filter(Device.id == device_id).first()
+
     db.delete(assignment)
     db.commit()
 
     logger.info(f"Playlist {playlist_id} unassigned from device {device_id}")
+
+    # 发送 WebSocket 通知（播放列表已移除）
+    if device:
+        await NotificationService.notify_playlist_removed(
+            device_id=device.device_id,
+            playlist_id=playlist_id
+        )
+
     return None
 
 
 @router.put("/{playlist_id}/devices/{device_id}/activate")
-def toggle_playlist_activation(
+async def toggle_playlist_activation(
     playlist_id: int,
     device_id: int,
     is_active: bool = True,
@@ -640,6 +669,8 @@ def toggle_playlist_activation(
         "is_active": true
     }
     """
+    from app.services.notification import NotificationService
+
     assignment = db.query(DevicePlaylist).filter(
         DevicePlaylist.device_id == device_id,
         DevicePlaylist.playlist_id == playlist_id
@@ -655,4 +686,15 @@ def toggle_playlist_activation(
     db.commit()
 
     logger.info(f"Playlist {playlist_id} on device {device_id} {'activated' if is_active else 'deactivated'}")
+
+    # 发送 WebSocket 通知（播放列表激活状态变更）
+    from app.models.device import Device
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if device:
+        await NotificationService.notify_playlist_activated(
+            device_id=device.device_id,
+            playlist_id=playlist_id,
+            is_active=is_active
+        )
+
     return {"message": f"Playlist {'activated' if is_active else 'deactivated'}"}

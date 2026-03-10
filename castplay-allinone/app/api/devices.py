@@ -29,7 +29,7 @@ router = APIRouter(
 )
 
 
-def generate_friendly_code(length: int = 4) -> str:
+def generate_friendly_code(length: int = 6) -> str:
     """生成易读的字母数字组合（排除易混淆字符）"""
     chars = string.ascii_uppercase + string.digits
     # 排除易混淆字符: 0, O, 1, I, L
@@ -39,21 +39,22 @@ def generate_friendly_code(length: int = 4) -> str:
 
 def generate_registration_code(device_id: str = None) -> str:
     """
-    生成友好的注册码（格式: CP-XXXX-XXXX-XXXX）
+    生成友好的注册码（6位字母数字）
     基于设备 ID 生成确定性注册码
     """
     if device_id:
         # 使用哈希确保同一设备始终生成相同注册码
         hash_obj = hashlib.sha256(device_id.encode())
-        # 使用哈希的前 12 个字符作为基础
-        hex_digest = hash_obj.hexdigest()[:12].upper()
-        # 转换为易读格式
-        code = f"{hex_digest[:4]}-{hex_digest[4:8]}-{hex_digest[8:12]}"
+        # 使用哈希生成 6 位注册码
+        hex_digest = hash_obj.hexdigest().upper()
+        # 映射到可用字符集
+        chars = string.ascii_uppercase + string.digits
+        chars = chars.replace('0', '').replace('O', '').replace('1', '').replace('I', '').replace('L', '')
+        code = ''.join(chars[int(hex_digest[i:i+2], 16) % len(chars)] for i in range(0, 12, 2))
+        return code
     else:
-        # 生成随机注册码
-        code = f"{generate_friendly_code()}-{generate_friendly_code()}-{generate_friendly_code()}"
-
-    return f"CP-{code}"
+        # 生成随机 6 位注册码
+        return generate_friendly_code()
 
 
 def get_client_ip(request: Request) -> str:
@@ -147,14 +148,19 @@ def register_device(
     # 生成设备名称
     device_name = device_data.device_name
     if device_name == "Default Device":
-        # 使用 device_id 的前 8 位作为名称后缀
-        device_name = f"CastPlay-{device_id[:8].upper()}"
+        # 根据设备类型生成名称：Web-XXXXXX 或 Android-XXXXXX
+        # device_type 可能是: android_tv, web_browser, android, web 等
+        device_type = (device_data.device_type or "web_browser").lower()
+        is_android = device_type.startswith("android")
+        prefix = "Android" if is_android else "Web"
+        device_name = f"{prefix}-{registration_code}"
 
     # 创建新设备
     new_device = Device(
         device_id=device_id,
         device_name=device_name,
         timezone=device_data.timezone,
+        device_type=device_data.device_type or "web_browser",
         mac_address=mac_address,
         ip_address=client_ip,
         registration_code=registration_code,
@@ -192,6 +198,26 @@ def device_heartbeat(device_id: int, db: Session = Depends(get_db)):
 
 
 @router.get(
+    "/by-code/{registration_code}",
+    response_model=DeviceResponse,
+    summary="通过注册码获取设备",
+    description="""
+通过注册码查询设备信息，用于设备身份恢复。
+
+当客户端清除缓存后，可以通过输入注册码找回原有设备身份。
+"""
+)
+def get_device_by_code(registration_code: str, db: Session = Depends(get_db)):
+    device = db.query(Device).filter(Device.registration_code == registration_code.upper()).first()
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="注册码无效，未找到对应设备"
+        )
+    return device
+
+
+@router.get(
     "/",
     summary="获取设备列表",
     description="""
@@ -220,6 +246,90 @@ def list_devices(
     return {
         "items": devices,
         "total": total
+    }
+
+
+@router.post("/cleanup", summary="清理无效设备")
+def cleanup_invalid_devices(db: Session = Depends(get_db)):
+    """
+    清理无效的测试设备和废弃设备
+
+    清理条件：
+    1. 名称包含 "test" 或 "测试" 且没有关联播放列表（排除固定测试设备）
+    2. 超过 7 天未上线且没有关联播放列表且没有注册码
+    3. Web 播放端测试设备（名称为 Web-XXXXXX 格式）且没有关联播放列表
+
+    固定测试设备（不会被清理）：
+    - web-player-test-01 (Player-Test01)
+    - web-player-sim-01 (Player-Sim01)
+    """
+    from datetime import timedelta
+    from sqlalchemy import or_
+    from app.models.playlist import DevicePlaylist
+    import re
+
+    # 固定测试设备的 device_id（不会被清理）
+    FIXED_TEST_DEVICE_IDS = {
+        'web-player-test-01',  # PlayerCore 测试端
+        'web-player-sim-01',   # WebPlayerSimulator 测试端
+    }
+
+    # 计算 7 天前的时间
+    threshold = datetime.utcnow() - timedelta(days=7)
+
+    # 获取所有有关联播放列表的设备 ID（这些设备不应被清理）
+    devices_with_playlists = db.query(DevicePlaylist.device_id).distinct().all()
+    protected_device_ids = {dp[0] for dp in devices_with_playlists}
+
+    # Web 设备名称正则：Web-XXXXXX（6位大写字母数字）
+    web_device_pattern = re.compile(r'^Web-[A-Z0-9]{6}$')
+
+    # 查找需要清理的设备
+    all_devices = db.query(Device).all()
+    devices_to_delete = []
+
+    for device in all_devices:
+        # 跳过有播放列表关联的设备
+        if device.id in protected_device_ids:
+            continue
+
+        # 跳过固定测试设备
+        if device.device_id in FIXED_TEST_DEVICE_IDS:
+            continue
+
+        # 条件 1: 名称包含 test 或 测试（但排除固定设备）
+        is_test_device = (
+            'test' in device.device_name.lower() or
+            '测试' in device.device_name
+        )
+
+        # 条件 2: 超过 7 天未上线且没有注册码
+        is_abandoned = (
+            (device.last_online is None or device.last_online < threshold) and
+            not device.registration_code
+        )
+
+        # 条件 3: Web 播放端测试设备（Web-XXXXXX 格式，无播放列表关联）
+        is_web_test_device = (
+            web_device_pattern.match(device.device_name) and
+            (device.device_type == 'web_browser' or device.device_type is None)
+        )
+
+        if is_test_device or is_abandoned or is_web_test_device:
+            devices_to_delete.append(device)
+
+    deleted_count = len(devices_to_delete)
+
+    for device in devices_to_delete:
+        db.delete(device)
+
+    db.commit()
+
+    logger.info(f"Cleaned up {deleted_count} invalid/abandoned devices")
+
+    return {
+        "deleted_count": deleted_count,
+        "message": f"已清理 {deleted_count} 个无效/废弃设备"
     }
 
 

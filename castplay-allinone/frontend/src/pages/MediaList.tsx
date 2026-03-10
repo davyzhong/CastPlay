@@ -116,19 +116,23 @@ const MediaListPage: React.FC = () => {
       width: 120,
       render: (path: string, record: MediaFile) => {
         if (path) {
-          // 预览时显示的图片源
-          const previewSrc = record.file_type === 'image' ? (record.file_path || path) : path;
+          // 对 URL 路径进行编码，处理中文和特殊字符
+          const encodedPath = encodeURI(path);
+          // 图片类型预览使用原图，其他类型使用缩略图
+          const previewPath = record.file_type === 'image' && record.file_path
+            ? encodeURI(record.file_path)
+            : encodedPath;
 
           return (
             <Image
-              src={path}
+              src={encodedPath}
               alt={record.file_name}
               width={80}
               height={60}
               style={{ borderRadius: 4, objectFit: 'cover', cursor: 'pointer' }}
               fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect fill='%23f0f0f0' width='80' height='60'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E无预览%3C/text%3E%3C/svg%3E"
               preview={{
-                src: previewSrc,
+                src: previewPath,
               }}
             />
           );

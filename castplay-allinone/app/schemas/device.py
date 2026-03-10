@@ -11,6 +11,7 @@ class DeviceCreate(BaseModel):
     """设备注册/创建请求"""
     device_id: Optional[str] = Field(None, min_length=1, max_length=50, description="设备唯一标识（可选，MAC 注册时自动生成）")
     device_name: str = Field(default="Default Device", max_length=100, description="设备名称")
+    device_type: Optional[str] = Field(None, max_length=50, description="设备类型：android_tv | web_browser")
     timezone: str = Field(default="Asia/Shanghai", description="时区")
     # 新增字段
     mac_address: Optional[str] = Field(None, min_length=17, max_length=17, description="MAC 地址 (XX:XX:XX:XX:XX:XX)")

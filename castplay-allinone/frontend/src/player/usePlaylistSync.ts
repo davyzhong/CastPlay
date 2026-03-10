@@ -4,7 +4,7 @@
  */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
-import type { PlayerPlaylist, PlayerPlaylistItem, PlayerInitResponse, PlayerWsMessage } from './types';
+import type { PlayerPlaylist, PlayerInitResponse, PlayerWsMessage } from './types';
 
 export interface UsePlaylistSyncReturn {
   playlists: PlayerPlaylist[];
@@ -14,6 +14,8 @@ export interface UsePlaylistSyncReturn {
   syncPlaylist: (playlistId: number) => Promise<void>;
   selectPlaylist: (playlistId: number) => void;
   checkVersion: (playlistId: number) => Promise<boolean>;
+  pendingUpdate: boolean;
+  applyPendingUpdate: () => void;
 }
 
 export const usePlaylistSync = (
@@ -199,5 +201,7 @@ export const usePlaylistSync = (
     syncPlaylist,
     selectPlaylist,
     checkVersion,
+    pendingUpdate: false, // TODO: 实现平滑切换功能
+    applyPendingUpdate: () => {}, // TODO: 实现平滑切换功能
   };
 };

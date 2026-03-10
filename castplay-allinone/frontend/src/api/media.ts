@@ -15,7 +15,6 @@ export interface MediaListParams {
 export const uploadMedia = async (file: File, fileType: 'image' | 'video' | 'ppt') => {
   const formData = new FormData();
   formData.append('file', file);
-  // 注意：file_type 需要作为 query 参数传递，而不是 form data
   return api.post<{ message: string; media: MediaFile }>(`/media/upload?file_type=${fileType}`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
@@ -25,7 +24,7 @@ export const uploadMedia = async (file: File, fileType: 'image' | 'video' | 'ppt
 
 // 获取媒体列表
 export const getMediaList = (params: MediaListParams = {}) =>
-  api.get<PaginatedResponse<MediaFile>>('/media', { params });
+  api.get<PaginatedResponse<MediaFile>>('/media/', { params });
 
 // 获取媒体详情
 export const getMedia = (mediaId: number) =>

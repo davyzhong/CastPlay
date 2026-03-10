@@ -3,7 +3,7 @@
  * 处理首次安装时的播放列表选择和后台下载
  */
 import { useState, useEffect, useCallback } from 'react';
-import { createDownloadManager, DownloadTask, NotificationType } from '../services/DownloadManager';
+import { createDownloadManager } from '../services/DownloadManager';
 
 export interface PlaylistInfo {
     id: number;
@@ -50,7 +50,6 @@ export function usePlaylistSelection(deviceId: string): UsePlaylistSelectionResu
 
     // 检查是否已完成设置
     const isSetupCompleted = localStorage.getItem(SETUP_COMPLETED_KEY) === 'true';
-    const savedPlaylistId = localStorage.getItem(SELECTED_PLAYLIST_KEY);
 
     /**
      * 加载可用播放列表

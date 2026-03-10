@@ -31,6 +31,7 @@ import {
   CheckCircleOutlined,
   InfoCircleOutlined,
   LoadingOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import type { Device, DeviceSchedule, DevicePlaylist, Playlist } from '../types';
 import { getDeviceList, setDeviceSchedule, getDeviceSchedule, getDevicePlaylists, toggleDeviceDisabled } from '../api/device';
@@ -47,7 +48,7 @@ const DeviceListPage: React.FC = () => {
   const [playlistModalVisible, setPlaylistModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const [schedule, setSchedule] = useState<DeviceSchedule | null>(null);
+  const [_schedule, setSchedule] = useState<DeviceSchedule | null>(null);
   const [devicePlaylists, setDevicePlaylists] = useState<DevicePlaylist[]>([]);
   const [allPlaylists, setAllPlaylists] = useState<Playlist[]>([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<number | null>(null);
@@ -351,7 +352,7 @@ const DeviceListPage: React.FC = () => {
       key: 'registration_code',
       width: 140,
       render: (code: string) => code ? (
-        <Tag color="blue" copyable={{ text: code }}>{code}</Tag>
+        <Text copyable={{ text: code }} style={{ color: '#1890ff' }}>{code}</Text>
       ) : '-',
     },
     {
@@ -401,9 +402,12 @@ const DeviceListPage: React.FC = () => {
         }
 
         const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
-        const weekdaysText = scheduleInfo.weekdays.length === 7
+        const weekdays = scheduleInfo.weekdays || [];
+        const weekdaysText = weekdays.length === 7
           ? '每天'
-          : `周${scheduleInfo.weekdays.map(d => weekdayNames[d]).join('、')}`;
+          : weekdays.length > 0
+            ? `周${weekdays.map(d => weekdayNames[d]).join('、')}`
+            : '未设置工作日';
 
         return (
           <Tooltip title="点击修改配置">
@@ -436,15 +440,19 @@ const DeviceListPage: React.FC = () => {
 
         if (playlists.length === 0) {
           return (
-            <Tooltip title="点击分配播放列表">
-              <Button
-                type="link"
-                size="small"
-                onClick={() => handlePlaylistModal(record)}
-                disabled={record.is_disabled}
+            <Tooltip title="未分配播放列表，使用系统默认播放列表。点击分配自定义播放列表。">
+              <div
+                style={{ cursor: record.is_disabled ? 'default' : 'pointer' }}
+                onClick={() => !record.is_disabled && handlePlaylistModal(record)}
               >
-                未分配
-              </Button>
+                <Space size={4}>
+                  <UnorderedListOutlined style={{ color: '#faad14', fontSize: 12 }} />
+                  <Text style={{ fontSize: 12, color: '#faad14', fontWeight: 500 }}>默认播放列表</Text>
+                </Space>
+                <div style={{ fontSize: 11, color: '#999', paddingLeft: 18 }}>
+                  系统默认
+                </div>
+              </div>
             </Tooltip>
           );
         }
@@ -505,17 +513,51 @@ const DeviceListPage: React.FC = () => {
     },
   ];
 
+  // 清理无效设备
+  const handleCleanupDevices = async () => {
+    modal.confirm({
+      title: '确认清理无效设备',
+      content: '将删除以下设备：\n• 名称包含 test/测试 的设备\n• Web-XXXXXX 格式的测试设备\n• 超过 7 天未上线且无播放列表的设备\n\n此操作不可恢复。',
+      okText: '确认清理',
+      cancelText: '取消',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          const response = await fetch('/api/devices/cleanup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          const data = await response.json();
+          message.success(data.message || `已清理 ${data.deleted_count} 个无效设备`);
+          fetchDevices();
+        } catch (error: any) {
+          console.error('Cleanup error:', error);
+          message.error('清理失败');
+        }
+      },
+    });
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={4} style={{ margin: 0 }}>设备管理</Title>
-        <Button
-          icon={<ReloadOutlined />}
-          loading={loading}
-          onClick={fetchDevices}
-        >
-          刷新
-        </Button>
+        <Space>
+          <Button
+            icon={<DeleteOutlined />}
+            danger
+            onClick={handleCleanupDevices}
+          >
+            清理无效设备
+          </Button>
+          <Button
+            icon={<ReloadOutlined />}
+            loading={loading}
+            onClick={fetchDevices}
+          >
+            刷新
+          </Button>
+        </Space>
       </div>
 
       <Card>

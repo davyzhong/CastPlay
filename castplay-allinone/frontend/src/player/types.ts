@@ -35,7 +35,7 @@ export interface PlayerDeviceInfo {
   playback_speed: number;
 }
 
-// 播放列表项
+// 播放列表项（增强版，支持嵌套 media 对象）
 export interface PlayerPlaylistItem {
   id: number;
   media_id: number;
@@ -46,6 +46,15 @@ export interface PlayerPlaylistItem {
   display_duration: number;
   file_size?: number;
   md5_hash?: string;
+  // 嵌套 media 对象（来自详情 API）
+  media?: {
+    id: number;
+    file_name: string;
+    file_type: string;
+    file_url: string;
+    file_size: number;
+    md5_hash?: string;
+  };
 }
 
 // 播放列表
@@ -53,6 +62,10 @@ export interface PlayerPlaylist {
   id: number;
   name: string;
   version: string;
+  is_system?: boolean;
+  is_active?: boolean;
+  description?: string;
+  item_count?: number;
   items: PlayerPlaylistItem[];
 }
 

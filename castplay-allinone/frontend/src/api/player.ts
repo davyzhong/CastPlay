@@ -66,10 +66,11 @@ export interface PlayerInitResponse {
 }
 
 // 设备注册（使用 devices API）
-export const registerDevice = async (deviceId: string, deviceName: string) => {
+export const registerDevice = async (deviceId: string, deviceType: string = 'web_browser') => {
   const response = await api.post('/devices/register', {
     device_id: deviceId,
-    device_name: deviceName,
+    device_name: 'Default Device', // 让后端根据 device_type 生成正确的名称
+    device_type: deviceType,
   });
   return response.data;
 };

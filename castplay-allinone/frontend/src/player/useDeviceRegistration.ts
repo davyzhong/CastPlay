@@ -100,21 +100,36 @@ export const useDeviceRegistration = (): UseDeviceRegistrationReturn => {
 
     try {
       const deviceData = getDeviceInfo();
+      const bridge = getAndroidBridge();
+      const isAndroid = !!bridge;
+
+      // 生成或获取 device_id
+      let deviceId = deviceData.deviceId;
+      if (!deviceId) {
+        if (isAndroid) {
+          // Android 设备使用存储的 device_id
+          const storedDeviceId = localStorage.getItem('player_device_id');
+          if (storedDeviceId) {
+            deviceId = storedDeviceId;
+          }
+        } else {
+          // Web 测试端使用固定的 device_id（用于持久化配置）
+          deviceId = 'web-player-test-01';
+          localStorage.setItem('player_device_id', deviceId);
+        }
+      }
 
       // 构建注册请求
       const payload: Record<string, unknown> = {
-        device_name: `CastPlay-${deviceData.macAddress.replace(/:/g, '').slice(-6)}`,
+        device_id: deviceId,
+        device_name: 'Default Device', // 让后端根据 device_type 生成正确的名称
+        device_type: isAndroid ? 'android_tv' : 'web_browser',
         timezone: deviceData.timezone,
       };
 
       if (deviceData.macAddress) {
         payload.mac_address = deviceData.macAddress;
         payload.ip_address = deviceData.ipAddress;
-        if (deviceData.registrationCode) {
-          payload.registration_code = deviceData.registrationCode;
-        }
-      } else if (deviceData.deviceId) {
-        payload.device_id = deviceData.deviceId;
       }
 
       const response = await axios.post('/api/devices/register', payload);
@@ -142,7 +157,7 @@ export const useDeviceRegistration = (): UseDeviceRegistrationReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, [getDeviceInfo]);
+  }, [getDeviceInfo, getAndroidBridge]);
 
   // 初始化时检查注册状态
   useEffect(() => {

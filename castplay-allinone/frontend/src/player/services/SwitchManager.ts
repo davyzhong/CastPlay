@@ -2,7 +2,7 @@
  * 播放列表切换管理器
  * 负责在适当时机自动切换到新播放列表
  */
-import { DownloadState, NotificationType } from '../services/DownloadManager';
+import { NotificationType } from '../services/DownloadManager';
 
 export interface SwitchConfig {
     deviceId: string;

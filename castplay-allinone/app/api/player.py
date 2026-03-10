@@ -17,6 +17,7 @@ from app.models.device import Device, DeviceSchedule
 from app.models.playlist import Playlist, PlaylistItem, DevicePlaylist
 from app.models.media import MediaFile
 from app.models.device_enhancement import DeviceNotificationLog, PlaylistDownloadTask, PlaylistCleanupSchedule
+from app.api.devices import generate_registration_code
 
 logger = logging.getLogger(__name__)
 
@@ -609,9 +610,20 @@ async def player_heartbeat(
 
         if not device:
             # 设备未注册，先注册
+            # 生成注册码
+            registration_code = generate_registration_code(device_id=request.device_id)
+
+            # 根据设备类型生成名称：Web-XXXXXX 或 Android-XXXXXX
+            # device_type 可能是: android_tv, web_browser, android, web 等
+            device_type = (request.device_type or "web_browser").lower()
+            is_android = device_type.startswith("android")
+            prefix = "Android" if is_android else "Web"
+            device_name = f"{prefix}-{registration_code}"
+
             device = Device(
                 device_id=request.device_id,
-                device_name=f"Player-{request.device_id[-8:]}",
+                device_name=device_name,
+                registration_code=registration_code,
                 device_type=request.device_type,
                 status="online",
                 last_online=datetime.utcnow(),
@@ -738,6 +750,84 @@ async def check_playlist_update(
     _playlist_update_cache[device_id] = (result, time.time())
 
     return result
+
+
+@router.get(
+    "/playlist/{playlist_id}/detail",
+    summary="获取播放列表详情（播放端专用）",
+    description="""
+获取指定播放列表的完整详情，包含所有媒体项信息。
+
+**响应：**
+- `playlist`: 播放列表基本信息
+- `items`: 媒体项列表，包含下载 URL 和文件信息
+"""
+)
+def get_player_playlist_detail(
+    playlist_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    获取播放列表详情（供播放端下载媒体时使用）
+
+    返回播放列表及其所有媒体项的详细信息
+    """
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist not found"
+        )
+
+    # 获取播放列表项及媒体信息
+    items_query = (
+        db.query(
+            PlaylistItem.id,
+            PlaylistItem.media_id,
+            PlaylistItem.display_order,
+            PlaylistItem.display_duration,
+            MediaFile.file_name,
+            MediaFile.file_type,
+            MediaFile.file_path,
+            MediaFile.converted_path,
+            MediaFile.file_size,
+            MediaFile.md5_hash
+        )
+        .join(MediaFile, PlaylistItem.media_id == MediaFile.id)
+        .filter(PlaylistItem.playlist_id == playlist_id)
+        .order_by(PlaylistItem.display_order)
+        .all()
+    )
+
+    items = [
+        {
+            "id": item.id,
+            "media_id": item.media_id,
+            "display_order": item.display_order,
+            "display_duration": item.display_duration,
+            "media": {
+                "id": item.media_id,
+                "file_name": item.file_name,
+                "file_type": item.file_type,
+                "file_url": f"/api/player/media/{item.media_id}/download",
+                "file_size": item.file_size,
+                "md5_hash": item.md5_hash
+            }
+        }
+        for item in items_query
+    ]
+
+    return {
+        "playlist": {
+            "id": playlist.id,
+            "name": playlist.name,
+            "description": playlist.description,
+            "version": playlist.updated_at.isoformat() if playlist.updated_at else "1.0.0",
+            "is_system": playlist.is_system,
+            "item_count": len(items)
+        },
+        "items": items
+    }
 
 
 @router.get("/status")

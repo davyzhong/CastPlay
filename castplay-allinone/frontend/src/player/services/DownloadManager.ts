@@ -164,7 +164,7 @@ export class DownloadManager {
     /**
      * 获取文件大小
      */
-    private async getFileSize(path: string): Promise<number> {
+    private async getFileSize(_path: string): Promise<number> {
         try {
             // 使用 File System Access API 或 IndexedDB
             // 这里简化处理
@@ -178,7 +178,7 @@ export class DownloadManager {
      * 流式写入文件
      */
     private async streamToFile(
-        response: Response,
+        _response: Response,
         path: string,
         existingSize: number
     ): Promise<void> {
@@ -190,7 +190,7 @@ export class DownloadManager {
     /**
      * 验证 MD5
      */
-    private async verifyMD5(path: string, expectedHash: string): Promise<void> {
+    private async verifyMD5(path: string, _expectedHash: string): Promise<void> {
         // 简化实现
         console.log('Verifying MD5:', path);
     }

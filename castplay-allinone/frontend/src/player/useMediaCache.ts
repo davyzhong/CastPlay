@@ -5,11 +5,36 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { PlayerPlaylistItem, CachedMediaInfo, CacheStatus } from './types';
 
+// 下载进度信息
+export interface DownloadProgress {
+  percent: number;      // 0-100
+  loaded: number;       // 已下载字节
+  total: number;        // 总字节
+}
+
+// 媒体信息（用于增强版下载）
+export interface MediaInfo {
+  id: number;
+  file_name?: string;
+  file_type?: string;
+  file_url?: string;
+  file_size?: number;
+}
+
+// 缓存状态详情
+export interface CacheStatusDetail {
+  mediaId: number;
+  status: CacheStatus;
+  progress: number;
+  localPath?: string;
+}
+
 export interface UseMediaCacheReturn {
   cachedMedia: Map<number, CachedMediaInfo>;
-  downloadMedia: (item: PlayerPlaylistItem) => Promise<boolean>;
+  downloadMedia: (mediaId: number, media?: MediaInfo, onProgress?: (progress: DownloadProgress) => void) => Promise<boolean>;
   getMediaUrl: (item: PlayerPlaylistItem) => string;
-  isCached: (mediaId: number) => boolean;
+  isCached: (mediaId: number) => Promise<boolean>;
+  getCacheStatus: (mediaId: number) => Promise<CacheStatusDetail | null>;
   getCacheProgress: (mediaId: number) => number;
   preloadPlaylist: (items: PlayerPlaylistItem[]) => Promise<void>;
   clearCache: () => void;
@@ -23,8 +48,8 @@ export const useMediaCache = (isOnline: boolean = true): UseMediaCacheReturn => 
     return window.AndroidBridge;
   }, []);
 
-  // 检查媒体是否已缓存
-  const isCached = useCallback((mediaId: number): boolean => {
+  // 检查媒体是否已缓存（异步版本）
+  const isCached = useCallback(async (mediaId: number): Promise<boolean> => {
     const bridge = getAndroidBridge();
     if (bridge) {
       return bridge.isMediaCached(mediaId.toString());
@@ -32,6 +57,36 @@ export const useMediaCache = (isOnline: boolean = true): UseMediaCacheReturn => 
 
     // Web 环境：检查内存缓存
     return cachedMedia.has(mediaId) && cachedMedia.get(mediaId)?.status === 'completed';
+  }, [cachedMedia, getAndroidBridge]);
+
+  // 获取缓存状态详情
+  const getCacheStatus = useCallback(async (mediaId: number): Promise<CacheStatusDetail | null> => {
+    const bridge = getAndroidBridge();
+    if (bridge) {
+      const isComplete = bridge.isMediaCached(mediaId.toString());
+      const progress = bridge.getDownloadProgress(mediaId.toString());
+      const localPath = bridge.getCachedMediaPath(mediaId.toString());
+
+      return {
+        mediaId,
+        status: isComplete ? 'completed' : (progress > 0 ? 'downloading' : 'pending'),
+        progress: isComplete ? 100 : progress,
+        localPath: localPath || undefined,
+      };
+    }
+
+    // Web 环境
+    const info = cachedMedia.get(mediaId);
+    if (info) {
+      return {
+        mediaId,
+        status: info.status,
+        progress: info.progress,
+        localPath: info.local_path || undefined,
+      };
+    }
+
+    return null;
   }, [cachedMedia, getAndroidBridge]);
 
   // 获取缓存进度
@@ -73,14 +128,20 @@ export const useMediaCache = (isOnline: boolean = true): UseMediaCacheReturn => 
   }, [isOnline, cachedMedia, getAndroidBridge]);
 
   // 下载媒体文件
-  const downloadMedia = useCallback(async (item: PlayerPlaylistItem): Promise<boolean> => {
+  const downloadMedia = useCallback(async (
+    mediaId: number,
+    media?: MediaInfo,
+    onProgress?: (progress: DownloadProgress) => void
+  ): Promise<boolean> => {
     const bridge = getAndroidBridge();
+    const fileUrl = media?.file_url || `/api/player/media/${mediaId}/download`;
+    const fileSize = media?.file_size || 0;
 
     // 更新状态为下载中
     setCachedMedia(prev => {
       const newMap = new Map(prev);
-      newMap.set(item.media_id, {
-        media_id: item.media_id,
+      newMap.set(mediaId, {
+        media_id: mediaId,
         local_path: '',
         status: 'downloading' as CacheStatus,
         progress: 0,
@@ -90,17 +151,26 @@ export const useMediaCache = (isOnline: boolean = true): UseMediaCacheReturn => 
 
     if (bridge) {
       // Android 环境：调用原生下载
-      bridge.downloadMedia(item.file_url, item.media_id.toString());
+      bridge.downloadMedia(fileUrl, mediaId.toString());
 
       // 轮询下载进度
       return new Promise((resolve) => {
         const checkProgress = setInterval(() => {
-          const progress = bridge.getDownloadProgress(item.media_id.toString());
+          const progress = bridge.getDownloadProgress(mediaId.toString());
+
+          // 调用进度回调
+          if (onProgress) {
+            onProgress({
+              percent: progress,
+              loaded: Math.floor(fileSize * progress / 100),
+              total: fileSize,
+            });
+          }
 
           // 更新进度
           setCachedMedia(prev => {
             const newMap = new Map(prev);
-            const info = newMap.get(item.media_id);
+            const info = newMap.get(mediaId);
             if (info) {
               info.progress = progress;
             }
@@ -111,10 +181,10 @@ export const useMediaCache = (isOnline: boolean = true): UseMediaCacheReturn => 
             clearInterval(checkProgress);
             setCachedMedia(prev => {
               const newMap = new Map(prev);
-              const info = newMap.get(item.media_id);
+              const info = newMap.get(mediaId);
               if (info) {
                 info.status = 'completed';
-                info.local_path = bridge.getCachedMediaPath(item.media_id.toString()) || '';
+                info.local_path = bridge.getCachedMediaPath(mediaId.toString()) || '';
               }
               return newMap;
             });
@@ -129,19 +199,52 @@ export const useMediaCache = (isOnline: boolean = true): UseMediaCacheReturn => 
         }, 60000);
       });
     } else {
-      // Web 环境：使用 Cache API
+      // Web 环境：使用 fetch + Cache API
       try {
-        const cache = await caches.open('media-cache');
-        await cache.add(item.file_url);
+        // 使用 XMLHttpRequest 获取下载进度
+        const response = await new Promise<Response>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', fileUrl, true);
+          xhr.responseType = 'blob';
 
-        const response = await fetch(item.file_url);
+          xhr.onprogress = (event) => {
+            if (event.lengthComputable && onProgress) {
+              onProgress({
+                percent: Math.round((event.loaded / event.total) * 100),
+                loaded: event.loaded,
+                total: event.total,
+              });
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status === 200) {
+              resolve(new Response(xhr.response));
+            } else {
+              reject(new Error(`HTTP ${xhr.status}`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.send();
+        });
+
         const blob = await response.blob();
         const localUrl = URL.createObjectURL(blob);
 
+        // 同时存储到 Cache API
+        try {
+          const cache = await caches.open('media-cache');
+          const cacheResponse = new Response(blob);
+          await cache.put(fileUrl, cacheResponse);
+        } catch {
+          // Cache API 失败不影响主要功能
+        }
+
         setCachedMedia(prev => {
           const newMap = new Map(prev);
-          newMap.set(item.media_id, {
-            media_id: item.media_id,
+          newMap.set(mediaId, {
+            media_id: mediaId,
             local_path: localUrl,
             status: 'completed',
             progress: 100,
@@ -149,12 +252,17 @@ export const useMediaCache = (isOnline: boolean = true): UseMediaCacheReturn => 
           return newMap;
         });
 
+        // 最终进度回调
+        if (onProgress) {
+          onProgress({ percent: 100, loaded: fileSize, total: fileSize });
+        }
+
         return true;
       } catch {
         setCachedMedia(prev => {
           const newMap = new Map(prev);
-          newMap.set(item.media_id, {
-            media_id: item.media_id,
+          newMap.set(mediaId, {
+            media_id: mediaId,
             local_path: '',
             status: 'failed',
             progress: 0,
@@ -169,8 +277,14 @@ export const useMediaCache = (isOnline: boolean = true): UseMediaCacheReturn => 
   // 预加载播放列表中的所有媒体
   const preloadPlaylist = useCallback(async (items: PlayerPlaylistItem[]) => {
     for (const item of items) {
-      if (!isCached(item.media_id)) {
-        await downloadMedia(item);
+      if (!(await isCached(item.media_id))) {
+        await downloadMedia(item.media_id, {
+          id: item.media_id,
+          file_name: item.file_name,
+          file_type: item.file_type,
+          file_url: item.file_url,
+          file_size: item.file_size,
+        });
       }
     }
   }, [isCached, downloadMedia]);
@@ -214,6 +328,7 @@ export const useMediaCache = (isOnline: boolean = true): UseMediaCacheReturn => 
     downloadMedia,
     getMediaUrl,
     isCached,
+    getCacheStatus,
     getCacheProgress,
     preloadPlaylist,
     clearCache,

@@ -39,7 +39,7 @@ export const deviceHeartbeat = (deviceId: number) =>
 
 // 获取设备列表
 export const getDeviceList = (params: DeviceListParams = {}) =>
-  api.get<{ items: Device[]; total: number }>('/devices', { params });
+  api.get<{ items: Device[]; total: number }>('/devices/', { params });
 
 // 获取设备详情
 export const getDevice = (deviceId: number) =>
@@ -68,3 +68,7 @@ export const getDevicePlaylists = (deviceId: number) =>
 // 禁用/启用设备
 export const toggleDeviceDisabled = (deviceId: number, isDisabled: boolean) =>
   api.put<Device>(`/devices/${deviceId}/disable`, { is_disabled: isDisabled });
+
+// 清理无效设备
+export const cleanupInvalidDevices = () =>
+  api.post<{ deleted_count: number; message: string }>('/devices/cleanup');

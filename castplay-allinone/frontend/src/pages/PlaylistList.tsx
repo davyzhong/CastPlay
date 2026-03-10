@@ -34,6 +34,8 @@ import {
   CloseCircleOutlined,
   DesktopOutlined,
   LoadingOutlined,
+  CheckOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type {
@@ -55,8 +57,9 @@ import {
   reorderPlaylistItems,
   addItemsToPlaylistBatch,
   updatePlaylistItem,
+  updatePlaylist,
 } from '../api/playlist';
-import { getMediaList, getMediaFileUrl } from '../api/media';
+import { getMediaList, getMediaFileUrl, getThumbnail } from '../api/media';
 import { getDeviceList } from '../api/device';
 import {
   DndContext,
@@ -271,6 +274,11 @@ const PlaylistListPage: React.FC = () => {
   const [playlistDevicesMap, setPlaylistDevicesMap] = useState<Record<number, DeviceAssignment[]>>({});
   const [devicesInfoLoading, setDevicesInfoLoading] = useState(false);
 
+  // 播放列表名称编辑状态
+  const [editingPlaylistId, setEditingPlaylistId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState<string>('');
+  const [editNameLoading, setEditNameLoading] = useState(false);
+
   // 切换媒体选中状态
   const toggleMediaSelection = (mediaId: number) => {
     setSelectedMediaIds(prev =>
@@ -313,45 +321,19 @@ const PlaylistListPage: React.FC = () => {
   const renderMediaThumbnail = (media: MediaFile, size: { width: number; height: number } = { width: 120, height: 90 }) => {
     const { width, height } = size;
 
-    if (media.thumbnail_path) {
-      return (
-        <Image
-          src={media.thumbnail_path}
-          alt={media.file_name}
-          width={width}
-          height={height}
-          style={{ borderRadius: 4, objectFit: 'cover' }}
-          fallback={`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}' viewBox='0 0 ${width} ${height}'%3E%3Crect fill='%23f0f0f0' width='${width}' height='${height}'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载失败%3C/text%3E%3C/svg%3E`}
-          preview={false}
-        />
-      );
-    }
-
-    // 无缩略图时显示类型图标占位符
-    const typeConfig: Record<string, { color: string; icon: string }> = {
-      image: { color: '#52c41a', icon: '🖼️' },
-      video: { color: '#1890ff', icon: '🎬' },
-      ppt: { color: '#fa8c16', icon: '📊' },
-    };
-    const config = typeConfig[media.file_type] || { color: '#999', icon: '📄' };
+    // 使用缩略图 API 获取正确的 URL
+    const thumbnailUrl = getThumbnail(media.id);
 
     return (
-      <div
-        style={{
-          width,
-          height,
-          backgroundColor: config.color,
-          borderRadius: 4,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '24px',
-          color: '#fff',
-        }}
-        title={media.file_name}
-      >
-        {config.icon}
-      </div>
+      <Image
+        src={thumbnailUrl}
+        alt={media.file_name}
+        width={width}
+        height={height}
+        style={{ borderRadius: 4, objectFit: 'cover' }}
+        fallback={`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}' viewBox='0 0 ${width} ${height}'%3E%3Crect fill='%23f0f0f0' width='${width}' height='${height}'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载失败%3C/text%3E%3C/svg%3E`}
+        preview={false}
+      />
     );
   };
 
@@ -440,7 +422,7 @@ const PlaylistListPage: React.FC = () => {
     });
   };
 
-  const handleShowDetail = async (playlist: Playlist) => {
+  const handleShowDetail = async (playlist: { id: number }) => {
     setLoading(true);
     try {
       const response = await getPlaylistDetail(playlist.id);
@@ -558,6 +540,34 @@ const PlaylistListPage: React.FC = () => {
     [selectedPlaylist, message]
   );
 
+  // 取消编辑名称
+  const handleCancelEditName = () => {
+    setEditingPlaylistId(null);
+    setEditingName('');
+  };
+
+  // 保存播放列表名称
+  const handleSaveName = async (playlistId: number) => {
+    const trimmedName = editingName.trim();
+    if (!trimmedName) {
+      message.warning('播放列表名称不能为空');
+      return;
+    }
+
+    setEditNameLoading(true);
+    try {
+      await updatePlaylist(playlistId, { name: trimmedName });
+      message.success('名称已更新');
+      handleCancelEditName();
+      fetchPlaylists();
+    } catch (error: any) {
+      console.error('Update playlist name error:', error);
+      message.error(error.message || '更新失败');
+    } finally {
+      setEditNameLoading(false);
+    }
+  };
+
   const handleAssignToDevice = async () => {
     if (!selectedPlaylist || !selectedDevice) return;
 
@@ -635,12 +645,75 @@ const PlaylistListPage: React.FC = () => {
     {
       title: '名称',
       dataIndex: 'name',
-      render: (name: string, record: Playlist) => (
-        <Space>
-          {name}
-          {record.is_system && <Tag color="gold">系统默认</Tag>}
-        </Space>
-      ),
+      render: (name: string, record: Playlist) => {
+        // 系统默认播放列表不可编辑名称
+        if (record.is_system) {
+          return (
+            <Space>
+              {name}
+              <Tag color="gold">系统默认</Tag>
+            </Space>
+          );
+        }
+
+        // 编辑模式
+        if (editingPlaylistId === record.id) {
+          return (
+            <Space.Compact style={{ width: '100%' }}>
+              <Input
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onPressEnter={() => handleSaveName(record.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    handleCancelEditName();
+                  }
+                }}
+                style={{ width: 200 }}
+                autoFocus
+                placeholder="输入播放列表名称"
+              />
+              <Button
+                type="primary"
+                icon={<CheckOutlined />}
+                loading={editNameLoading}
+                onClick={() => handleSaveName(record.id)}
+              />
+              <Button
+                icon={<CloseOutlined />}
+                onClick={handleCancelEditName}
+              />
+            </Space.Compact>
+          );
+        }
+
+        // 正常显示模式
+        return (
+          <Space>
+            <Typography.Text
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                setEditingPlaylistId(record.id);
+                setEditingName(record.name);
+              }}
+            >
+              {name}
+            </Typography.Text>
+            <Tooltip title="点击编辑名称">
+              <Button
+                type="text"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => {
+                  setEditingPlaylistId(record.id);
+                  setEditingName(record.name);
+                }}
+                style={{ color: '#999' }}
+              />
+            </Tooltip>
+          </Space>
+        );
+      },
     },
     {
       title: '媒体数量',
@@ -1096,15 +1169,41 @@ const PlaylistListPage: React.FC = () => {
                       rowKey="id"
                       columns={[
                         {
-                          title: '设备 ID',
-                          dataIndex: 'device_id',
-                          render: (deviceId: number) => `设备 #${deviceId}`
+                          title: '设备名称',
+                          dataIndex: 'device_name',
+                          render: (name: string, record: any) => (
+                            <Space size={4}>
+                              <DesktopOutlined
+                                style={{
+                                  color: record.device_status === 'online' ? '#52c41a' : '#999'
+                                }}
+                              />
+                              <span
+                                style={{
+                                  color: record.device_status === 'online' ? '#52c41a' : 'inherit'
+                                }}
+                              >
+                                {name || `设备 #${record.device_id}`}
+                              </span>
+                            </Space>
+                          )
                         },
                         {
-                          title: '状态',
+                          title: '在线状态',
+                          dataIndex: 'device_status',
+                          width: 100,
+                          render: (status: string) => (
+                            <Tag color={status === 'online' ? 'success' : 'default'}>
+                              {status === 'online' ? '在线' : '离线'}
+                            </Tag>
+                          )
+                        },
+                        {
+                          title: '激活状态',
                           dataIndex: 'is_active',
+                          width: 100,
                           render: (isActive: boolean) => (
-                            <Tag color={isActive ? 'success' : 'default'}>
+                            <Tag color={isActive ? 'blue' : 'default'}>
                               {isActive ? '激活' : '未激活'}
                             </Tag>
                           )
@@ -1112,11 +1211,13 @@ const PlaylistListPage: React.FC = () => {
                         {
                           title: '分配时间',
                           dataIndex: 'assigned_at',
+                          width: 180,
                           render: (time: string) => time ? new Date(time).toLocaleString('zh-CN') : '-'
                         },
                         {
                           title: '操作',
                           key: 'action',
+                          width: 100,
                           render: (_: any, record: any) => (
                             <Button
                               size="small"

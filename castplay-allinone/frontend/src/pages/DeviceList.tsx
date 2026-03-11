@@ -2,7 +2,7 @@
  * 设备管理页面
  * 优化版本：合并列信息，简化界面
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Table,
   Button,
@@ -61,7 +61,17 @@ const DeviceListPage: React.FC = () => {
   const [devicePlaylistsMap, setDevicePlaylistsMap] = useState<Record<number, DevicePlaylist[]>>({});
   const [infoLoading, setInfoLoading] = useState(false);
 
+  // P0-6 修复：使用 ref 保存 AbortController 以便取消请求
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const extraInfoAbortControllerRef = useRef<AbortController | null>(null);
+
   const fetchDevices = async () => {
+    // P0-6 修复：取消之前的请求
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     setLoading(true);
     try {
       const response = await getDeviceList({ limit: 100 });
@@ -70,6 +80,10 @@ const DeviceListPage: React.FC = () => {
         setStoreDevices(response.items);
       }
     } catch (error: unknown) {
+      // P0-6 修复：忽略取消请求导致的错误
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
       console.error('Fetch devices error:', error);
       const errorMessage = error instanceof Error ? error.message : '获取设备列表失败';
       message.error(errorMessage);
@@ -80,47 +94,89 @@ const DeviceListPage: React.FC = () => {
 
   useEffect(() => {
     fetchDevices();
+
+    // P0-6 修复：组件卸载时取消进行中的请求
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (extraInfoAbortControllerRef.current) {
+        extraInfoAbortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   // 批量获取设备附加信息（定时配置和播放列表）
   const fetchDeviceExtraInfo = async (deviceList: Device[]) => {
     if (deviceList.length === 0) return;
 
+    // P0-6 修复：取消之前的请求
+    if (extraInfoAbortControllerRef.current) {
+      extraInfoAbortControllerRef.current.abort();
+    }
+    extraInfoAbortControllerRef.current = new AbortController();
+    const currentController = extraInfoAbortControllerRef.current;
+
     setInfoLoading(true);
     const schedules: Record<number, DeviceSchedule> = {};
     const playlistsMap: Record<number, DevicePlaylist[]> = {};
 
-    await Promise.all(
-      deviceList.map(async (device) => {
-        // 获取定时配置
-        try {
-          const scheduleData = await getDeviceSchedule(device.id);
-          schedules[device.id] = scheduleData;
-        } catch {
-          // 404 表示未配置，忽略
-        }
+    try {
+      await Promise.all(
+        deviceList.map(async (device) => {
+          // P0-6 修复：检查是否已取消
+          if (currentController.signal.aborted) return;
 
-        // 获取播放列表
-        try {
-          const response = await getDevicePlaylists(device.id);
-          playlistsMap[device.id] = response.playlists || [];
-        } catch {
-          // 忽略错误
-        }
-      })
-    );
+          // 获取定时配置
+          try {
+            const scheduleData = await getDeviceSchedule(device.id);
+            schedules[device.id] = scheduleData;
+          } catch {
+            // 404 表示未配置，忽略
+          }
 
-    setDeviceSchedules(schedules);
-    setDevicePlaylistsMap(playlistsMap);
-    setInfoLoading(false);
+          // 获取播放列表
+          try {
+            const response = await getDevicePlaylists(device.id);
+            playlistsMap[device.id] = response.playlists || [];
+          } catch {
+            // 忽略错误
+          }
+        })
+      );
+
+      // P0-6 修复：检查是否已取消后再更新状态
+      if (!currentController.signal.aborted) {
+        setDeviceSchedules(schedules);
+        setDevicePlaylistsMap(playlistsMap);
+      }
+    } catch (error) {
+      // 忽略取消请求导致的错误
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
+      console.error('Fetch extra info error:', error);
+    } finally {
+      if (!currentController.signal.aborted) {
+        setInfoLoading(false);
+      }
+    }
   };
+
+  // P0-7 修复：使用 useMemo 缓存设备 ID 列表，避免每次渲染创建新字符串
+  const deviceIdsKey = useMemo(
+    () => devices.map(d => d.id).sort().join(','),
+    [devices]
+  );
 
   // 设备列表加载后获取附加信息
   useEffect(() => {
     if (devices.length > 0) {
       fetchDeviceExtraInfo(devices);
     }
-  }, [devices.map(d => d.id).join(',')]);
+    // P0-7 修复：使用缓存的 key 作为依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceIdsKey]);
 
   const handleScheduleModal = async (device: Device) => {
     setSelectedDevice(device);

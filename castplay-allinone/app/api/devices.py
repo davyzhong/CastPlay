@@ -20,6 +20,7 @@ from app.schemas.device import (
 from app.api.auth import get_current_user
 from app.models.user import User
 from app.utils.logger import logger
+from app.utils.internal_auth import verify_internal_api_key  # P0-5 修复：导入内部认证
 
 router = APIRouter(
     tags=["设备"],
@@ -250,7 +251,10 @@ def list_devices(
 
 
 @router.post("/cleanup", summary="清理无效设备")
-def cleanup_invalid_devices(db: Session = Depends(get_db)):
+def cleanup_invalid_devices(
+    db: Session = Depends(get_db),
+    _: str = Depends(verify_internal_api_key)  # P0-5 修复：添加内部认证
+):
     """
     清理无效的测试设备和废弃设备
 

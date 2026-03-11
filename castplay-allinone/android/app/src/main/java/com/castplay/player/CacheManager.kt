@@ -8,12 +8,16 @@ import android.content.IntentFilter
 import android.database.Cursor
 import android.net.Uri
 import android.os.Environment
+import android.os.Looper
 import android.util.Log
+import androidx.annotation.WorkerThread
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import kotlin.math.min
 
 /**
@@ -61,6 +65,14 @@ class CacheManager private constructor(private val context: Context) {
     private val retryCount = ConcurrentHashMap<String, Int>()
     private val expectedMd5 = ConcurrentHashMap<String, String>()
 
+    // P1-10 修复：使用共享线程池替代无限制线程创建
+    private val ioExecutor: ExecutorService = Executors.newFixedThreadPool(
+        Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+    )
+
+    // P0-2 修复：将 receiver 改为类成员变量以便注销
+    private var downloadCompleteReceiver: BroadcastReceiver? = null
+
     private val mediaCacheDir: File by lazy {
         File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), MEDIA_DIR).apply {
             if (!exists()) mkdirs()
@@ -85,8 +97,8 @@ class CacheManager private constructor(private val context: Context) {
     }
 
     init {
-        // 注册下载完成广播接收器
-        val receiver = object : BroadcastReceiver() {
+        // P0-2 修复：注册下载完成广播接收器，保存引用以便后续注销
+        downloadCompleteReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (DownloadManager.ACTION_DOWNLOAD_COMPLETE == intent?.action) {
                     val downloadId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
@@ -94,7 +106,10 @@ class CacheManager private constructor(private val context: Context) {
                 }
             }
         }
-        context.registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+        context.registerReceiver(
+            downloadCompleteReceiver,
+            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        )
     }
 
     /**
@@ -137,6 +152,9 @@ class CacheManager private constructor(private val context: Context) {
      * 启动下载
      */
     private fun startDownload(url: String, mediaId: String) {
+        // P0-1 修复：保存 URL 以便重试时使用
+        prefs.edit().putString("url_$mediaId", url).apply()
+
         val targetFile = File(mediaCacheDir, mediaId)
 
         // 如果存在部分下载的文件，删除它
@@ -176,7 +194,8 @@ class CacheManager private constructor(private val context: Context) {
      * 监控下载进度
      */
     private fun monitorDownloadProgress(mediaId: String, downloadId: Long) {
-        Thread {
+        // P1-10 修复：使用共享线程池替代 Thread{}.start()
+        ioExecutor.execute {
             var completed = false
             while (!completed) {
                 try {
@@ -230,7 +249,7 @@ class CacheManager private constructor(private val context: Context) {
                     handleDownloadError(mediaId, "Monitoring error: ${e.message}")
                 }
             }
-        }.start()
+        }
     }
 
     /**
@@ -323,10 +342,10 @@ class CacheManager private constructor(private val context: Context) {
                 .putInt("retry_$mediaId", currentRetryCount + 1)
                 .apply()
 
-            // 延迟重试
-            Thread {
+            // P1-10 修复：使用共享线程池延迟重试
+            ioExecutor.execute {
                 Thread.sleep(delay)
-                // 重新获取下载 URL（实际应用中需要从任务队列获取）
+                // 重新获取下载 URL
                 val savedUrl = prefs.getString("url_$mediaId", null)
                 if (savedUrl != null) {
                     startDownload(savedUrl, mediaId)
@@ -334,7 +353,7 @@ class CacheManager private constructor(private val context: Context) {
                     Log.e(TAG, "Cannot retry: no URL saved for $mediaId")
                     downloadCallback?.onError(mediaId, "$error (no retry URL)")
                 }
-            }.start()
+            }
         } else {
             // 重试次数用尽
             Log.e(TAG, "Download failed after $MAX_RETRY_COUNT retries: $mediaId")
@@ -361,14 +380,15 @@ class CacheManager private constructor(private val context: Context) {
             if (!file.exists()) return null
 
             val md = MessageDigest.getInstance("MD5")
-            val fis = FileInputStream(file)
             val buffer = ByteArray(8192)
 
-            var bytesRead: Int
-            while (fis.read(buffer).also { bytesRead = it } != -1) {
-                md.update(buffer, 0, bytesRead)
+            // P0-3 修复：使用 use 扩展函数确保流被正确关闭
+            FileInputStream(file).use { fis ->
+                var bytesRead: Int
+                while (fis.read(buffer).also { bytesRead = it } != -1) {
+                    md.update(buffer, 0, bytesRead)
+                }
             }
-            fis.close()
 
             val digest = md.digest()
             digest.joinToString("") { "%02x".format(it) }
@@ -462,9 +482,26 @@ class CacheManager private constructor(private val context: Context) {
 
     /**
      * 获取缓存大小
+     * P1-9 修复：添加主线程检测和警告
      */
+    @WorkerThread
     fun getCacheSize(): Long {
+        // P1-9 修复：检测是否在主线程调用
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            Log.w(TAG, "Warning: getCacheSize() called on main thread, may cause ANR")
+        }
         return calculateDirectorySize(mediaCacheDir)
+    }
+
+    /**
+     * 异步获取缓存大小（P1-9 修复：新增异步接口）
+     * @param callback 回调函数，接收缓存大小（字节）
+     */
+    fun getCacheSizeAsync(callback: (Long) -> Unit) {
+        ioExecutor.execute {
+            val size = calculateDirectorySize(mediaCacheDir)
+            callback(size)
+        }
     }
 
     /**
@@ -702,4 +739,28 @@ class CacheManager private constructor(private val context: Context) {
         val size: Long,
         val lastModified: Long
     )
+
+    /**
+     * P0-2 修复：销毁时注销广播接收器，防止内存泄漏
+     */
+    fun onDestroy() {
+        downloadCompleteReceiver?.let {
+            try {
+                context.unregisterReceiver(it)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error unregistering receiver: ${e.message}")
+            }
+        }
+        downloadCompleteReceiver = null
+
+        // P1-10 修复：关闭线程池
+        ioExecutor.shutdown()
+        try {
+            if (!ioExecutor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                ioExecutor.shutdownNow()
+            }
+        } catch (e: InterruptedException) {
+            ioExecutor.shutdownNow()
+        }
+    }
 }

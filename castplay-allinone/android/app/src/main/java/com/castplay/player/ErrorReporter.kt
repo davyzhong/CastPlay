@@ -35,6 +35,9 @@ class ErrorReporter private constructor(private val context: Context) {
         private const val FLUSH_INTERVAL_MS = 30000L  // 30 秒
         private const val API_ENDPOINT = "/api/player/devices/notifications"
 
+        // P1-8 修复：添加错误上报最大重试次数
+        private const val MAX_ERROR_RETRY = 3
+
         @Volatile
         private var instance: ErrorReporter? = null
 
@@ -54,14 +57,18 @@ class ErrorReporter private constructor(private val context: Context) {
     private var deviceId: String? = null
     private var serverUrl: String? = null
 
+    // P1-8 修复：添加重试计数字段
     data class ErrorReport(
         val type: String,
         val message: String,
         val playlistId: Long? = null,
         val mediaId: String? = null,
         val timestamp: Long = System.currentTimeMillis(),
-        val additionalData: Map<String, Any>? = null
-    )
+        val additionalData: Map<String, Any>? = null,
+        val retryCount: Int = 0  // P1-8 修复：添加重试计数
+    ) {
+        fun withIncrementedRetry(): ErrorReport = copy(retryCount = retryCount + 1)
+    }
 
     init {
         // 启动定时刷新任务
@@ -223,6 +230,12 @@ class ErrorReporter private constructor(private val context: Context) {
      * 发送单个错误报告
      */
     private fun sendErrorReport(error: ErrorReport) {
+        // P1-8 修复：检查重试次数，超过限制则丢弃
+        if (error.retryCount >= MAX_ERROR_RETRY) {
+            Log.w(TAG, "Error report dropped after $MAX_ERROR_RETRY retries: ${error.type}")
+            return
+        }
+
         try {
             val url = URL("${serverUrl}${API_ENDPOINT}")
             val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -254,15 +267,15 @@ class ErrorReporter private constructor(private val context: Context) {
                 Log.d(TAG, "Error report sent successfully: ${error.type}")
             } else {
                 Log.e(TAG, "Failed to send error report: HTTP $responseCode")
-                // 重新加入队列
-                errorQueue.offer(error)
+                // P1-8 修复：增加重试计数后重新加入队列
+                errorQueue.offer(error.withIncrementedRetry())
             }
 
             connection.disconnect()
         } catch (e: Exception) {
             Log.e(TAG, "Exception sending error report: ${e.message}")
-            // 重新加入队列
-            errorQueue.offer(error)
+            // P1-8 修复：增加重试计数后重新加入队列
+            errorQueue.offer(error.withIncrementedRetry())
         }
     }
 

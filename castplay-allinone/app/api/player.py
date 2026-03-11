@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 import logging
 import os
 import time
+import threading
 from collections import defaultdict
 
 from app.database import get_db
@@ -25,9 +26,77 @@ logger = logging.getLogger(__name__)
 DEVICE_ONLINE_THRESHOLD_HOURS = 3  # 设备在线阈值（小时），配合 2 小时心跳间隔
 HEARTBEAT_TIMEOUT_SECONDS = 5000  # 心跳超时（毫秒）
 HEARTBEAT_RATE_LIMIT_PER_MINUTE = 10  # 每分钟最多允许的心跳次数
+RATE_LIMIT_MAX_CLIENTS = 10000  # P0-4 修复：最大客户端数量限制
+RATE_LIMIT_CLEANUP_INTERVAL = 300  # P0-4 修复：5 分钟清理一次
 
-# 速率限制字典（内存存储）
-_rate_limit_cache: dict[str, list[float]] = defaultdict(list)
+
+# P0-4 修复：使用有界的速率限制缓存
+class BoundedRateLimitCache:
+    """有界的速率限制缓存，支持 LRU 淘汰"""
+
+    def __init__(self, max_clients: int = 10000, cleanup_interval: int = 300):
+        self.max_clients = max_clients
+        self.cleanup_interval = cleanup_interval
+        self._cache: dict[str, list[float]] = {}
+        self._last_cleanup = time.time()
+        self._lock = threading.Lock()
+
+    def check_and_add(self, key: str, limit_per_minute: int) -> bool:
+        """
+        检查速率限制并添加新记录
+
+        Returns:
+            True 如果未超限，False 如果已超限
+        """
+        current_time = time.time()
+        window_start = current_time - 60
+
+        with self._lock:
+            # 定期清理
+            if current_time - self._last_cleanup > self.cleanup_interval:
+                self._cleanup(current_time)
+
+            # 清理当前 key 的过期记录
+            if key in self._cache:
+                self._cache[key] = [t for t in self._cache[key] if t > window_start]
+
+            # 检查是否超限
+            if key in self._cache and len(self._cache[key]) >= limit_per_minute:
+                return False
+
+            # 添加新记录
+            if key not in self._cache:
+                self._cache[key] = []
+            self._cache[key].append(current_time)
+
+            # LRU 淘汰
+            while len(self._cache) > self.max_clients:
+                # 移除最旧的 key
+                oldest_key = min(self._cache.keys(), key=lambda k: min(self._cache[k]) if self._cache[k] else 0)
+                del self._cache[oldest_key]
+
+            return True
+
+    def _cleanup(self, current_time: float) -> None:
+        """清理过期记录"""
+        window_start = current_time - 60
+        expired_keys = []
+        for key, timestamps in self._cache.items():
+            valid = [t for t in timestamps if t > window_start]
+            if valid:
+                self._cache[key] = valid
+            else:
+                expired_keys.append(key)
+        for key in expired_keys:
+            del self._cache[key]
+        self._last_cleanup = current_time
+
+
+# P0-4 修复：使用有界的速率限制缓存
+_rate_limit_cache = BoundedRateLimitCache(
+    max_clients=RATE_LIMIT_MAX_CLIENTS,
+    cleanup_interval=RATE_LIMIT_CLEANUP_INTERVAL
+)
 
 # P1-3 修复：心跳推送缓存（减少数据库查询）
 _playlist_update_cache: dict[str, tuple[dict, float]] = {}
@@ -45,22 +114,8 @@ def check_rate_limit(device_id: str, limit_per_minute: int = HEARTBEAT_RATE_LIMI
     Returns:
         bool: True 表示未超限，False 表示已超限
     """
-    current_time = time.time()
-    window_start = current_time - 60  # 1 分钟窗口
-
-    # 清理旧记录
-    _rate_limit_cache[device_id] = [
-        t for t in _rate_limit_cache[device_id]
-        if t > window_start
-    ]
-
-    # 检查是否超限
-    if len(_rate_limit_cache[device_id]) >= limit_per_minute:
-        return False
-
-    # 添加新记录
-    _rate_limit_cache[device_id].append(current_time)
-    return True
+    # P0-4 修复：使用有界的缓存
+    return _rate_limit_cache.check_and_add(device_id, limit_per_minute)
 
 
 router = APIRouter(

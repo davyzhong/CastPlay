@@ -323,7 +323,7 @@ def add_playlist_item(
     )
 
 
-@router.post("/{playlist_id}/items/batch", response_model=PlaylistItemBatchResponse)
+@router.post("/{playlist_id}/items/batch/", response_model=PlaylistItemBatchResponse)
 def add_playlist_items_batch(
     playlist_id: int,
     batch_data: PlaylistItemBatchCreate,

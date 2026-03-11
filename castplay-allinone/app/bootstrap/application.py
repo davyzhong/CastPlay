@@ -119,13 +119,14 @@ class ApplicationBootstrap:
         @self.app.get("/{full_path:path}", include_in_schema=False)
         async def serve_spa(full_path: str):
             """SPA fallback: 处理前端路由"""
-            # 跳过 API、docs、media 等路径
+            # 跳过 API、docs 等路径
+            # 注意：/media/xxx 的静态文件请求由 app.mount("/media", StaticFiles(...)) 处理，
+            # 优先级高于此路由，无需在此排除。
+            # /media 精确路径是前端 SPA 路由，需要返回 index.html。
             if (full_path.startswith("api/") or
                 full_path.startswith("docs") or
                 full_path.startswith("redoc") or
-                full_path.startswith("openapi") or
-                full_path.startswith("media/") or
-                full_path == "media"):
+                full_path.startswith("openapi")):
                 return {"detail": "Not found"}
 
             if _FRONTEND_DIST.exists():

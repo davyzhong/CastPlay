@@ -48,7 +48,7 @@ cd "$ANDROID_DIR"
 gradle clean
 gradle assembleDebug -PserverUrl="$SERVER_URL"
 
-if [ $? -eq 0 ]; then
+if [ $? -ne 0 ]; then
     echo "❌ Android 构建失败!"
     exit 1
 fi

@@ -141,9 +141,7 @@ const SortablePlaylistItem: React.FC<SortableRowProps> = ({
           height={120}
           style={{ borderRadius: 4, objectFit: 'cover' }}
           fallback={`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='120' viewBox='0 0 160 120'%3E%3Crect fill='%23f0f0f0' width='160' height='120'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载失败%3C/text%3E%3C/svg%3E`}
-          preview={{
-            src: media.file_type === 'image' ? getMediaFileUrl(media.id) : undefined,
-          }}
+          preview={false}
         />
       );
     }

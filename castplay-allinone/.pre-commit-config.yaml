@@ -27,7 +27,7 @@ repos:
       # 删除尾部空白
       - id: end-of-file-fixer
         name: 修复文件结尾
-      - id: trailing-whitespace-fixer
+      - id: trailing-whitespace
         name: 删除尾部空白
 
       # 检查文件编码
@@ -38,29 +38,37 @@ repos:
       - id: detect-private-key
         name: 检测私钥
 
-  # ==================== Python 代码 ====================
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+  # ==================== Python 代码格式化 ====================
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
     hooks:
-      # 代码格式化
       - id: black
         name: Black 格式化
         language_version: python3.12
         args: ['--line-length=100']
 
-      # 导入排序
+  # ==================== Python 导入排序 ====================
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
       - id: isort
         name: 导入排序
         args: ['--profile=black']
 
-      # 类型检查
+  # ==================== Python 类型检查 ====================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
       - id: mypy
         name: mypy 类型检查
         args: ['--ignore-missing-imports']
         additional_dependencies:
           - types-PyYAML
 
-      # 代码质量
+  # ==================== Python 代码质量 ====================
+  - repo: https://github.com/pycqa/pylint
+    rev: v3.0.3
+    hooks:
       - id: pylint
         name: pylint 代码质量
         args: ['--rcfile=.pylintrc', '--max-line-length=100']
@@ -105,25 +113,23 @@ repos:
         name: 检查 TOML
         types: [toml]
 
-  # ==================== 文件过滤 ====================
-  exclude: |
-      (?x)(
-        ^frontend/node_modules/           # 前端依赖
-        | ^frontend/dist/              # 前端构建
-        | ^frontend/.vite/             # Vite 缓存
-        | ^venv/                      # 虚拟环境
-        | ^\.git/                     # Git 文件
-        | ^__pycache__/               # Python 缓存
-        | ^\.pytest_cache/            # pytest 缓存
-        | ^htmlcov/                   # 覆盖率报告
-        | ^data/                      # 数据目录
-      )
+exclude: |
+  (?x)(
+    ^frontend/node_modules/           # 前端依赖
+    | ^frontend/dist/              # 前端构建
+    | ^frontend/.vite/             # Vite 缓存
+    | ^venv/                      # 虚拟环境
+    | ^\.git/                     # Git 文件
+    | ^__pycache__/               # Python 缓存
+    | ^\.pytest_cache/            # pytest 缓存
+    | ^htmlcov/                   # 覆盖率报告
+    | ^data/                      # 数据目录
+  )
 
-  # CI 配置
-  ci:
-    autofix_prs: true
-    autofix_commit_msg: 'style: 自动修复 pre-commit 问题'
-    autoupdate_branch: 'pre-commit-autoupdate'
-    autoupdate_schedule: weekly
-    skip: []
-    submodules: false
+ci:
+  autofix_prs: true
+  autofix_commit_msg: 'style: 自动修复 pre-commit 问题'
+  autoupdate_branch: 'pre-commit-autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

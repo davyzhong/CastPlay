@@ -132,21 +132,23 @@ const SortablePlaylistItem: React.FC<SortableRowProps> = ({
 
   // 渲染缩略图
   const renderThumbnail = () => {
-    if (media?.thumbnail_path) {
+    // 图片和 PPT 类型：使用缩略图 API
+    if (media && (media.file_type === 'image' || media.file_type === 'ppt')) {
+      const thumbnailUrl = getThumbnail(media.id);
       return (
         <Image
-          src={media.thumbnail_path}
+          src={thumbnailUrl}
           alt={item.file_name}
           width={160}
           height={120}
           style={{ borderRadius: 4, objectFit: 'cover' }}
-          fallback={`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='120' viewBox='0 0 160 120'%3E%3Crect fill='%23f0f0f0' width='160' height='120'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载失败%3C/text%3E%3C/svg%3E`}
-          preview={false}
+          fallback={`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='120' viewBox='0 0 160 120'%3E%3Crect fill='%23f0f0f0' width='160' height='120'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载中%3C/text%3E%3C/svg%3E`}
+          preview={true}
         />
       );
     }
 
-    // 无缩略图时显示类型图标占位符
+    // 视频类型或无媒体信息时显示类型图标占位符
     const typeConfig: Record<string, { color: string; icon: string }> = {
       image: { color: '#52c41a', icon: '🖼️' },
       video: { color: '#1890ff', icon: '🎬' },
@@ -319,19 +321,47 @@ const PlaylistListPage: React.FC = () => {
   const renderMediaThumbnail = (media: MediaFile, size: { width: number; height: number } = { width: 120, height: 90 }) => {
     const { width, height } = size;
 
-    // 使用缩略图 API 获取正确的 URL
-    const thumbnailUrl = getThumbnail(media.id);
+    // 图片和 PPT 类型：显示缩略图
+    if (media.file_type === 'image' || media.file_type === 'ppt') {
+      const thumbnailUrl = getThumbnail(media.id);
+      return (
+        <Image
+          src={thumbnailUrl}
+          alt={media.file_name}
+          width={width}
+          height={height}
+          style={{ borderRadius: 4, objectFit: 'cover' }}
+          fallback={`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}' viewBox='0 0 ${width} ${height}'%3E%3Crect fill='%23f0f0f0' width='${width}' height='${height}'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载中%3C/text%3E%3C/svg%3E`}
+          preview={true}
+        />
+      );
+    }
+
+    // 视频类型：显示图标
+    const typeConfig: Record<string, { color: string; icon: string }> = {
+      image: { color: '#52c41a', icon: '🖼️' },
+      video: { color: '#1890ff', icon: '🎬' },
+      ppt: { color: '#fa8c16', icon: '📊' },
+    };
+    const config = typeConfig[media.file_type] || { color: '#999', icon: '📄' };
 
     return (
-      <Image
-        src={thumbnailUrl}
-        alt={media.file_name}
-        width={width}
-        height={height}
-        style={{ borderRadius: 4, objectFit: 'cover' }}
-        fallback={`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}' viewBox='0 0 ${width} ${height}'%3E%3Crect fill='%23f0f0f0' width='${width}' height='${height}'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载失败%3C/text%3E%3C/svg%3E`}
-        preview={false}
-      />
+      <div
+        style={{
+          width,
+          height,
+          backgroundColor: config.color,
+          borderRadius: 4,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: width > 100 ? '32px' : '24px',
+          color: '#fff',
+        }}
+        title={media.file_name}
+      >
+        {config.icon}
+      </div>
     );
   };
 

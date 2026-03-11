@@ -29,6 +29,7 @@ import {
   deleteMedia,
   downloadMedia,
   retryConversion,
+  getThumbnail,
 } from '../api/media';
 
 const { Title } = Typography;
@@ -114,24 +115,45 @@ const MediaListPage: React.FC = () => {
       dataIndex: 'thumbnail_path',
       key: 'thumbnail',
       width: 120,
-      render: (path: string, record: MediaFile) => {
-        if (path) {
-          // 对 URL 路径进行编码，处理中文和特殊字符
-          const encodedPath = encodeURI(path);
-
+      render: (_path: string, record: MediaFile) => {
+        // 图片类型：显示缩略图，支持点击预览原图
+        if (record.file_type === 'image') {
+          const thumbnailUrl = getThumbnail(record.id);
+          const previewUrl = `/api/media/${record.id}/download`;
           return (
             <Image
-              src={encodedPath}
+              src={thumbnailUrl}
               alt={record.file_name}
               width={80}
               height={60}
               style={{ borderRadius: 4, objectFit: 'cover', cursor: 'pointer' }}
-              fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect fill='%23f0f0f0' width='80' height='60'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E无预览%3C/text%3E%3C/svg%3E"
-              preview={false}
+              fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect fill='%23f0f0f0' width='80' height='60'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载中%3C/text%3E%3C/svg%3E"
+              preview={{
+                src: previewUrl,
+              }}
             />
           );
         }
 
+        // PPT 类型：显示缩略图，点击预览缩略图大图
+        if (record.file_type === 'ppt') {
+          const thumbnailUrl = getThumbnail(record.id);
+          return (
+            <Image
+              src={thumbnailUrl}
+              alt={record.file_name}
+              width={80}
+              height={60}
+              style={{ borderRadius: 4, objectFit: 'cover', cursor: 'pointer' }}
+              fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect fill='%23f0f0f0' width='80' height='60'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载中%3C/text%3E%3C/svg%3E"
+              preview={{
+                src: thumbnailUrl,
+              }}
+            />
+          );
+        }
+
+        // 视频类型：显示图标（后端未生成缩略图）
         const typeConfig: Record<string, { color: string; icon: string }> = {
           image: { color: '#52c41a', icon: '🖼️' },
           video: { color: '#1890ff', icon: '🎬' },

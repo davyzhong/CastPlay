@@ -2,6 +2,13 @@
  * 播放器类型定义
  */
 
+// Android Bridge 回调接口
+export interface AndroidBridgeCallbacks {
+  onDownloadProgress?: (data: { playlist_id: number; completed: number; total: number; percent: number }) => void;
+  onDownloadCompleted?: (data: { playlist_id: number; success_count: number; failed_count: number }) => void;
+  onDownloadError?: (data: { playlist_id: number; error: string }) => void;
+}
+
 // Android Bridge 接口
 export interface AndroidBridge {
   getMacAddress(): string;
@@ -14,12 +21,19 @@ export interface AndroidBridge {
   getCachedMediaPath(mediaId: string): string;
   getLocalTimezone(): string;
   showToast(message: string): void;
+  // 播放列表下载接口
+  startPlaylistDownload(playlistId: string, mediaListJson: string): string;
+  getPlaylistCacheStatus(playlistId: string): string;
+  cancelPlaylistDownload(playlistId: string): boolean;
+  isPlaylistDownloading(playlistId: string): boolean;
+  reportSwitchComplete(playlistId: string, version: string): void;
 }
 
 // 扩展 Window 接口
 declare global {
   interface Window {
     AndroidBridge?: AndroidBridge;
+    AndroidBridgeCallbacks?: AndroidBridgeCallbacks;
   }
 }
 

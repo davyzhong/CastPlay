@@ -1,6 +1,7 @@
 /**
  * 播放端工具函数和 Hooks 单元测试
  */
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { DeviceIdManager } from '../utils/deviceId';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useHeartbeat, HEARTBEAT_INTERVAL_MS, HEARTBEAT_TIMEOUT_MS } from '../hooks/useHeartbeat';
@@ -8,21 +9,21 @@ import { usePlaylistVersionCheck } from '../hooks/usePlaylistVersionCheck';
 import axios from 'axios';
 
 // Mock axios
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+vi.mock('axios');
+const mockedAxios = vi.mocked(axios);
 
 // Mock localStorage
 const localStorageMock = (() => {
     let store: Record<string, string> = {};
     return {
-        getItem: jest.fn((key: string) => store[key] || null),
-        setItem: jest.fn((key: string, value: string) => {
+        getItem: vi.fn((key: string) => store[key] || null),
+        setItem: vi.fn((key: string, value: string) => {
             store[key] = value;
         }),
-        clear: jest.fn(() => {
+        clear: vi.fn(() => {
             store = {};
         }),
-        removeItem: jest.fn((key: string) => {
+        removeItem: vi.fn((key: string) => {
             delete store[key];
         })
     };
@@ -34,7 +35,7 @@ Object.defineProperty(window, 'localStorage', {
 
 // Mock crypto.randomUUID
 const mockUUID = '12345678-1234-4123-8234-123456789abc';
-const mockRandomUUID = jest.fn(() => mockUUID);
+const mockRandomUUID = vi.fn(() => mockUUID);
 Object.defineProperty(global.crypto, 'randomUUID', {
     value: mockRandomUUID,
     writable: true,
@@ -42,7 +43,7 @@ Object.defineProperty(global.crypto, 'randomUUID', {
 });
 
 // Mock sendBeacon
-const mockSendBeacon = jest.fn(() => true);
+const mockSendBeacon = vi.fn(() => true);
 Object.defineProperty(navigator, 'sendBeacon', {
     value: mockSendBeacon,
     writable: true,
@@ -50,11 +51,11 @@ Object.defineProperty(navigator, 'sendBeacon', {
 });
 
 // Mock setInterval and clearTimeout for faster tests
-jest.useFakeTimers();
+vi.useFakeTimers();
 
 describe('DeviceIdManager', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         localStorageMock.clear();
     });
 
@@ -140,37 +141,50 @@ describe('DeviceIdManager', () => {
 
 describe('useHeartbeat', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
-        mockedAxios.post.mockResolvedValue({ data: { acknowledged: true } });
+        vi.clearAllMocks();
+        mockedAxios.post.mockResolvedValue({ data: { acknowledged: true, server_time: '2026-03-12T00:00:00Z' } });
     });
 
     afterEach(() => {
-        jest.clearAllTimers();
+        vi.clearAllTimers();
     });
 
     it('应该在有 deviceId 时立即发送心跳', () => {
         const deviceId = 'test-device';
 
         renderHook(() =>
-            useHeartbeat(deviceId, 1, 100, 'playing')
+            useHeartbeat({
+                deviceId,
+                currentPlaylistId: 1,
+                currentPlaylistVersion: 'v1',
+                lastMediaId: 100,
+                playbackStatus: 'playing'
+            })
         );
 
         expect(mockedAxios.post).toHaveBeenCalledTimes(1);
         expect(mockedAxios.post).toHaveBeenCalledWith(
             '/api/player/heartbeat',
-            {
+            expect.objectContaining({
                 device_id: deviceId,
                 current_playlist_id: 1,
+                current_playlist_version: 'v1',
                 last_media_id: 100,
                 status: 'playing'
-            },
+            }),
             { timeout: HEARTBEAT_TIMEOUT_MS }
         );
     });
 
     it('应该在无 deviceId 时不发送心跳', () => {
         renderHook(() =>
-            useHeartbeat(null, 1, 100, 'playing')
+            useHeartbeat({
+                deviceId: null,
+                currentPlaylistId: 1,
+                currentPlaylistVersion: 'v1',
+                lastMediaId: 100,
+                playbackStatus: 'playing'
+            })
         );
 
         expect(mockedAxios.post).not.toHaveBeenCalled();
@@ -180,11 +194,17 @@ describe('useHeartbeat', () => {
         const deviceId = 'test-device';
 
         renderHook(() =>
-            useHeartbeat(deviceId, 1, 100, 'playing')
+            useHeartbeat({
+                deviceId,
+                currentPlaylistId: 1,
+                currentPlaylistVersion: 'v1',
+                lastMediaId: 100,
+                playbackStatus: 'playing'
+            })
         );
 
         // 快进 2 小时
-        jest.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
+        vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
 
         // 初始 1 次 + 定时 1 次 = 2 次
         expect(mockedAxios.post).toHaveBeenCalledTimes(2);
@@ -194,24 +214,31 @@ describe('useHeartbeat', () => {
         const deviceId = 'test-device';
 
         const { rerender } = renderHook(
-            ({ playlistId, mediaId, status }) =>
-                useHeartbeat(deviceId, playlistId, mediaId, status),
+            ({ playlistId, playlistVersion, mediaId, status }) =>
+                useHeartbeat({
+                    deviceId,
+                    currentPlaylistId: playlistId,
+                    currentPlaylistVersion: playlistVersion,
+                    lastMediaId: mediaId,
+                    playbackStatus: status
+                }),
             {
-                initialProps: { playlistId: 1, mediaId: 100, status: 'playing' }
+                initialProps: { playlistId: 1, playlistVersion: 'v1', mediaId: 100, status: 'playing' }
             }
         );
 
         // 更新依赖
-        rerender({ playlistId: 2, mediaId: 200, status: 'paused' });
+        rerender({ playlistId: 2, playlistVersion: 'v2', mediaId: 200, status: 'paused' });
 
         // 清除定时器后重新计时
-        jest.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
+        vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
 
         // 验证新的参数被使用
         expect(mockedAxios.post).toHaveBeenCalledWith(
             '/api/player/heartbeat',
             expect.objectContaining({
                 current_playlist_id: 2,
+                current_playlist_version: 'v2',
                 last_media_id: 200,
                 status: 'paused'
             }),
@@ -223,7 +250,13 @@ describe('useHeartbeat', () => {
         const deviceId = 'test-device';
 
         renderHook(() =>
-            useHeartbeat(deviceId, 1, 100, 'playing')
+            useHeartbeat({
+                deviceId,
+                currentPlaylistId: 1,
+                currentPlaylistVersion: 'v1',
+                lastMediaId: 100,
+                playbackStatus: 'playing'
+            })
         );
 
         // 模拟 beforeunload 事件
@@ -238,13 +271,19 @@ describe('useHeartbeat', () => {
 
     it('应该在心跳失败时静默处理不抛出异常', async () => {
         mockedAxios.post.mockRejectedValue(new Error('Network error'));
-        const consoleSpy = jest.spyOn(console, 'debug').mockImplementation();
+        const consoleSpy = vi.spyOn(console, 'debug').mockImplementation();
 
         const deviceId = 'test-device';
 
         expect(() => {
             renderHook(() =>
-                useHeartbeat(deviceId, 1, 100, 'playing')
+                useHeartbeat({
+                    deviceId,
+                    currentPlaylistId: 1,
+                    currentPlaylistVersion: 'v1',
+                    lastMediaId: 100,
+                    playbackStatus: 'playing'
+                })
             );
         }).not.toThrow();
 
@@ -262,12 +301,12 @@ describe('useHeartbeat', () => {
 
 describe('usePlaylistVersionCheck', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         mockedAxios.post.mockResolvedValue({ data: { needs_update: false } });
     });
 
     afterEach(() => {
-        jest.clearAllTimers();
+        vi.clearAllTimers();
     });
 
     it('应该在启动时立即检查版本', () => {
@@ -313,7 +352,7 @@ describe('usePlaylistVersionCheck', () => {
         );
 
         // 快进 30 分钟
-        jest.advanceTimersByTime(30 * 60 * 1000);
+        vi.advanceTimersByTime(30 * 60 * 1000);
 
         // 初始 1 次 + 定时 1 次 = 2 次
         expect(mockedAxios.post).toHaveBeenCalledTimes(2);
@@ -347,7 +386,7 @@ describe('usePlaylistVersionCheck', () => {
 
     it('应该在版本检查失败时静默处理', async () => {
         mockedAxios.post.mockRejectedValue(new Error('Network error'));
-        const consoleSpy = jest.spyOn(console, 'debug').mockImplementation();
+        const consoleSpy = vi.spyOn(console, 'debug').mockImplementation();
 
         expect(() => {
             renderHook(() =>

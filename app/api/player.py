@@ -497,9 +497,11 @@ class HeartbeatRequest(BaseModel):
     device_type: Optional[str] = Field(
         "web_browser", description="设备类型：android_tv | web_browser")
     current_playlist_id: Optional[int] = Field(None, description="当前播放列表 ID")
+    current_playlist_version: Optional[str] = Field(None, description="当前播放列表版本号")
     last_media_id: Optional[int] = Field(None, description="最后播放的媒体 ID")
     status: str = Field(default="playing",
                         description="播放状态：playing | idle | paused")
+    download_status: Optional[dict] = Field(None, description="下载状态（可选）")
 
 
 class VersionCheckRequest(BaseModel):
@@ -724,7 +726,12 @@ async def player_heartbeat(
             )
 
         # 检查是否有播放列表更新需要推送
-        playlist_update = await check_playlist_update(db, request.device_id, request.current_playlist_id)
+        playlist_update = await check_playlist_update(
+            db,
+            request.device_id,
+            request.current_playlist_id,
+            request.current_playlist_version
+        )
 
         return {
             "acknowledged": True,
@@ -748,63 +755,125 @@ async def player_heartbeat(
 async def check_playlist_update(
     db: Session,
     device_id: str,
-    current_playlist_id: Optional[int]
+    current_playlist_id: Optional[int],
+    current_playlist_version: Optional[str] = None
 ) -> Optional[dict]:
     """
-    检查是否有播放列表更新需要推送（P1-3 修复：添加缓存）
+    检查是否有播放列表更新需要推送
 
-    查询是否有该设备的下载任务，如果有且状态为 completed，则返回更新信息
+    两种检查方式：
+    1. 版本比对：如果播放端上报了版本号，与服务端版本比对
+    2. 下载任务检查：检查是否有已完成的下载任务
+
     使用内存缓存减少数据库查询频率（5 分钟有效期）
     """
     import time
 
-    # P1-3 修复：检查缓存
-    if device_id in _playlist_update_cache:
-        cached_result, cache_time = _playlist_update_cache[device_id]
+    # 获取设备记录
+    device = db.query(Device).filter(Device.device_id == device_id).first()
+    if not device:
+        return None
+
+    # 方式 1：版本比对（优先）
+    # 检查设备分配的激活播放列表
+    active_assignment = db.query(DevicePlaylist).filter(
+        DevicePlaylist.device_id == device.id,
+        DevicePlaylist.is_active == True
+    ).first()
+
+    if active_assignment:
+        playlist = db.query(Playlist).filter(
+            Playlist.id == active_assignment.playlist_id
+        ).first()
+
+        if playlist:
+            server_version = playlist.updated_at.isoformat() + "Z" if playlist.updated_at else None
+
+            # 版本比对
+            if current_playlist_version and server_version:
+                if server_version != current_playlist_version:
+                    # 版本不一致，需要更新
+                    items_count = db.query(PlaylistItem).filter(
+                        PlaylistItem.playlist_id == playlist.id
+                    ).count()
+
+                    logger.info(
+                        f"Playlist version mismatch for device {device_id}: "
+                        f"local={current_playlist_version}, server={server_version}"
+                    )
+
+                    return {
+                        "action": "switch",
+                        "playlist_id": playlist.id,
+                        "playlist_name": playlist.name,
+                        "version": server_version,
+                        "media_count": items_count,
+                        "priority": "normal",
+                        "switch_policy": {
+                            "mode": "after_download",
+                            "min_ready_ratio": 0.8,
+                            "download_timeout_ms": 1800000  # 30 分钟
+                        }
+                    }
+
+            # 播放列表 ID 变化（新分配了不同的播放列表）
+            if current_playlist_id is None or current_playlist_id != playlist.id:
+                items_count = db.query(PlaylistItem).filter(
+                    PlaylistItem.playlist_id == playlist.id
+                ).count()
+
+                logger.info(
+                    f"Playlist assignment changed for device {device_id}: "
+                    f"local={current_playlist_id}, server={playlist.id}"
+                )
+
+                return {
+                    "action": "switch",
+                    "playlist_id": playlist.id,
+                    "playlist_name": playlist.name,
+                    "version": server_version,
+                    "media_count": items_count,
+                    "priority": "high",
+                    "switch_policy": {
+                        "mode": "after_download",
+                        "min_ready_ratio": 0.8,
+                        "download_timeout_ms": 1800000
+                    }
+                }
+
+    # 方式 2：检查缓存（兜底）
+    cache_key = f"{device_id}:{current_playlist_id}:{current_playlist_version}"
+    if cache_key in _playlist_update_cache:
+        cached_result, cache_time = _playlist_update_cache[cache_key]
         if time.time() - cache_time < _PLAYLIST_UPDATE_CACHE_TTL:
-            logger.debug(f"Cache hit for device {device_id}")
             return cached_result
 
-    # 缓存未命中，查询数据库
-    logger.debug(f"Cache miss for device {device_id}, querying database")
-
-    # 查询已完成的下载任务
+    # 方式 3：检查已完成的下载任务
     task = db.query(PlaylistDownloadTask).filter(
         PlaylistDownloadTask.device_id == device_id,
         PlaylistDownloadTask.status == 'completed'
     ).first()
 
-    if not task:
-        # 缓存空结果，避免频繁查询
-        result = None
-        _playlist_update_cache[device_id] = (result, time.time())
-        return None
+    if task:
+        playlist = db.query(Playlist).filter(
+            Playlist.id == task.playlist_id
+        ).first()
+        if playlist:
+            items = db.query(PlaylistItem).filter(
+                PlaylistItem.playlist_id == playlist.id
+            ).all()
 
-    # 获取播放列表信息
-    playlist = db.query(Playlist).filter(
-        Playlist.id == task.playlist_id).first()
-    if not playlist:
-        result = None
-        _playlist_update_cache[device_id] = (result, time.time())
-        return None
+            result = {
+                "action": "check",
+                "playlist_id": playlist.id,
+                "playlist_name": playlist.name,
+                "version": playlist.updated_at.isoformat() + "Z" if playlist.updated_at else None,
+                "media_count": len(items)
+            }
+            _playlist_update_cache[cache_key] = (result, time.time())
+            return result
 
-    # 统计媒体数量
-    items = db.query(PlaylistItem).filter(
-        PlaylistItem.playlist_id == playlist.id
-    ).all()
-
-    result = {
-        "has_update": True,
-        "playlist_id": playlist.id,
-        "version": playlist.updated_at.isoformat() + "Z" if playlist.updated_at else None,
-        "media_count": len(items),
-        "name": playlist.name
-    }
-
-    # 更新缓存
-    _playlist_update_cache[device_id] = (result, time.time())
-
-    return result
+    return None
 
 
 @router.get(

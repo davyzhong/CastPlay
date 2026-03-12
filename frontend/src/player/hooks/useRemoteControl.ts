@@ -16,14 +16,28 @@ export type ControlAction =
     | 'prev'
     | 'switch_playlist';
 
+// 播放列表更新信息
+export interface PlaylistUpdateData {
+    playlist_id: number;
+    playlist_name: string;
+    version: string;
+    action: string;
+    item_count?: number;
+    total_size?: number;
+    priority?: 'high' | 'normal' | 'low';
+    changes?: Record<string, unknown>;
+}
+
 // WebSocket 消息类型
 interface WebSocketMessage {
-    event: string;
+    type: string;
+    event?: string;
     action?: ControlAction;
     volume?: number;
     position?: number;
     playlist_id?: number;
     timestamp: string;
+    data?: PlaylistUpdateData | Record<string, unknown>;
 }
 
 // 控制回调接口
@@ -36,6 +50,11 @@ export interface ControlCallbacks {
     onNext: () => void;
     onPrev: () => void;
     onSwitchPlaylist: (playlistId: number) => void;
+    // 新增：播放列表变更回调
+    onPlaylistAssigned?: (data: PlaylistUpdateData) => void;
+    onPlaylistUpdated?: (data: PlaylistUpdateData) => void;
+    onPlaylistRemoved?: (playlistId: number) => void;
+    onForceSync?: () => void;
 }
 
 // 配置
@@ -67,23 +86,58 @@ export const useRemoteControl = (
         try {
             const message: WebSocketMessage = JSON.parse(event.data);
 
-            if (message.event === 'control' && message.action) {
-                handleControlMessage(message);
-            } else if (message.event === 'playlist_update') {
-                // 播放列表更新通知
-                console.log('[RemoteControl] Playlist update received');
-                callbacks.onReload();
-            } else if (message.event === 'schedule_update') {
-                // 定时配置更新通知
-                console.log('[RemoteControl] Schedule update received');
-            } else if (message.event === 'force_sync') {
-                // 强制同步通知
-                console.log('[RemoteControl] Force sync received');
-                callbacks.onReload();
-            } else if (message.event === 'reboot') {
-                // 重启指令
-                console.log('[RemoteControl] Reboot command received');
-                window.location.reload();
+            // 统一消息格式：支持 type 和 event 两种格式
+            const msgType = message.type || message.event;
+
+            switch (msgType) {
+                case 'control':
+                    if (message.action) {
+                        handleControlMessage(message);
+                    }
+                    break;
+
+                case 'playlist_assigned':
+                    console.log('[RemoteControl] Playlist assigned:', message.data);
+                    if (message.data && callbacks.onPlaylistAssigned) {
+                        callbacks.onPlaylistAssigned(message.data as PlaylistUpdateData);
+                    }
+                    break;
+
+                case 'playlist_updated':
+                    console.log('[RemoteControl] Playlist updated:', message.data);
+                    if (message.data && callbacks.onPlaylistUpdated) {
+                        callbacks.onPlaylistUpdated(message.data as PlaylistUpdateData);
+                    }
+                    break;
+
+                case 'playlist_removed':
+                    console.log('[RemoteControl] Playlist removed:', message.data);
+                    if (message.data && callbacks.onPlaylistRemoved) {
+                        callbacks.onPlaylistRemoved((message.data as { playlist_id: number }).playlist_id);
+                    }
+                    break;
+
+                case 'playlist_update':
+                case 'force_sync':
+                    console.log('[RemoteControl] Force sync received');
+                    if (callbacks.onForceSync) {
+                        callbacks.onForceSync();
+                    } else {
+                        callbacks.onReload();
+                    }
+                    break;
+
+                case 'schedule_update':
+                    console.log('[RemoteControl] Schedule update received');
+                    break;
+
+                case 'reboot':
+                    console.log('[RemoteControl] Reboot command received');
+                    window.location.reload();
+                    break;
+
+                default:
+                    console.debug('[RemoteControl] Unknown message type:', msgType);
             }
         } catch (error) {
             console.error('[RemoteControl] Failed to parse message:', error);

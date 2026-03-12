@@ -69,12 +69,13 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
   const currentItem = currentItems[currentIndex] || null;
 
   // 心跳上报（使用 2 小时间隔的 useHeartbeat hook）
-  useHeartbeat(
-    deviceInfo?.device_id || null,
-    currentPlaylist?.id || null,
-    currentItem?.media_id || null,
-    isPlaying ? 'playing' : 'idle'
-  );
+  useHeartbeat({
+    deviceId: deviceInfo?.device_id || null,
+    currentPlaylistId: currentPlaylist?.id || null,
+    currentPlaylistVersion: currentPlaylist?.version || null,
+    lastMediaId: currentItem?.media_id || null,
+    playbackStatus: isPlaying ? 'playing' : 'idle'
+  });
 
   // 更新外部状态
   useEffect(() => {

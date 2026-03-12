@@ -154,4 +154,146 @@ class JsBridge(private val context: Context) {
         // 开发环境使用端口 8000
         return "http://10.0.2.2:8000"
     }
+
+    // ==================== 播放列表下载接口 ====================
+
+    /**
+     * 开始播放列表下载
+     *
+     * @param playlistId 播放列表 ID
+     * @param mediaListJson 媒体列表 JSON（数组格式）
+     * @return 请求 ID
+     */
+    @JavascriptInterface
+    fun startPlaylistDownload(playlistId: String, mediaListJson: String): String {
+        val requestId = java.util.UUID.randomUUID().toString()
+
+        try {
+            // 解析媒体列表
+            val jsonArray = org.json.JSONArray(mediaListJson)
+            val mediaList = mutableListOf<CacheManager.MediaItemInfo>()
+
+            for (i in 0 until jsonArray.length()) {
+                val item = jsonArray.getJSONObject(i)
+                val mediaItem = CacheManager.MediaItemInfo(
+                    id = item.optLong("id", item.optLong("media_id", 0)),
+                    url = item.getString("file_url"),
+                    fileName = item.optString("file_name", null),
+                    fileSize = if (item.has("file_size")) item.getLong("file_size") else null,
+                    md5Hash = item.optString("md5_hash", null)
+                )
+                mediaList.add(mediaItem)
+            }
+
+            // 保存播放列表媒体 ID 映射
+            val mediaIds = mediaList.map { it.id.toString() }
+            CacheManager.getInstance(context).savePlaylistMediaIds(
+                playlistId.toLong(),
+                mediaIds
+            )
+
+            // 开始下载
+            CacheManager.getInstance(context).downloadPlaylist(
+                playlistId.toLong(),
+                mediaList,
+                object : CacheManager.PlaylistDownloadCallback {
+                    override fun onProgress(playlistId: Long, completed: Int, total: Int, percent: Int) {
+                        notifyWebView("onDownloadProgress", org.json.JSONObject().apply {
+                            put("playlist_id", playlistId)
+                            put("completed", completed)
+                            put("total", total)
+                            put("percent", percent)
+                        }.toString())
+                    }
+
+                    override fun onCompleted(playlistId: Long, successCount: Int, failedCount: Int) {
+                        notifyWebView("onDownloadCompleted", org.json.JSONObject().apply {
+                            put("playlist_id", playlistId)
+                            put("success_count", successCount)
+                            put("failed_count", failedCount)
+                        }.toString())
+                    }
+
+                    override fun onError(playlistId: Long, error: String) {
+                        notifyWebView("onDownloadError", org.json.JSONObject().apply {
+                            put("playlist_id", playlistId)
+                            put("error", error)
+                        }.toString())
+                    }
+                }
+            )
+
+            return requestId
+        } catch (e: Exception) {
+            android.util.Log.e("JsBridge", "Failed to start playlist download", e)
+            return "error: ${e.message}"
+        }
+    }
+
+    /**
+     * 获取播放列表缓存状态
+     *
+     * @param playlistId 播放列表 ID
+     * @return JSON 格式的状态信息
+     */
+    @JavascriptInterface
+    fun getPlaylistCacheStatus(playlistId: String): String {
+        val status = CacheManager.getInstance(context).getPlaylistCacheStatus(playlistId.toLong())
+        return status.toJson()
+    }
+
+    /**
+     * 取消播放列表下载
+     *
+     * @param playlistId 播放列表 ID
+     * @return 是否成功取消
+     */
+    @JavascriptInterface
+    fun cancelPlaylistDownload(playlistId: String): Boolean {
+        return CacheManager.getInstance(context).cancelPlaylistDownload(playlistId.toLong())
+    }
+
+    /**
+     * 检查播放列表是否正在下载
+     *
+     * @param playlistId 播放列表 ID
+     * @return 是否正在下载
+     */
+    @JavascriptInterface
+    fun isPlaylistDownloading(playlistId: String): Boolean {
+        return CacheManager.getInstance(context).isPlaylistDownloading(playlistId.toLong())
+    }
+
+    /**
+     * 报告播放列表切换完成
+     *
+     * @param playlistId 播放列表 ID
+     * @param version 版本号
+     */
+    @JavascriptInterface
+    fun reportSwitchComplete(playlistId: String, version: String) {
+        // 记录切换完成
+        val prefs = context.getSharedPreferences("playlist_switch", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("current_playlist_id", playlistId)
+            .putString("current_version", version)
+            .putLong("switch_time", System.currentTimeMillis())
+            .apply()
+
+        android.util.Log.d("JsBridge", "Playlist switch completed: $playlistId v$version")
+    }
+
+    /**
+     * 通知 WebView
+     */
+    private fun notifyWebView(event: String, data: String) {
+        (context as? MainActivity)?.runOnUiThread {
+            try {
+                val js = "window.AndroidBridgeCallbacks?.$event?.($data)"
+                (context as? MainActivity)?.webView?.evaluateJavascript(js, null)
+            } catch (e: Exception) {
+                android.util.Log.e("JsBridge", "Failed to notify WebView", e)
+            }
+        }
+    }
 }

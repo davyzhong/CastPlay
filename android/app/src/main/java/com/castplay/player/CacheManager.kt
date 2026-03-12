@@ -742,6 +742,341 @@ class CacheManager private constructor(private val context: Context) {
         val lastModified: Long
     )
 
+    // ==================== 播放列表批量下载 ====================
+
+    /**
+     * 播放列表下载回调
+     */
+    interface PlaylistDownloadCallback {
+        fun onProgress(playlistId: Long, completed: Int, total: Int, percent: Int)
+        fun onCompleted(playlistId: Long, successCount: Int, failedCount: Int)
+        fun onError(playlistId: Long, error: String)
+    }
+
+    // 活动的播放列表下载
+    private val activePlaylistDownloads = ConcurrentHashMap<Long, PlaylistDownloadJob>()
+
+    /**
+     * 媒体项信息
+     */
+    data class MediaItemInfo(
+        val id: Long,
+        val url: String,
+        val fileName: String? = null,
+        val fileSize: Long? = null,
+        val md5Hash: String? = null
+    )
+
+    /**
+     * 播放列表下载任务
+     */
+    private inner class PlaylistDownloadJob(
+        private val playlistId: Long,
+        private val mediaList: List<MediaItemInfo>,
+        private val callback: PlaylistDownloadCallback
+    ) {
+        @Volatile private var cancelled = false
+        private val completed = java.util.concurrent.atomic.AtomicInteger(0)
+        private val failed = java.util.concurrent.atomic.AtomicInteger(0)
+        private val semaphore = java.util.concurrent.Semaphore(3) // 最多 3 个并发
+
+        fun execute() {
+            val total = mediaList.size
+            val latch = java.util.concurrent.CountDownLatch(total)
+
+            for (media in mediaList) {
+                if (cancelled) break
+
+                ioExecutor.execute {
+                    semaphore.acquire()
+                    try {
+                        if (!cancelled) {
+                            val success = downloadSingleMediaWithRetry(media)
+                            if (success) {
+                                completed.incrementAndGet()
+                            } else {
+                                failed.incrementAndGet()
+                            }
+                        }
+                    } finally {
+                        semaphore.release()
+                        latch.countDown()
+
+                        // 回调进度
+                        val currentCompleted = completed.get()
+                        val currentFailed = failed.get()
+                        val percent = ((currentCompleted + currentFailed) * 100 / total)
+                        callback.onProgress(playlistId, currentCompleted, total, percent)
+                    }
+                }
+            }
+
+            // 等待所有下载完成（最长 30 分钟）
+            latch.await(30, java.util.concurrent.TimeUnit.MINUTES)
+
+            // 回调完成
+            if (cancelled) {
+                callback.onError(playlistId, "Download cancelled")
+            } else {
+                callback.onCompleted(playlistId, completed.get(), failed.get())
+            }
+
+            activePlaylistDownloads.remove(playlistId)
+        }
+
+        private fun downloadSingleMediaWithRetry(media: MediaItemInfo): Boolean {
+            var lastError: String? = null
+
+            for (retry in 0..MAX_RETRY_COUNT) {
+                if (cancelled) return false
+
+                try {
+                    // 检查是否已缓存
+                    if (isMediaCached(media.id.toString())) {
+                        // 验证 MD5
+                        if (media.md5Hash != null) {
+                            val path = getCachedMediaPath(media.id.toString())
+                            if (path.isNotEmpty() && verifyMd5(path, media.md5Hash)) {
+                                return true
+                            } else {
+                                deleteCachedMedia(media.id.toString())
+                            }
+                        } else {
+                            return true
+                        }
+                    }
+
+                    // 使用现有的下载逻辑
+                    return downloadMediaWithRetryInternal(media.url, media.id.toString(), media.md5Hash)
+                } catch (e: Exception) {
+                    lastError = e.message
+                    Log.w(TAG, "Download retry $retry for media ${media.id}: ${e.message}")
+
+                    if (retry < MAX_RETRY_COUNT) {
+                        val delay = min(INITIAL_RETRY_DELAY_MS * (1 shl retry), MAX_RETRY_DELAY_MS)
+                        Thread.sleep(delay)
+                    }
+                }
+            }
+
+            Log.e(TAG, "Download failed after $MAX_RETRY_COUNT retries for media ${media.id}: $lastError")
+            return false
+        }
+
+        fun cancel() {
+            cancelled = true
+        }
+    }
+
+    /**
+     * 下载单个媒体文件（带重试，内部方法）
+     */
+    private fun downloadMediaWithRetryInternal(url: String, mediaId: String, md5Hash: String? = null): Boolean {
+        val targetFile = File(mediaCacheDir, mediaId)
+
+        // 如果存在部分下载的文件，删除它
+        if (targetFile.exists()) {
+            targetFile.delete()
+        }
+
+        // 使用 OkHttp 或系统下载管理器
+        // 这里简化为同步下载
+        return try {
+            val request = DownloadManager.Request(Uri.parse(url))
+                .setTitle("CastPlay Media $mediaId")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN)
+                .setDestinationUri(Uri.fromFile(targetFile))
+                .setAllowedOverMetered(true)
+                .setRequiresDeviceIdle(false)
+                .setRequiresCharging(false)
+
+            val downloadId = downloadManager.enqueue(request)
+            downloadIds[mediaId] = downloadId
+
+            // 等待下载完成
+            var completed = false
+            var success = false
+            val startTime = System.currentTimeMillis()
+            val timeout = 5 * 60 * 1000L // 5 分钟超时
+
+            while (!completed && !cancelled && System.currentTimeMillis() - startTime < timeout) {
+                val query = DownloadManager.Query().setFilterById(downloadId)
+                val cursor: Cursor? = downloadManager.query(query)
+
+                cursor?.use {
+                    if (cursor.moveToFirst()) {
+                        val status = cursor.getInt(
+                            cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)
+                        )
+
+                        when (status) {
+                            DownloadManager.STATUS_SUCCESSFUL -> {
+                                completed = true
+                                success = true
+
+                                // MD5 校验
+                                if (md5Hash != null && !verifyMd5(targetFile.absolutePath, md5Hash)) {
+                                    targetFile.delete()
+                                    success = false
+                                }
+
+                                if (success) {
+                                    saveCachedMedia(mediaId, Uri.fromFile(targetFile).toString())
+                                }
+                            }
+                            DownloadManager.STATUS_FAILED -> {
+                                completed = true
+                                success = false
+                            }
+                        }
+                    }
+                }
+
+                if (!completed) {
+                    Thread.sleep(500)
+                }
+            }
+
+            downloadIds.remove(mediaId)
+            success
+        } catch (e: Exception) {
+            Log.e(TAG, "Download failed for $mediaId", e)
+            false
+        }
+    }
+
+    /**
+     * 开始播放列表下载
+     */
+    fun downloadPlaylist(
+        playlistId: Long,
+        mediaList: List<MediaItemInfo>,
+        callback: PlaylistDownloadCallback
+    ) {
+        // 取消该播放列表的现有下载
+        cancelPlaylistDownload(playlistId)
+
+        val job = PlaylistDownloadJob(playlistId, mediaList, callback)
+        activePlaylistDownloads[playlistId] = job
+
+        ioExecutor.execute {
+            job.execute()
+        }
+    }
+
+    /**
+     * 获取播放列表缓存状态
+     */
+    fun getPlaylistCacheStatus(playlistId: Long): PlaylistCacheStatus {
+        // 获取与该播放列表相关的媒体 ID 列表
+        val mediaIds = getPlaylistMediaIds(playlistId)
+        var cachedCount = 0
+        var totalSize = 0L
+        var cachedSize = 0L
+
+        for (mediaId in mediaIds) {
+            val info = getMediaCacheInfoInternal(mediaId)
+            totalSize += info.totalSize
+            if (info.isCached) {
+                cachedCount++
+                cachedSize += info.cachedSize
+            }
+        }
+
+        return PlaylistCacheStatus(
+            playlistId = playlistId,
+            totalFiles = mediaIds.size,
+            cachedFiles = cachedCount,
+            totalSize = totalSize,
+            cachedSize = cachedSize,
+            isReady = cachedCount == mediaIds.size
+        )
+    }
+
+    /**
+     * 获取播放列表媒体 ID 列表（从 SharedPreferences 恢复）
+     */
+    private fun getPlaylistMediaIds(playlistId: Long): List<String> {
+        val key = "playlist_media_$playlistId"
+        val mediaIdsStr = prefs.getString(key, "") ?: ""
+        return if (mediaIdsStr.isNotEmpty()) mediaIdsStr.split(",") else emptyList()
+    }
+
+    /**
+     * 保存播放列表媒体 ID 列表
+     */
+    fun savePlaylistMediaIds(playlistId: Long, mediaIds: List<String>) {
+        val key = "playlist_media_$playlistId"
+        prefs.edit().putString(key, mediaIds.joinToString(",")).apply()
+    }
+
+    /**
+     * 获取媒体缓存信息（内部方法）
+     */
+    private fun getMediaCacheInfoInternal(mediaId: String): MediaCacheInfo {
+        val isCached = prefs.getBoolean("cached_$mediaId", false)
+        val path = if (isCached) prefs.getString("path_$mediaId", null) else null
+
+        val file = if (path != null) File(Uri.parse(path).path ?: "") else null
+        val fileSize = file?.length() ?: 0L
+
+        return MediaCacheInfo(
+            mediaId = mediaId,
+            isCached = isCached && (file?.exists() == true),
+            cachedSize = if (isCached && file?.exists() == true) fileSize else 0L,
+            totalSize = fileSize
+        )
+    }
+
+    /**
+     * 媒体缓存信息
+     */
+    data class MediaCacheInfo(
+        val mediaId: String,
+        val isCached: Boolean,
+        val cachedSize: Long,
+        val totalSize: Long
+    )
+
+    /**
+     * 播放列表缓存状态
+     */
+    data class PlaylistCacheStatus(
+        val playlistId: Long,
+        val totalFiles: Int,
+        val cachedFiles: Int,
+        val totalSize: Long,
+        val cachedSize: Long,
+        val isReady: Boolean
+    ) {
+        fun toJson(): String {
+            return org.json.JSONObject().apply {
+                put("playlist_id", playlistId)
+                put("total_files", totalFiles)
+                put("cached_files", cachedFiles)
+                put("total_size", totalSize)
+                put("cached_size", cachedSize)
+                put("is_ready", isReady)
+            }.toString()
+        }
+    }
+
+    /**
+     * 取消播放列表下载
+     */
+    fun cancelPlaylistDownload(playlistId: Long): Boolean {
+        val job = activePlaylistDownloads.remove(playlistId)
+        job?.cancel()
+        return job != null
+    }
+
+    /**
+     * 检查播放列表下载是否正在进行
+     */
+    fun isPlaylistDownloading(playlistId: Long): Boolean {
+        return activePlaylistDownloads.containsKey(playlistId)
+    }
+
     /**
      * P0-2 修复：销毁时注销广播接收器，防止内存泄漏
      */

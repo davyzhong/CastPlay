@@ -34,12 +34,13 @@ const PlayerPage: React.FC = () => {
   const currentItem = items[currentIndex] || null;
 
   // 心跳上报
-  useHeartbeat(
-    deviceInfo?.device_id || null,
-    currentPlaylist?.id || null,
-    currentItem?.media_id || null,
-    isPlaying ? 'playing' : 'idle'
-  );
+  useHeartbeat({
+    deviceId: deviceInfo?.device_id || null,
+    currentPlaylistId: currentPlaylist?.id || null,
+    currentPlaylistVersion: currentPlaylist?.version || null,
+    lastMediaId: currentItem?.media_id || null,
+    playbackStatus: isPlaying ? 'playing' : 'idle'
+  });
 
   // 调试信息
   useEffect(() => {

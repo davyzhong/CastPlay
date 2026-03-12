@@ -1,6 +1,7 @@
 /**
  * 心跳上报 Hook
  * 每 2 小时上报一次播放端状态
+ * 支持版本比对，检测播放列表更新
  */
 import { useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
@@ -12,16 +13,61 @@ export const HEARTBEAT_TIMEOUT_MS = 5000; // 5 秒超时
 interface HeartbeatData {
     device_id: string;
     current_playlist_id: number | null;
+    current_playlist_version: string | null;
     last_media_id: number | null;
     status: 'playing' | 'idle' | 'paused';
+    download_status?: DownloadStatus;
 }
 
-export const useHeartbeat = (
-    deviceId: string | null,
-    currentPlaylistId: number | null,
-    lastMediaId: number | null,
-    playbackStatus: 'playing' | 'idle' | 'paused'
-) => {
+interface DownloadStatus {
+    playlist_id: number;
+    status: 'pending' | 'downloading' | 'completed' | 'failed';
+    progress: number;
+    completed_files: number;
+    total_files: number;
+}
+
+interface PlaylistUpdateInfo {
+    action: 'switch' | 'check';
+    playlist_id: number;
+    playlist_name: string;
+    version: string;
+    media_count: number;
+    priority?: 'high' | 'normal' | 'low';
+    switch_policy?: {
+        mode: string;
+        min_ready_ratio: number;
+        download_timeout_ms: number;
+    };
+}
+
+interface HeartbeatResponse {
+    acknowledged: boolean;
+    server_time: string;
+    playlist_update: PlaylistUpdateInfo | null;
+}
+
+interface UseHeartbeatOptions {
+    deviceId: string | null;
+    currentPlaylistId: number | null;
+    currentPlaylistVersion: string | null;
+    lastMediaId: number | null;
+    playbackStatus: 'playing' | 'idle' | 'paused';
+    downloadStatus?: DownloadStatus;
+    onPlaylistUpdate?: (update: PlaylistUpdateInfo) => void;
+}
+
+export const useHeartbeat = (options: UseHeartbeatOptions) => {
+    const {
+        deviceId,
+        currentPlaylistId,
+        currentPlaylistVersion,
+        lastMediaId,
+        playbackStatus,
+        downloadStatus,
+        onPlaylistUpdate
+    } = options;
+
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
     /**
@@ -33,20 +79,29 @@ export const useHeartbeat = (
         const payload: HeartbeatData = {
             device_id: deviceId,
             current_playlist_id: currentPlaylistId,
+            current_playlist_version: currentPlaylistVersion,
             last_media_id: lastMediaId,
-            status: playbackStatus
+            status: playbackStatus,
+            ...(downloadStatus && { download_status: downloadStatus })
         };
 
         try {
-            await axios.post('/api/player/heartbeat', payload, {
+            const response = await axios.post<HeartbeatResponse>('/api/player/heartbeat', payload, {
                 timeout: HEARTBEAT_TIMEOUT_MS
             });
+
             console.log('Heartbeat sent successfully');
+
+            // 检查是否有播放列表更新
+            if (response.data.playlist_update && onPlaylistUpdate) {
+                console.log('Playlist update detected:', response.data.playlist_update);
+                onPlaylistUpdate(response.data.playlist_update);
+            }
         } catch (error) {
             // 静默失败，不影响播放
             console.debug('Heartbeat failed (offline):', error);
         }
-    }, [deviceId, currentPlaylistId, lastMediaId, playbackStatus]);
+    }, [deviceId, currentPlaylistId, currentPlaylistVersion, lastMediaId, playbackStatus, downloadStatus, onPlaylistUpdate]);
 
     // 启动定时任务
     useEffect(() => {
@@ -72,6 +127,8 @@ export const useHeartbeat = (
                 // 使用 sendBeacon 确保离线也能发送
                 const blob = new Blob([JSON.stringify({
                     device_id: deviceId,
+                    current_playlist_id: currentPlaylistId,
+                    current_playlist_version: currentPlaylistVersion,
                     status: 'offline'
                 })], { type: 'application/json' });
                 navigator.sendBeacon('/api/player/heartbeat', blob);
@@ -80,5 +137,5 @@ export const useHeartbeat = (
 
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [deviceId]);
+    }, [deviceId, currentPlaylistId, currentPlaylistVersion]);
 };

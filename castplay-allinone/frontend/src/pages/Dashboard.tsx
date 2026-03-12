@@ -17,6 +17,7 @@ import {
   Avatar,
   Empty,
   Spin,
+  Image,
 } from 'antd';
 import {
   DatabaseOutlined,
@@ -31,7 +32,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { getDeviceList } from '../api/device';
-import { getMediaList } from '../api/media';
+import { getMediaList, getThumbnail } from '../api/media';
 import { getPlaylistList } from '../api/playlist';
 import type { Device, MediaFile, Playlist } from '../types';
 
@@ -334,18 +335,38 @@ const DashboardPage: React.FC = () => {
                   <List.Item>
                     <List.Item.Meta
                       avatar={
-                        item.thumbnail_path ? (
-                          <Avatar
-                            shape="square"
-                            size={48}
-                            src={item.thumbnail_path}
-                            icon={getMediaIcon(item.file_type)}
+                        // 图片类型：显示缩略图，支持点击预览原图
+                        item.file_type === 'image' ? (
+                          <Image
+                            src={getThumbnail(item.id)}
+                            alt={item.file_name}
+                            width={48}
+                            height={48}
+                            style={{ borderRadius: 4, objectFit: 'cover', cursor: 'pointer' }}
+                            fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect fill='%23f0f0f0' width='48' height='48'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='10'%3E加载中%3C/text%3E%3C/svg%3E"
+                            preview={{
+                              src: `/api/media/${item.id}/download`,
+                            }}
+                          />
+                        ) : item.file_type === 'ppt' ? (
+                          // PPT 类型：显示缩略图，点击预览缩略图大图
+                          <Image
+                            src={getThumbnail(item.id)}
+                            alt={item.file_name}
+                            width={48}
+                            height={48}
+                            style={{ borderRadius: 4, objectFit: 'cover', cursor: 'pointer' }}
+                            fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect fill='%23f0f0f0' width='48' height='48'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='10'%3E加载中%3C/text%3E%3C/svg%3E"
+                            preview={{
+                              src: getThumbnail(item.id),
+                            }}
                           />
                         ) : (
+                          // 视频类型：显示图标（后端未生成缩略图）
                           <Avatar
                             shape="square"
                             size={48}
-                            style={{ backgroundColor: item.file_type === 'image' ? '#52c41a' : item.file_type === 'video' ? '#1890ff' : '#fa8c16' }}
+                            style={{ backgroundColor: item.file_type === 'video' ? '#1890ff' : '#fa8c16' }}
                             icon={getMediaIcon(item.file_type)}
                           />
                         )

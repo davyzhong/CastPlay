@@ -16,6 +16,7 @@ export interface UsePlaylistSyncReturn {
   checkVersion: (playlistId: number) => Promise<boolean>;
   pendingUpdate: boolean;
   applyPendingUpdate: () => void;
+  setCurrentPlaylist: (playlist: PlayerPlaylist) => void;
 }
 
 export const usePlaylistSync = (
@@ -203,5 +204,6 @@ export const usePlaylistSync = (
     checkVersion,
     pendingUpdate: false, // TODO: 实现平滑切换功能
     applyPendingUpdate: () => {}, // TODO: 实现平滑切换功能
+    setCurrentPlaylist,
   };
 };

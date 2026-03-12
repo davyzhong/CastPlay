@@ -1071,3 +1071,127 @@ async def check_playlist_version(
         "needs_update": needs_update,
         "current_version": playlist.updated_at.isoformat() + "Z"
     }
+
+
+class SwitchCompleteRequest(BaseModel):
+    """切换完成请求"""
+    device_id: str = Field(..., description="设备 ID")
+    playlist_id: int = Field(..., description="播放列表 ID")
+    version: str = Field(..., description="播放列表版本")
+    timestamp: Optional[str] = Field(None, description="切换时间戳")
+
+
+@router.post("/playlist/switch-complete")
+async def report_switch_complete(
+    request: SwitchCompleteRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    报告播放列表切换完成
+
+    播放端在完成播放列表切换后调用此接口通知后端
+
+    请求：
+    {
+        "device_id": "device-xxx",
+        "playlist_id": 1,
+        "version": "2026-03-12T10:00:00Z",
+        "timestamp": "2026-03-12T10:05:00Z"
+    }
+
+    响应：
+    {
+        "acknowledged": true,
+        "server_time": "2026-03-12T10:05:01Z"
+    }
+    """
+    # 查找设备
+    device = db.query(Device).filter(Device.device_id == request.device_id).first()
+    if not device:
+        logger.warning(f"Switch complete report from unknown device: {request.device_id}")
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    # 查找播放列表
+    playlist = db.query(Playlist).filter(Playlist.id == request.playlist_id).first()
+    if not playlist:
+        logger.warning(f"Switch complete report for unknown playlist: {request.playlist_id}")
+        raise HTTPException(status_code=404, detail="Playlist not found")
+
+    # 更新设备当前播放列表
+    device.current_playlist_id = request.playlist_id
+    device.last_heartbeat_at = datetime.utcnow()
+
+    # 记录切换日志
+    logger.info(
+        f"Device {request.device_id} ({device.device_name}) switched to playlist "
+        f"{request.playlist_id} ({playlist.name}) version {request.version}"
+    )
+
+    # 创建或更新下载任务记录
+    download_task = db.query(PlaylistDownloadTask).filter(
+        PlaylistDownloadTask.device_id == device.id,
+        PlaylistDownloadTask.playlist_id == request.playlist_id
+    ).first()
+
+    if download_task:
+        download_task.status = "completed"
+        download_task.completed_at = datetime.utcnow()
+    else:
+        download_task = PlaylistDownloadTask(
+            device_id=device.id,
+            playlist_id=request.playlist_id,
+            version=request.version,
+            status="completed",
+            completed_at=datetime.utcnow()
+        )
+        db.add(download_task)
+
+    db.commit()
+
+    return {
+        "acknowledged": True,
+        "server_time": datetime.utcnow().isoformat() + "Z"
+    }
+
+
+@router.get("/playlist/{playlist_id}")
+async def get_player_playlist(
+    playlist_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    获取播放列表详情（供播放端使用）
+
+    返回播放列表及其所有项目
+    """
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+
+    # 获取播放列表项目
+    items_query = db.query(PlaylistItem).filter(
+        PlaylistItem.playlist_id == playlist_id
+    ).order_by(PlaylistItem.display_order)
+
+    items = [
+        {
+            "id": item.id,
+            "media_id": item.media_id,
+            "file_name": item.file_name,
+            "file_type": item.file_type,
+            "file_url": f"/api/player/media/{item.media_id}/download",
+            "display_order": item.display_order,
+            "display_duration": item.display_duration,
+            "file_size": item.file_size,
+            "md5_hash": item.md5_hash
+        }
+        for item in items_query
+    ]
+
+    return {
+        "id": playlist.id,
+        "name": playlist.name,
+        "version": playlist.updated_at.isoformat(),
+        "is_system": playlist.is_system,
+        "items": items
+    }

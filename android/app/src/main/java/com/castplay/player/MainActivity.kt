@@ -253,6 +253,15 @@ class MainActivity : AppCompatActivity() {
         // Kiosk 模式下不响应返回键
     }
 
+    /**
+     * 执行 JavaScript 代码（供 JsBridge 调用）
+     */
+    fun evaluateJavascript(script: String, callback: android.webkit.ValueCallback<String>? = null) {
+        runOnUiThread {
+            webView.evaluateJavascript(script, callback)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         webView.onResume()

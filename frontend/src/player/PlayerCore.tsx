@@ -8,10 +8,10 @@ import { usePlaylistSync } from './usePlaylistSync';
 import { useMediaCache } from './useMediaCache';
 import { useOfflineMode } from './useOfflineMode';
 import { usePlaybackScheduler } from './usePlaybackScheduler';
-import { usePlaylistSwitch } from './hooks/usePlaylistSwitch';
+import { useHeartbeat } from './hooks/useHeartbeat';
 import { ErrorReporter } from './services/ErrorReporter';
 import { DeviceIdDisplay } from './components/DeviceIdDisplay';
-import type { PlayerPlaylistItem, PlayerState, PlayerPlaylist } from './types';
+import type { PlayerPlaylistItem, PlayerState } from './types';
 
 interface PlayerCoreProps {
   onStateChange?: (state: PlayerState) => void;
@@ -42,7 +42,6 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
   // 播放列表同步
   const {
     currentPlaylist,
-    setCurrentPlaylist,
   } = usePlaylistSync(deviceInfo?.device_id || null, isOnline);
 
   // 媒体缓存
@@ -69,48 +68,13 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
   const currentItems = currentPlaylist?.items || [];
   const currentItem = currentItems[currentIndex] || null;
 
-  // 播放列表自动切换
-  const { switchState, isSwitching } = usePlaylistSwitch({
+  // 心跳上报（使用 2 小时间隔的 useHeartbeat hook）
+  useHeartbeat({
     deviceId: deviceInfo?.device_id || null,
-    wsUrl: `ws://${window.location.host}`,
-    currentPlaylist,
-    switchConfig: {
-      policy: 'after_download',
-      minReadyRatio: 1.0,
-      allowPartialSwitch: true,
-      onBeforeSwitch: async (newPlaylist: PlayerPlaylist) => {
-        console.log('[PlayerCore] About to switch to playlist:', newPlaylist.id);
-        // 暂停当前播放
-        setIsPlaying(false);
-        // 重置播放索引
-        setCurrentIndex(0);
-        return true;
-      },
-      onAfterSwitch: (newPlaylist: PlayerPlaylist) => {
-        console.log('[PlayerCore] Switched to playlist:', newPlaylist.id);
-        // 更新当前播放列表
-        setCurrentPlaylist(newPlaylist);
-        // 预加载新播放列表媒体
-        if (isOnline) {
-          preloadPlaylist(newPlaylist.items).catch(console.error);
-        }
-        // 恢复播放
-        if (autoPlay && shouldBePlaying) {
-          setIsPlaying(true);
-        }
-      },
-      onSwitchFailed: (error: Error, rollbackPlaylist: PlayerPlaylist | null) => {
-        console.error('[PlayerCore] Switch failed:', error);
-        // 如果有备份，恢复到之前的播放列表
-        if (rollbackPlaylist) {
-          setCurrentPlaylist(rollbackPlaylist);
-        }
-        // 恢复播放
-        if (autoPlay && shouldBePlaying) {
-          setIsPlaying(true);
-        }
-      },
-    },
+    currentPlaylistId: currentPlaylist?.id || null,
+    currentPlaylistVersion: currentPlaylist?.version || null,
+    lastMediaId: currentItem?.media_id || null,
+    playbackStatus: isPlaying ? 'playing' : 'idle'
   });
 
   // 更新外部状态
@@ -176,12 +140,12 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
 
   // 自动播放
   useEffect(() => {
-    if (autoPlay && shouldBePlaying && currentItems.length > 0 && isRegistered && !isSwitching) {
+    if (autoPlay && shouldBePlaying && currentItems.length > 0 && isRegistered) {
       play();
-    } else if (!shouldBePlaying || isSwitching) {
+    } else if (!shouldBePlaying) {
       pause();
     }
-  }, [autoPlay, shouldBePlaying, currentItems.length, isRegistered, isSwitching, play, pause]);
+  }, [autoPlay, shouldBePlaying, currentItems.length, isRegistered, play, pause]);
 
   // 自动切换下一项
   useEffect(() => {
@@ -217,29 +181,6 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
       <DeviceIdDisplay
         deviceId={deviceInfo.device_id}
       />
-      {/* 显示切换状态 */}
-      {isSwitching && (
-        <div style={{
-          position: 'fixed',
-          bottom: 10,
-          right: 10,
-          background: 'rgba(0, 0, 0, 0.7)',
-          color: 'white',
-          padding: '8px 16px',
-          borderRadius: 4,
-          fontSize: 12,
-        }}>
-          {switchState.status === 'downloading' && (
-            <span>正在下载播放列表... {switchState.progress}%</span>
-          )}
-          {switchState.status === 'switching' && (
-            <span>正在切换播放列表...</span>
-          )}
-          {switchState.status === 'pending' && (
-            <span>准备切换播放列表...</span>
-          )}
-        </div>
-      )}
     </>
   );
 };

@@ -847,7 +847,7 @@ class CacheManager private constructor(private val context: Context) {
                     }
 
                     // 使用现有的下载逻辑
-                    return downloadMediaWithRetryInternal(media.url, media.id.toString(), media.md5Hash)
+                    return downloadMediaWithRetryInternal(media.url, media.id.toString(), media.md5Hash) { cancelled }
                 } catch (e: Exception) {
                     lastError = e.message
                     Log.w(TAG, "Download retry $retry for media ${media.id}: ${e.message}")
@@ -871,7 +871,7 @@ class CacheManager private constructor(private val context: Context) {
     /**
      * 下载单个媒体文件（带重试，内部方法）
      */
-    private fun downloadMediaWithRetryInternal(url: String, mediaId: String, md5Hash: String? = null): Boolean {
+    private fun downloadMediaWithRetryInternal(url: String, mediaId: String, md5Hash: String? = null, isCancelled: () -> Boolean = { false }): Boolean {
         val targetFile = File(mediaCacheDir, mediaId)
 
         // 如果存在部分下载的文件，删除它
@@ -899,7 +899,7 @@ class CacheManager private constructor(private val context: Context) {
             val startTime = System.currentTimeMillis()
             val timeout = 5 * 60 * 1000L // 5 分钟超时
 
-            while (!completed && !cancelled && System.currentTimeMillis() - startTime < timeout) {
+            while (!completed && !isCancelled() && System.currentTimeMillis() - startTime < timeout) {
                 val query = DownloadManager.Query().setFilterById(downloadId)
                 val cursor: Cursor? = downloadManager.query(query)
 

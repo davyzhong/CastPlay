@@ -287,13 +287,6 @@ class JsBridge(private val context: Context) {
      * 通知 WebView
      */
     private fun notifyWebView(event: String, data: String) {
-        (context as? MainActivity)?.runOnUiThread {
-            try {
-                val js = "window.AndroidBridgeCallbacks?.$event?.($data)"
-                (context as? MainActivity)?.webView?.evaluateJavascript(js, null)
-            } catch (e: Exception) {
-                android.util.Log.e("JsBridge", "Failed to notify WebView", e)
-            }
-        }
+        (context as? MainActivity)?.evaluateJavascript("window.AndroidBridgeCallbacks?.$event?.($data)")
     }
 }

@@ -86,6 +86,20 @@ export const usePlaylistChangeDetection = (
     const reconnectAttemptsRef = useRef(0);
     const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // 使用 ref 存储回调，避免依赖数组变化导致 WebSocket 重连
+    const callbacksRef = useRef({
+        onPlaylistAssigned,
+        onPlaylistUpdated,
+        onForceSync
+    });
+
+    // 更新 callbacks ref（不触发重渲染）
+    callbacksRef.current = {
+        onPlaylistAssigned,
+        onPlaylistUpdated,
+        onForceSync
+    };
+
     /**
      * 处理检测到的播放列表更新
      */
@@ -99,13 +113,13 @@ export const usePlaylistChangeDetection = (
             pendingUpdate: update
         }));
 
-        // 触发回调
-        if (update.action === 'switch' && onPlaylistAssigned) {
-            onPlaylistAssigned(update);
-        } else if (update.action === 'check' && onPlaylistUpdated) {
-            onPlaylistUpdated(update);
+        // 触发回调（使用 ref 避免依赖变化）
+        if (update.action === 'switch' && callbacksRef.current.onPlaylistAssigned) {
+            callbacksRef.current.onPlaylistAssigned(update);
+        } else if (update.action === 'check' && callbacksRef.current.onPlaylistUpdated) {
+            callbacksRef.current.onPlaylistUpdated(update);
         }
-    }, [onPlaylistAssigned, onPlaylistUpdated]);
+    }, []);
 
     /**
      * 处理 WebSocket 消息
@@ -124,8 +138,8 @@ export const usePlaylistChangeDetection = (
 
                 case 'force_sync':
                     console.log('[PlaylistDetection] Force sync received');
-                    if (onForceSync) {
-                        onForceSync();
+                    if (callbacksRef.current.onForceSync) {
+                        callbacksRef.current.onForceSync();
                     }
                     break;
 
@@ -143,7 +157,7 @@ export const usePlaylistChangeDetection = (
         } catch (error) {
             console.error('[PlaylistDetection] Failed to parse WebSocket message:', error);
         }
-    }, [handlePlaylistUpdate, onForceSync]);
+    }, [handlePlaylistUpdate]);
 
     /**
      * 连接 WebSocket

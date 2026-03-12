@@ -11,7 +11,7 @@
  * - 增量更新支持
  * - 事件日志记录
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { usePlaylistChangeDetection, PlaylistUpdateInfo } from './usePlaylistChangeDetection';
 import { usePlaylistDownload } from './usePlaylistDownload';
@@ -97,7 +97,32 @@ export const usePlaylistSwitch = (
         switchConfig: userSwitchConfig,
     } = config;
 
-    const switchConfig = { ...DEFAULT_SWITCH_CONFIG, ...userSwitchConfig };
+    // 使用 ref 存储回调，避免依赖数组变化
+    const callbacksRef = useRef({
+        onBeforeSwitch: userSwitchConfig?.onBeforeSwitch,
+        onAfterSwitch: userSwitchConfig?.onAfterSwitch,
+        onSwitchFailed: userSwitchConfig?.onSwitchFailed,
+    });
+
+    // 更新 callbacks ref（不触发重渲染）
+    callbacksRef.current = {
+        onBeforeSwitch: userSwitchConfig?.onBeforeSwitch,
+        onAfterSwitch: userSwitchConfig?.onAfterSwitch,
+        onSwitchFailed: userSwitchConfig?.onSwitchFailed,
+    };
+
+    // 只使用原始值作为依赖，避免对象重建导致的无限循环
+    const switchConfig = useMemo(() => ({
+        policy: userSwitchConfig?.policy ?? DEFAULT_SWITCH_CONFIG.policy,
+        minReadyRatio: userSwitchConfig?.minReadyRatio ?? DEFAULT_SWITCH_CONFIG.minReadyRatio,
+        downloadTimeout: userSwitchConfig?.downloadTimeout ?? DEFAULT_SWITCH_CONFIG.downloadTimeout,
+        allowPartialSwitch: userSwitchConfig?.allowPartialSwitch ?? DEFAULT_SWITCH_CONFIG.allowPartialSwitch,
+    }), [
+        userSwitchConfig?.policy,
+        userSwitchConfig?.minReadyRatio,
+        userSwitchConfig?.downloadTimeout,
+        userSwitchConfig?.allowPartialSwitch,
+    ]);
 
     // 状态
     const [switchState, setSwitchState] = useState<SwitchState>({
@@ -179,9 +204,9 @@ export const usePlaylistSwitch = (
         switchEventLogger.logSwitchStarted(targetPlaylist.id, targetPlaylist.version);
 
         try {
-            // 调用切换前回调
-            if (switchConfig.onBeforeSwitch) {
-                const canProceed = await switchConfig.onBeforeSwitch(targetPlaylist);
+            // 调用切换前回调（使用 ref 避免依赖变化）
+            if (callbacksRef.current.onBeforeSwitch) {
+                const canProceed = await callbacksRef.current.onBeforeSwitch(targetPlaylist);
                 if (!canProceed) {
                     throw new Error('Switch cancelled by onBeforeSwitch callback');
                 }
@@ -209,9 +234,9 @@ export const usePlaylistSwitch = (
             // 记录切换完成
             switchEventLogger.logSwitchCompleted(targetPlaylist.id, targetPlaylist.version);
 
-            // 调用切换后回调
-            if (switchConfig.onAfterSwitch) {
-                switchConfig.onAfterSwitch(targetPlaylist);
+            // 调用切换后回调（使用 ref 避免依赖变化）
+            if (callbacksRef.current.onAfterSwitch) {
+                callbacksRef.current.onAfterSwitch(targetPlaylist);
             }
 
             console.log('[usePlaylistSwitch] Switch completed:', targetPlaylist.id);
@@ -235,15 +260,15 @@ export const usePlaylistSwitch = (
                 error: errorMessage,
             }));
 
-            // 调用失败回调
-            if (switchConfig.onSwitchFailed) {
-                switchConfig.onSwitchFailed(
+            // 调用失败回调（使用 ref 避免依赖变化）
+            if (callbacksRef.current.onSwitchFailed) {
+                callbacksRef.current.onSwitchFailed(
                     error instanceof Error ? error : new Error(errorMessage),
                     backupPlaylistRef.current
                 );
             }
         }
-    }, [currentPlaylist, switchConfig, notifyBackendSwitchComplete]);
+    }, [currentPlaylist, notifyBackendSwitchComplete]);
 
     /**
      * 检查是否可以切换

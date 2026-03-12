@@ -81,3 +81,12 @@ local.properties
 
 # Gradle
 .gradle/
+
+# Android (additional)
+android/gradlew.bat
+
+# Test data
+tests/integration/data/
+
+# Temporary directories
+castplay-allinone/

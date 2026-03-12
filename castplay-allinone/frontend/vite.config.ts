@@ -5,6 +5,8 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  // 使用相对路径，支持 Android WebView 本地文件加载
+  base: './',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')

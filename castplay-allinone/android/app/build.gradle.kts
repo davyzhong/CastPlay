@@ -17,7 +17,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // 配置服务器 URL（可在构建时覆盖）
-        buildConfigField("String", "SERVER_URL", "\"${project.findProperty("serverUrl") ?: "http://10.0.2.2:5000"}\"")
+        buildConfigField("String", "SERVER_URL", "\"${project.findProperty("serverUrl") ?: "http://10.0.2.2:8000"}\"")
     }
 
     buildTypes {

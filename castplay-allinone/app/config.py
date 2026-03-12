@@ -83,8 +83,8 @@ class Settings(BaseSettings):
                     return [o.strip() for o in origins_str.split(",") if o.strip()]
             return origins_str
         else:
-            # 开发环境允许所有来源
-            return ["*"]
+            # 开发环境允许所有来源（包括 null origin 用于本地文件和 Android WebView）
+            return ["*", "null"]
 
     CORS_ALLOW_CREDENTIALS: bool = True
 

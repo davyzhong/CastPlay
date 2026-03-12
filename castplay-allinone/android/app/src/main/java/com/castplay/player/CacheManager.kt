@@ -168,7 +168,9 @@ class CacheManager private constructor(private val context: Context) {
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN)
             .setDestinationUri(Uri.fromFile(targetFile))
             .setAllowedOverMetered(true)
-            .setAllowedRoaming(true)
+            // setAllowedRoaming 在 API 29 中被移除，使用 setRequiresDeviceIdle 替代
+            .setRequiresDeviceIdle(false)
+            .setRequiresCharging(false)
 
         try {
             val downloadId = downloadManager.enqueue(request)

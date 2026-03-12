@@ -5,6 +5,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -29,7 +30,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
-        private const val LOCAL_ASSET_URL = "file:///android_asset/www/index.html"
+        private const val LOCAL_ASSET_URL = "file:///android_asset/www/player.html"
         private const val PREFS_NAME = "castplay_prefs"
         private const val KEY_SERVER_URL = "server_url"
     }
@@ -47,17 +48,17 @@ class MainActivity : AppCompatActivity() {
         // 初始化 Kiosk 模式
         setupKioskMode()
 
-        // 设置全屏
-        setupFullscreen()
-
         setContentView(R.layout.activity_main)
+
+        // 设置全屏（必须在 setContentView 之后）
+        setupFullscreen()
 
         progressBar = findViewById(R.id.progressBar)
         webView = findViewById(R.id.webView)
 
         // 获取配置的服务器 URL
         serverUrl = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_SERVER_URL, serverUrl)
+            .getString(KEY_SERVER_URL, serverUrl) ?: serverUrl
 
         setupWebView()
         loadPlayer()
@@ -86,9 +87,14 @@ class MainActivity : AppCompatActivity() {
      */
     private fun enableKioskMode() {
         try {
+            // 创建 IntentFilter 用于 Kiosk 模式
+            val intentFilter = IntentFilter(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                addCategory(Intent.CATEGORY_DEFAULT)
+            }
             devicePolicyManager.addPersistentPreferredActivity(
                 componentName,
-                arrayOf(Intent(Intent.ACTION_MAIN)),
+                intentFilter,
                 ComponentName(this, MainActivity::class.java)
             )
             devicePolicyManager.setLockTaskPackages(componentName, arrayOf(packageName))
@@ -135,6 +141,10 @@ class MainActivity : AppCompatActivity() {
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             blockNetworkLoads = false
             loadsImagesAutomatically = true
+
+            // 允许本地文件访问（解决 CORS 问题）
+            allowFileAccessFromFileURLs = true
+            allowUniversalAccessFromFileURLs = true
 
             // 设置 User Agent
             userAgentString = "CastPlay-Android/${BuildConfig.VERSION_NAME}"

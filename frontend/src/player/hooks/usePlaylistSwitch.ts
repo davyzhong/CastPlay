@@ -7,11 +7,17 @@
  * - 下载完成后自动切换
  * - 支持失败回滚
  * - 通知后端切换完成
+ * - 存储空间检查
+ * - 增量更新支持
+ * - 事件日志记录
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { usePlaylistChangeDetection, PlaylistUpdateInfo } from './usePlaylistChangeDetection';
 import { usePlaylistDownload } from './usePlaylistDownload';
+import { storageChecker } from '../services/StorageChecker';
+import { switchEventLogger } from '../services/SwitchEventLogger';
+import { playlistDownloadManager } from '../services/PlaylistDownloadManager';
 import type { PlayerPlaylist } from '../types';
 
 // 切换状态
@@ -170,6 +176,7 @@ export const usePlaylistSwitch = (
         }
 
         setSwitchState(prev => ({ ...prev, status: 'switching' }));
+        switchEventLogger.logSwitchStarted(targetPlaylist.id, targetPlaylist.version);
 
         try {
             // 调用切换前回调
@@ -199,6 +206,9 @@ export const usePlaylistSwitch = (
                 progress: 100,
             }));
 
+            // 记录切换完成
+            switchEventLogger.logSwitchCompleted(targetPlaylist.id, targetPlaylist.version);
+
             // 调用切换后回调
             if (switchConfig.onAfterSwitch) {
                 switchConfig.onAfterSwitch(targetPlaylist);
@@ -215,6 +225,9 @@ export const usePlaylistSwitch = (
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             console.error('[usePlaylistSwitch] Switch failed:', errorMessage);
+
+            // 记录切换失败
+            switchEventLogger.logSwitchFailed(targetPlaylist.id, errorMessage);
 
             setSwitchState(prev => ({
                 ...prev,
@@ -263,6 +276,9 @@ export const usePlaylistSwitch = (
     const startSwitch = useCallback(async (playlistId: number) => {
         console.log('[usePlaylistSwitch] Starting switch to playlist:', playlistId);
 
+        // 记录切换检测事件
+        switchEventLogger.logSwitchDetected(playlistId, 'unknown');
+
         // 重置状态
         setSwitchState({
             status: 'pending',
@@ -283,6 +299,9 @@ export const usePlaylistSwitch = (
                 throw new Error('Failed to fetch playlist details');
             }
 
+            // 更新日志中的版本信息
+            switchEventLogger.logSwitchDetected(playlistId, playlist.version);
+
             targetPlaylistRef.current = playlist;
 
             setSwitchState(prev => ({
@@ -291,9 +310,40 @@ export const usePlaylistSwitch = (
                 totalFiles: playlist.items.length,
             }));
 
+            // 检查存储空间
+            const spaceCheck = await storageChecker.checkSpace(playlist.items);
+            if (!spaceCheck.canDownload) {
+                const error = spaceCheck.warning || 'Insufficient storage space';
+                switchEventLogger.logError(error, { playlistId, availableSpace: spaceCheck.availableSpace });
+                throw new Error(error);
+            }
+
+            if (spaceCheck.warning) {
+                console.warn('[usePlaylistSwitch] Storage warning:', spaceCheck.warning);
+            }
+
+            // 增量更新：计算需要下载的文件
+            const { toDownload, unchanged } = await playlistDownloadManager.calculateIncrementalUpdate(
+                playlist.items.map(item => ({
+                    id: item.media_id,
+                    file_url: item.file_url,
+                    md5_hash: item.md5_hash,
+                }))
+            );
+
+            console.log(`[usePlaylistSwitch] Incremental update: ${toDownload.length} to download, ${unchanged.length} unchanged`);
+
+            // 如果所有文件都已缓存，直接切换
+            if (toDownload.length === 0) {
+                console.log('[usePlaylistSwitch] All files cached, switching immediately');
+                await performSwitch();
+                return;
+            }
+
             // 设置下载超时
             downloadTimeoutRef.current = setTimeout(() => {
                 console.warn('[usePlaylistSwitch] Download timeout');
+                switchEventLogger.logDownloadFailed(playlistId, 'Download timeout');
                 setSwitchState(prev => ({
                     ...prev,
                     status: 'failed',
@@ -301,14 +351,14 @@ export const usePlaylistSwitch = (
                 }));
             }, switchConfig.downloadTimeout);
 
-            // 开始下载
+            // 记录下载开始
+            switchEventLogger.logDownloadStarted(playlistId, playlist.version, toDownload.length);
+
+            // 只下载需要更新的文件
             const mediaList: Array<{ id: number; file_url: string; file_name?: string; file_type?: string; file_size?: number; md5_hash?: string }> =
-                playlist.items.map(item => ({
-                    id: item.media_id,
+                toDownload.map(item => ({
+                    id: item.id,
                     file_url: item.file_url,
-                    file_name: item.file_name,
-                    file_type: item.file_type,
-                    file_size: item.file_size,
                     md5_hash: item.md5_hash,
                 }));
 
@@ -319,6 +369,7 @@ export const usePlaylistSwitch = (
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             console.error('[usePlaylistSwitch] Failed to start switch:', errorMessage);
+            switchEventLogger.logSwitchFailed(playlistId, errorMessage);
 
             setSwitchState(prev => ({
                 ...prev,
@@ -326,7 +377,7 @@ export const usePlaylistSwitch = (
                 error: errorMessage,
             }));
         }
-    }, [fetchPlaylistDetails, startDownload, switchConfig.downloadTimeout]);
+    }, [fetchPlaylistDetails, startDownload, switchConfig.downloadTimeout, performSwitch]);
 
     /**
      * 取消切换
@@ -380,6 +431,9 @@ export const usePlaylistSwitch = (
             return;
         }
 
+        // 记录回滚事件
+        switchEventLogger.logRollback(backupPlaylist.id, 'User triggered rollback');
+
         try {
             // 恢复备份的播放列表
             localStorage.setItem('last_playlist_id', backupPlaylist.id.toString());
@@ -403,6 +457,7 @@ export const usePlaylistSwitch = (
             console.log('[usePlaylistSwitch] Rollback completed');
         } catch (error) {
             console.error('[usePlaylistSwitch] Rollback failed:', error);
+            switchEventLogger.logError('Rollback failed', { error: String(error) });
         }
     }, [notifyBackendSwitchComplete]);
 

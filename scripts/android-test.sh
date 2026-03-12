@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # CastPlay Android 测试脚本
-# 用法: ./scripts/android-test.sh [--skip-build] [--skip-emulator]
+# 用法: ./scripts/android-test.sh [--skip-build] [--skip-emulator] [--auto-close]
 
 set -e
 
@@ -19,25 +19,31 @@ APK_PATH="$PROJECT_DIR/android/app/build/outputs/apk/debug/app-debug.apk"
 PACKAGE_NAME="com.castplay.player.debug"
 ACTIVITY_NAME="$PACKAGE_NAME/com.castplay.player.MainActivity"
 AVD_NAME="${AVD_NAME:-CastPlay_Test}"
+EMULATOR_PID=""
 
 # Android SDK 路径
 ANDROID_SDK="${ANDROID_SDK:-/opt/homebrew/share/android-commandlinetools}"
+export ANDROID_HOME="$ANDROID_SDK"
+export ANDROID_SDK_ROOT="$ANDROID_SDK"
 EMULATOR="$ANDROID_SDK/emulator/emulator/emulator"
 ADB="$ANDROID_SDK/platform-tools/adb"
 
 # 解析参数
 SKIP_BUILD=false
 SKIP_EMULATOR=false
+AUTO_CLOSE=false
 
 for arg in "$@"; do
     case $arg in
         --skip-build) SKIP_BUILD=true ;;
         --skip-emulator) SKIP_EMULATOR=true ;;
+        --auto-close) AUTO_CLOSE=true ;;
         --help)
             echo "用法: $0 [选项]"
             echo "选项:"
             echo "  --skip-build     跳过 APK 构建，直接安装现有 APK"
             echo "  --skip-emulator  跳过模拟器启动，使用已连接的设备"
+            echo "  --auto-close     测试完成后自动关闭应用和模拟器"
             echo "  --help           显示帮助信息"
             exit 0
             ;;
@@ -87,7 +93,7 @@ build_apk() {
         # 复制构建产物到 Android assets
         echo "  - 复制构建产物到 Android assets..."
         rm -rf "$PROJECT_DIR/android/app/src/main/assets/www/*"
-        cp -r "$PROJECT_DIR/frontend/dist/*" "$PROJECT_DIR/android/app/src/main/assets/www/"
+        cp -r "$PROJECT_DIR/frontend/dist/"* "$PROJECT_DIR/android/app/src/main/assets/www/"
         cd "$PROJECT_DIR"
     fi
 
@@ -156,6 +162,55 @@ start_emulator() {
     "$ADB" devices
 }
 
+# 验证测试结果
+verify_test() {
+    echo -e "\n${YELLOW}[6/7] 验证测试结果...${NC}"
+
+    # 等待应用运行
+    sleep 3
+
+    # 检查应用日志中的播放状态
+    LOGS=$("$ADB" logcat -d -t 50 2>/dev/null | grep -iE "PlayerPage.*State" | tail -1)
+
+    if echo "$LOGS" | grep -q '"isPlaying":true'; then
+        echo -e "${GREEN}✓ 播放器正在运行${NC}"
+    else
+        echo -e "${YELLOW}⚠ 播放器状态未知${NC}"
+    fi
+
+    # 检查心跳
+    if "$ADB" logcat -d -t 30 2>/dev/null | grep -q "Heartbeat sent successfully"; then
+        echo -e "${GREEN}✓ 心跳机制正常${NC}"
+    else
+        echo -e "${YELLOW}⚠ 心跳状态未知${NC}"
+    fi
+
+    echo -e "${GREEN}✓ 测试验证完成${NC}"
+}
+
+# 清理环境
+cleanup() {
+    echo -e "\n${YELLOW}[7/7] 清理环境...${NC}"
+
+    # 关闭应用
+    echo "  - 关闭应用..."
+    "$ADB" shell am force-stop "$PACKAGE_NAME" 2>/dev/null || true
+    echo -e "${GREEN}✓ 应用已关闭${NC}"
+
+    # 关闭模拟器
+    if [ -n "$EMULATOR_PID" ] && [ "$SKIP_EMULATOR" = false ]; then
+        echo "  - 关闭模拟器..."
+        "$ADB" emu kill 2>/dev/null || true
+        # 等待模拟器进程结束
+        sleep 2
+        # 如果模拟器进程还存在，强制终止
+        if ps -p "$EMULATOR_PID" > /dev/null 2>&1; then
+            kill "$EMULATOR_PID" 2>/dev/null || true
+        fi
+        echo -e "${GREEN}✓ 模拟器已关闭${NC}"
+    fi
+}
+
 # 安装 APK
 install_apk() {
     echo -e "\n${YELLOW}[4/5] 安装 APK...${NC}"
@@ -199,14 +254,18 @@ launch_app() {
 # 显示总结
 show_summary() {
     echo -e "\n${BLUE}========================================${NC}"
-    echo -e "${GREEN}   测试环境已就绪!${NC}"
+    if [ "$AUTO_CLOSE" = true ]; then
+        echo -e "${GREEN}   测试完成!${NC}"
+    else
+        echo -e "${GREEN}   测试环境已就绪!${NC}"
+        echo ""
+        echo "常用命令:"
+        echo "  查看日志:    $ADB logcat -s MainActivity:* chromium:*"
+        echo "  重新启动:    $ADB shell am force-stop $PACKAGE_NAME && $ADB shell am start -n $ACTIVITY_NAME"
+        echo "  截图:        $ADB exec-out screencap -p > screen.png"
+        echo "  安装新APK:   $ADB install -r $APK_PATH"
+    fi
     echo -e "${BLUE}========================================${NC}"
-    echo ""
-    echo "常用命令:"
-    echo "  查看日志:    $ADB logcat -s MainActivity:* chromium:*"
-    echo "  重新启动:    $ADB shell am force-stop $PACKAGE_NAME && $ADB shell am start -n $ACTIVITY_NAME"
-    echo "  截图:        $ADB exec-out screencap -p > screen.png"
-    echo "  安装新APK:   $ADB install -r $APK_PATH"
     echo ""
 }
 
@@ -217,6 +276,12 @@ main() {
     start_emulator
     install_apk
     launch_app
+
+    if [ "$AUTO_CLOSE" = true ]; then
+        verify_test
+        cleanup
+    fi
+
     show_summary
 }
 

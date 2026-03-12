@@ -26,11 +26,11 @@ FILE_SIGNATURES: Dict[str, Set[bytes]] = {
     'gif': {b'GIF87a', b'GIF89a'},
     'bmp': {b'BM'},
 
-    # 视频格式
-    'mp4': {b'\x00\x00\x00\x18ftypmp42', b'\x00\x00\x00\x1cftypmp42',
-            b'\x00\x00\x00\x20ftypisom', b'\x00\x00\x00\x00ftypqt'},
+    # 视频格式 - MP4/MOV 使用 ftyp box 检测（在 validate_file_content 中特殊处理）
+    # 这些签名仅作为备用检测
+    'mp4': set(),  # 通过 ftyp box 检测
     'avi': {b'RIFF'},
-    'mov': {b'\x00\x00\x00\x14ftypqt', b'\x00\x00\x00\x00ftypqt'},
+    'mov': set(),  # 通过 ftyp box 检测（与 MP4 相同结构）
     'mkv': {b'\x1a\x45\xdf\xa3'},
     'flv': {b'FLV'},
 
@@ -85,6 +85,38 @@ def validate_file_content(contents: bytes, claimed_type: str) -> Tuple[bool, str
             if contents[:len(sig)] == sig:
                 return True, ""
 
+    # MP4/MOV 文件：检测 ftyp box（ISO Base Media File Format）
+    # MP4 文件结构：[4字节大小][ftyp][brand][...]
+    # 常见 brand: mp41, mp42, isom, M4V, MSNV, qt, etc.
+    if claimed_type == 'video' and ('mp4' in allowed_extensions or 'mov' in allowed_extensions):
+        # 检查是否有 ftyp box
+        if len(contents) >= 12:
+            # 尝试解析 box 大小（大端序）
+            try:
+                box_size = struct.unpack('>I', contents[:4])[0]
+                box_type = contents[4:8]
+
+                # ftyp box 存在说明是 ISO Base Media File Format
+                if box_type == b'ftyp' and box_size >= 8:
+                    # 读取 brand（ftyp 后 4 字节）
+                    brand = contents[8:12]
+                    # 常见的视频 brand
+                    video_brands = [
+                        b'mp41', b'mp42', b'isom', b'iso2', b'iso3', b'iso4', b'iso5', b'iso6',
+                        b'M4V ', b'M4A ', b'MSNV', b'qt  ', b'avc1', b'f4v ', b'M4VH',
+                        b' dash', b'heic', b'heix', b'mif1'
+                    ]
+                    # 也检查 brand 的前几个字节（某些品牌可能较短）
+                    brand_lower = brand.lower() if brand else b''
+                    if brand in video_brands or any(brand.startswith(b'MP4') for b in [brand]):
+                        return True, ""
+                    # 更宽松的检查：只要存在 ftyp box 就认为是有效的 MP4/MOV
+                    if box_size >= 8 and box_size < 100000:  # 合理的 box 大小
+                        logger.debug(f"MP4/MOV detected with ftyp box, brand: {brand}")
+                        return True, ""
+            except (struct.error, IndexError) as e:
+                logger.debug(f"MP4 box parsing failed: {e}")
+
     # PPTX 是 ZIP 格式，需要额外检查
     if claimed_type == 'ppt' and contents[:4] == b'PK\x03\x04':
         # 可能是 PPTX，进一步检查内容
@@ -94,7 +126,7 @@ def validate_file_content(contents: bytes, claimed_type: str) -> Tuple[bool, str
 
     # AVI 文件是 RIFF 格式，需要进一步验证
     if claimed_type == 'video' and contents[:4] == b'RIFF':
-        if contents[8:12] == b'AVI ':
+        if len(contents) >= 12 and contents[8:12] == b'AVI ':
             return True, ""
 
     allowed_ext_str = ', '.join(allowed_extensions)

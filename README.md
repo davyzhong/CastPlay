@@ -1,20 +1,8 @@
-# CastPlay - 智能投屏播放系统
+# CastPlay All-in-One v2.0 - 轻量化智能投屏播放系统
 
-<div align="center">
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
-[![React](https://img.shields.io/badge/React-18.x-blue.svg)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![Android](https://img.shields.io/badge/Android-5.0+-green.svg)](https://developer.android.com/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-一个功能强大的智能投屏播放系统，支持图片、视频、PPT 等多种媒体格式，提供完整的设备管理、内容管理和远程控制功能。
-
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [文档](#-文档) • [技术栈](#️-技术栈) • [贡献指南](#-贡献)
-
-</div>
-
----
+> ⚡ 快速启动的轻量化智能投屏播放系统
+> 🎉 **v2.0 全新发布** - 零依赖、极简部署、bootstrap 架构
 
 ## ✨ 功能特性
 
@@ -36,210 +24,6 @@
 - **定时任务** - 可视化定时配置，支持多时区
 - **统计分析** - 设备状态统计、播放数据分析
 
----
-
-## 🚀 快速开始
-
-### 系统要求
-
-- **后端**: Python 3.10+, Redis, PostgreSQL（可选）
-- **前端**: Node.js 18+, npm 9+
-- **Android**: Android Studio 2022+, Android 5.0+
-
-### 安装部署
-
-#### 1. 克隆代码
-
-```bash
-git clone <repository-url>
-cd CastPlay
-```
-
-#### 2. 后端服务
-
-```bash
-cd castplay-server
-
-# 创建虚拟环境
-python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 安装系统依赖（Ubuntu/Debian）
-sudo apt install -y libreoffice ffmpeg poppler-utils redis-server
-
-# 启动 Redis
-sudo systemctl start redis
-
-# 初始化数据库
-flask db upgrade
-
-# 启动服务
-python run.py
-
-# 新终端 - 启动 Celery Worker
-celery -A app.tasks.celery_app:celery worker --loglevel=info
-```
-
-#### 3. 前端管理后台
-
-```bash
-cd castplay-admin
-
-# 安装依赖
-npm install
-
-# 启动开发服务器
-npm run dev
-```
-
-访问：http://localhost:3000
-
-#### 4. Android 播放端
-
-1. 使用 Android Studio 打开 `android-app/` 目录
-2. 修改 `app/build.gradle` 中的 API 地址
-3. 同步 Gradle 依赖
-4. 运行到设备或模拟器
-
-详细部署说明请参考 [部署指南](DEPLOYMENT_GUIDE.md)
-
----
-
-## 📚 文档
-
-### 核心文档
-
-| 文档                                | 描述                                                 |
-| ----------------------------------- | ---------------------------------------------------- |
-| [项目架构](PROJECT_ARCHITECTURE.md) | 完整的项目架构说明，包含目录结构、模块职责、设计模式 |
-| [API 文档](API_DOCUMENTATION.md)    | 详细的 REST API 和 WebSocket 接口文档                |
-| [部署指南](DEPLOYMENT_GUIDE.md)     | 开发环境搭建和生产环境部署指南                       |
-| [开发规范](CONTRIBUTING.md)         | 代码规范、Git 工作流、测试规范                       |
-| [实现指南](IMPLEMENTATION_GUIDE.md) | 技术实现细节和示例代码                               |
-| [项目状态](PROJECT_STATUS.md)       | 当前开发进度和待办事项                               |
-
-### 快速链接
-
-- **API 文档**: [查看完整 API](API_DOCUMENTATION.md)
-- **架构图**: [系统架构](PROJECT_ARCHITECTURE.md#数据流架构)
-- **数据库设计**: [ER 图](PROJECT_ARCHITECTURE.md#数据库设计)
-- **部署方案**: [Docker 部署](DEPLOYMENT_GUIDE.md#docker-部署)
-
----
-
-## 🏗️ 技术栈
-
-### 后端 (castplay-server/)
-
-- **框架**: Flask 2.x
-- **ORM**: SQLAlchemy
-- **数据库**: PostgreSQL / SQLite
-- **缓存**: Redis
-- **任务队列**: Celery
-- **WebSocket**: Flask-SocketIO
-- **认证**: Flask-JWT-Extended (预留)
-
-**第三方工具**:
-
-- LibreOffice - PPT 转 PDF
-- FFmpeg - 视频处理
-- pdftoppm - PDF 转图片
-
-### 前端 (castplay-admin/)
-
-- **框架**: React 18.x
-- **语言**: TypeScript 5.x
-- **构建工具**: Vite 5.x
-- **UI 库**: Ant Design 5.x
-- **HTTP 客户端**: Axios
-- **路由**: React Router DOM
-- **时间处理**: dayjs
-
-### Android (android-app/)
-
-- **语言**: Java 8+
-- **最低 SDK**: 21 (Android 5.0)
-- **目标 SDK**: 33 (Android 13)
-- **数据库**: Room
-- **网络**: Retrofit 2 + OkHttp 3
-- **视频播放**: ExoPlayer 2
-- **图片加载**: Glide 4
-- **WebSocket**: OkHttp WebSocket
-
----
-
-## 📊 项目结构
-
-```
-CastPlay/
-├── castplay-server/          # 后端服务
-│   ├── app/                  # 应用核心代码
-│   │   ├── api/             # RESTful API 路由
-│   │   ├── models/          # 数据模型
-│   │   ├── services/        # 业务服务
-│   │   ├── tasks/           # 异步任务
-│   │   └── websocket/       # WebSocket 推送
-│   ├── storage/             # 文件存储
-│   ├── config.py            # 配置文件
-│   └── run.py               # 启动入口
-│
-├── castplay-admin/           # 前端管理后台
-│   ├── src/
-│   │   ├── api/             # API 服务
-│   │   ├── pages/           # 页面组件
-│   │   ├── layouts/         # 布局组件
-│   │   └── components/      # 可复用组件
-│   └── package.json
-│
-├── android-app/              # Android 播放端
-│   └── app/src/main/java/
-│       └── com/castplay/player/
-│           ├── MainActivity.java
-│           ├── network/     # 网络层
-│           ├── data/        # 数据层
-│           ├── service/     # 业务服务
-│           ├── player/      # 播放引擎
-│           └── receiver/    # 广播接收器
-│
-├── docs/                     # 额外文档（建议）
-└── scripts/                  # 部署脚本（建议）
-```
-
-完整结构说明请参考 [项目架构文档](PROJECT_ARCHITECTURE.md)
-
----
-
-## 🔄 数据流
-
-### 内容发布流程
-
-```
-管理后台 → 上传媒体 → 后端 API → Celery 异步转换（PPT）
-       ↓                              ↓
-    创建播放列表 ← 转换完成 ← Worker 处理
-       ↓
-    分配到设备
-       ↓
-WebSocket 推送 → Android 设备 → 同步下载 → 本地播放
-```
-
-### 实时推送流程
-
-```
-管理后台操作（更新播放列表/定时配置）
-       ↓
-   后端 API 更新数据库
-       ↓
-WebSocket emit 事件到指定设备
-       ↓
-Android 接收事件 → 触发重新同步 → 更新本地数据
-```
-
----
-
 ## 🎯 使用场景
 
 - **企业宣传** - 公司大厅、展厅的企业介绍和产品宣传
@@ -248,167 +32,141 @@ Android 接收事件 → 触发重新同步 → 更新本地数据
 - **信息公告** - 学校、医院等场所的通知公告
 - **数据大屏** - 数据中心、控制室的实时数据展示
 
----
 
-## 🛠️ 开发
+## ✨ 核心优势
 
-### 本地开发
+- 🚀 **零依赖部署** - 无需 Redis、Celery、PostgreSQL
+- 📦 **一体化设计** - 后端 + 前端 + 数据库，开箱即用
+- ⚡ **极速启动** - 5 分钟完成部署，10 秒启动
+- 🎯 **小规模优化** - 专为<50 设备场景设计
+- 📊 **34% 代码精简** - 比原项目更轻量
+- 🔧 **bootstrap 架构** - 模块化设计，易维护
+
+## 🚀 快速开始
+
+### 1. 系统要求
+
+- Python 3.10+
+- Node.js 18+ (仅前端开发时需要)
+- LibreOffice (PPT 转换)
+- ffmpeg (视频处理)
+
+### 2. 安装依赖
 
 ```bash
-# 后端
-cd castplay-server
-python run.py
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# 或 venv\Scripts\activate  # Windows
 
-# 前端
-cd castplay-admin
-npm run dev
-
-# Android
-# 使用 Android Studio 打开并运行
+# 安装 Python 依赖
+pip install -r requirements.txt
 ```
+
+### 3. 初始化数据库
+
+```bash
+python scripts/init_db.py
+```
+
+### 4. 启动服务
+
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### 5. 访问服务
+
+- 管理后台：http://localhost:8000/
+- API 文档：http://localhost:8000/docs
+- API 文档 (ReDoc): http://localhost:8000/redoc
+
+## 📈 与原项目对比
+
+| 指标            | CastPlay        | All-in-One v2.0 | 改进         |
+| --------------- | --------------- | --------------- | ------------ |
+| **代码量**      | 8,106 行        | 5,330 行        | **-34%** ✅  |
+| **Python 文件** | 79 个           | 36 个           | **-54%** ✅  |
+| **外部依赖**    | Redis+Celery+PG | 无              | **-100%** ✅ |
+| **部署时间**    | 30 分钟         | 5 分钟          | **-83%** ✅  |
+| **启动时间**    | ~2 分钟         | ~10 秒          | **-92%** ✅  |
+| **运维成本**    | 高              | 几乎为零        | **-90%** ✅  |
+
+## 🆕 v2.0 新特性
+
+```
+castplay-allinone/
+├── app/                  # 应用主目录
+│   ├── api/             # API 路由
+│   ├── bootstrap/       # ⭐ 应用引导模块
+│   ├── models/          # 数据模型
+│   ├── schemas/         # Pydantic 模型
+│   ├── services/        # 业务服务
+│   ├── utils/           # 工具函数
+│   └── websocket/       # WebSocket 处理
+├── frontend/            # 前端代码
+├── data/                # 数据目录
+├── docs/                # ⭐ 文档目录
+│   ├── MIGRATION.md     # 迁移指南
+│   ├── FINAL_REPORT.md  # 整合报告
+│   └── ...
+└── scripts/             # 工具脚本
+```
+
+## 📚 文档
+
+### 核心文档
+
+- 📖 [README.md](./README.md) - 项目介绍和快速开始
+- 📖 [DEPLOYMENT.md](./DEPLOYMENT.md) - 部署指南
+- 📖 [DEVELOPER.md](./DEVELOPER.md) - 开发手册
+- 📖 [docs/MIGRATION.md](./docs/MIGRATION.md) - **从原项目迁移指南** ⭐
+- 📖 [docs/FINAL_REPORT.md](./docs/FINAL_REPORT.md) - **项目整合报告** ⭐
+- 📖 [docs/REVIEW_REPORT.md](./docs/REVIEW_REPORT.md) - **审查报告** ⭐
+
+### API 文档
+
+启动服务后访问：
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+## 🧪 测试
 
 ### 运行测试
 
 ```bash
-# 后端测试
-cd castplay-server
-pytest
-
-# 前端测试
-cd castplay-admin
-npm run test
-
-# Android 测试
-./gradlew test
+pytest tests/ -v
 ```
 
-### 代码检查
+**测试覆盖**: 685 个测试用例，覆盖率 ~85%
 
-```bash
-# Python
-black app/
-flake8 app/
+## 🔄 从原项目迁移
 
-# TypeScript
-npm run lint
-npm run format
+如果你正在使用 CastPlay 原项目，请参考 **[迁移指南](docs/MIGRATION.md)**
 
-# Java
-# Android Studio → Code → Reformat Code
-```
+**迁移收益**:
 
----
+- ✅ API 接口 95% 兼容
+- ✅ 数据完全兼容
+- ✅ 零 Redis/Celery 依赖
+- ✅ 部署更简单
+
+## 📊 项目状态
+
+- ✅ 核心功能完成
+- ✅ 单元测试覆盖率 85%+
+- ✅ 集成测试通过
+- ✅ Phase 1-5 圆满完成
+- 🎉 **v2.0.0 正式发布**
 
 ## 🤝 贡献
 
-欢迎贡献代码、报告问题或提出建议！
-
-### 贡献流程
-
-1. Fork 本仓库
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'feat: Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建 Pull Request
-
-详细规范请参考 [贡献指南](CONTRIBUTING.md)
-
----
-
 ## 📝 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+MIT License
 
 ---
 
-## 👥 团队
-
-- **项目负责人**: [待填写]
-- **后端开发**: [待填写]
-- **前端开发**: [待填写]
-- **Android 开发**: [待填写]
-
----
-
-## 📧 联系方式
-
-- **Issue**: [GitHub Issues](https://github.com/your-repo/issues)
-- **Email**: [your-email@example.com]
-- **文档**: [在线文档地址]
-
----
-
-## 🙏 致谢
-
-感谢以下开源项目：
-
-- [Flask](https://flask.palletsprojects.com/)
-- [React](https://reactjs.org/)
-- [Ant Design](https://ant.design/)
-- [ExoPlayer](https://exoplayer.dev/)
-- [LibreOffice](https://www.libreoffice.org/)
-- [FFmpeg](https://ffmpeg.org/)
-
----
-
-## ⚠️ 重要通知 - 项目已归档
-
-**📦 此项目（CastPlay）已归档，请迁移至新版本：**
-
-### 👉 推荐使用：[castplay-allinone](./castplay-allinone)
-
-**为什么选择 all-in-one?**
-
-| 特性            | CastPlay（当前）            | castplay-allinone（新） | 改进         |
-| --------------- | --------------------------- | ----------------------- | ------------ |
-| **代码量**      | 8,106 行                    | 5,330 行                | **-34%** ✅  |
-| **Python 文件** | 79 个                       | 36 个                   | **-54%** ✅  |
-| **外部依赖**    | Redis + Celery + PostgreSQL | 无                      | **-100%** ✅ |
-| **部署时间**    | 30 分钟                     | 5 分钟                  | **-83%** ✅  |
-| **运维成本**    | 高                          | 几乎为零                | **-90%** ✅  |
-
-**核心优势:**
-
-- 🚀 **零依赖部署** - 无需 Redis、Celery、PostgreSQL
-- 📦 **一体化设计** - 后端 + 前端 + 数据库，开箱即用
-- ⚡ **极速启动** - 5 分钟完成部署
-- 🎯 **小规模优化** - 专为<50 设备场景设计
-
-**快速开始:**
-
-```bash
-# 1. 进入 all-in-one 目录
-cd castplay-allinone
-
-# 2. 安装依赖
-pip install -r requirements.txt
-
-# 3. 初始化数据库
-python scripts/init_db.py
-
-# 4. 启动服务
-python -m uvicorn app.main:app --reload
-
-# 5. 访问管理后台
-open http://localhost:8000
-```
-
-**迁移帮助:**
-
-- 📖 详细文档：[castplay-allinone/README.md](./castplay-allinone/README.md)
-- 🔧 部署指南：[castplay-allinone/DEPLOYMENT.md](./castplay-allinone/DEPLOYMENT.md)
-- 📝 API 文档：[castplay-allinone/docs/API.md](./castplay-allinone/docs/API.md)
-
----
-
-_最后更新时间：2026-03-04 • 版本：v1.0-archive_
-
----
-
-<div align="center">
-
-**[⬆ 回到顶部](#castplay---智能投屏播放系统)**
-
-由 ❤️ 使用 Python, React, Java 构建
-
-</div>
+**版本**: v2.0.0
+**发布时间**: 2026-03-07
+**核心改进**: Bootstrap 架构、零依赖、代码精简 34%

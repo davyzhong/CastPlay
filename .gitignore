@@ -1,89 +1,83 @@
-# Dependencies
-node_modules/
+# Python
 __pycache__/
-*.pyc
-.pnp/
-.pnp.js
-
-# Build outputs
-dist/
+*.py[cod]
+*$py.class
+*.so
+.Python
 build/
-*.egg-info/
+develop-eggs/
+dist/
+downloads/
+eggs/
 .eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-.DS_Store
+*~
+
+# Logs
+logs/
+*.log
+
+# Test Coverage
+htmlcov/
+.coverage
+coverage.xml
+*.coveragerc
+
+# Database
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/uploads/*
+data/converted/*
+data/thumbnails/*
+!data/.gitkeep
+
+# Backups
+backups/
 
 # Environment
 .env
-.env.local
-*.local
-venv/
-.venv/
 
-# Logs
-*.log
-logs/
+# Node / Frontend
+frontend/dist/
+frontend/node_modules/
+frontend/.vite/
 
-# Coverage
-.coverage
-coverage.xml
-htmlcov/
-.nyc_output/
+# OS
+.DS_Store
+Thumbs.db
 
-# Database
-*.db
-*.sqlite
-instance/
-
-# === 重要新增配置 ===
-
-# Android SDK（最重要！绝对不要提交）
+# Android
 android-sdk/
-
-# Gradle 安装包
-*.zip
-!gradle/wrapper/gradle-wrapper.jar
-!android-app/gradle/wrapper/gradle-wrapper.jar
-
-# Node modules（所有子目录）
-**/node_modules/
-
-# Android 构建产物
-android-app/build/
-android-app/app/build/
-castplay-allinone/android/app/build/
+android/.gradle/
+android/app/build/
+android/build/
+android/android/app/src/main/assets/www/
+android/app/src/main/assets/www/
 *.apk
 *.aab
 *.iml
-
-# 用户上传文件（确保排除）
-castplay-server/storage/uploads/*
-!castplay-server/storage/uploads/.gitkeep
-
-castplay-server/storage/converted/*
-!castplay-server/storage/converted/.gitkeep
-
-castplay-server/storage/thumbnails/*
-!castplay-server/storage/thumbnails/.gitkeep
-
-# 临时文件和缓存
-*.tmp
-*.cache
-*.log
-
-# Test artifacts
-.pytest_cache/
-.tox/
-
-# Android
-android-app/.gradle/
-android-app/build/
-android-app/app/build/
-*.apk
-*.aab
 local.properties
+
+# Gradle
+.gradle/

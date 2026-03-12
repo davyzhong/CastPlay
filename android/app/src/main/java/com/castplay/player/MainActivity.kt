@@ -172,12 +172,20 @@ class MainActivity : AppCompatActivity() {
                 error: WebResourceError?
             ) {
                 super.onReceivedError(view, request, error)
-                Log.e(TAG, "WebView error: ${error?.description}")
+                Log.e(TAG, "WebView error: ${error?.description} for URL: ${request?.url}")
 
-                // 如果在线加载失败，尝试加载本地资源
-                if (request?.url.toString().startsWith("http") && hasLocalAssets()) {
+                // 只在主页面加载失败时才尝试加载本地资源
+                // 检查是否是主页面请求（非 XHR/fetch API 请求）
+                val requestUrl = request?.url.toString()
+                val isMainFrame = request?.isForMainFrame == true
+
+                // 只有在加载在线服务器主页面失败时才切换到本地资源
+                if (isMainFrame && requestUrl.startsWith("http") && hasLocalAssets()) {
+                    Log.w(TAG, "Main frame load failed, switching to local assets")
                     webView.loadUrl(LOCAL_ASSET_URL)
                 }
+                // 对于 API 请求失败（如心跳、媒体请求等），不做任何处理
+                // 让前端代码自行处理离线逻辑
             }
         }
 

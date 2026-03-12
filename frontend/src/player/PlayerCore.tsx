@@ -107,10 +107,33 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
     }
   }, [setCurrentPlaylist, autoPlay, shouldBePlaying]);
 
+  // 获取 WebSocket URL（Android 环境需要从 AndroidBridge 获取服务器地址）
+  const getWsUrl = useCallback((): string | null => {
+    if (window.AndroidBridge?.getServerUrl) {
+      // Android 环境：从 Bridge 获取服务器 URL
+      const serverUrl = window.AndroidBridge.getServerUrl();
+      if (serverUrl && serverUrl.length > 0) {
+        const wsProtocol = serverUrl.startsWith('https') ? 'wss' : 'ws';
+        const wsHost = serverUrl.replace(/^https?:\/\//, '');
+        if (wsHost) {
+          console.log('[PlayerCore] WebSocket URL from AndroidBridge:', `${wsProtocol}://${wsHost}`);
+          return `${wsProtocol}://${wsHost}`;
+        }
+      }
+      console.warn('[PlayerCore] AndroidBridge.getServerUrl() returned empty, waiting...');
+      return null;
+    } else if (window.location.host) {
+      // Web 环境：使用当前页面的 host
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      return `${wsProtocol}://${window.location.host}`;
+    }
+    return null;
+  }, []);
+
   // 播放列表自动切换
   const { switchState, isSwitching } = usePlaylistSwitch({
     deviceId: deviceInfo?.device_id || null,
-    wsUrl: `ws://${window.location.host}`,
+    wsUrl: getWsUrl(),
     currentPlaylist,
     switchConfig: {
       policy: 'after_download',

@@ -21,6 +21,7 @@ export interface AndroidBridge {
   getCachedMediaPath(mediaId: string): string;
   getLocalTimezone(): string;
   showToast(message: string): void;
+  getServerUrl(): string;
   // 播放列表下载接口
   startPlaylistDownload(playlistId: string, mediaListJson: string): string;
   getPlaylistCacheStatus(playlistId: string): string;

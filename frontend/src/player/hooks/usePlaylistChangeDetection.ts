@@ -164,6 +164,13 @@ export const usePlaylistChangeDetection = (
      */
     const connectWebSocket = useCallback(() => {
         if (!wsUrl || !deviceId) {
+            console.log('[PlaylistDetection] Skipping WebSocket connection: wsUrl or deviceId not available');
+            return;
+        }
+
+        // 验证 wsUrl 格式是否正确（必须包含主机名）
+        if (!wsUrl.match(/^wss?:\/\/[^/]+/)) {
+            console.warn('[PlaylistDetection] Invalid wsUrl format:', wsUrl, '- skipping connection');
             return;
         }
 
@@ -173,6 +180,7 @@ export const usePlaylistChangeDetection = (
 
         try {
             const fullWsUrl = `${wsUrl}/ws/player/${deviceId}`;
+            console.log('[PlaylistDetection] Connecting to WebSocket:', fullWsUrl);
             wsRef.current = new WebSocket(fullWsUrl);
 
             wsRef.current.onopen = () => {

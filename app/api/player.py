@@ -118,6 +118,155 @@ def check_rate_limit(device_id: str, limit_per_minute: int = HEARTBEAT_RATE_LIMI
     return _rate_limit_cache.check_and_add(device_id, limit_per_minute)
 
 
+# ============================================================================
+# 播放端初始化辅助函数
+# ============================================================================
+
+def _get_device_schedule(db: Session, device: Device) -> Optional[dict]:
+    """
+    获取设备定时配置
+
+    Args:
+        db: 数据库会话
+        device: 设备对象
+
+    Returns:
+        定时配置字典，无配置返回 None
+    """
+    schedule = db.query(DeviceSchedule).filter(
+        DeviceSchedule.device_id == device.id
+    ).first()
+
+    if not schedule:
+        return None
+
+    return {
+        "power_on_time": schedule.power_on_time,
+        "power_off_time": schedule.power_off_time,
+        "is_enabled": schedule.is_enabled,
+        "weekdays": schedule.get_weekdays_list(),
+        "timezone": device.timezone
+    }
+
+
+def _build_playlist_items(db: Session, playlist_id: int) -> List[dict]:
+    """
+    构建播放列表项数据
+
+    Args:
+        db: 数据库会话
+        playlist_id: 播放列表 ID
+
+    Returns:
+        播放列表项列表
+    """
+    items_query = (
+        db.query(
+            PlaylistItem.id,
+            PlaylistItem.media_id,
+            MediaFile.file_name,
+            MediaFile.file_type,
+            MediaFile.file_path,
+            MediaFile.converted_path,
+            MediaFile.file_size,
+            MediaFile.md5_hash,
+            PlaylistItem.display_order,
+            PlaylistItem.display_duration
+        )
+        .join(MediaFile, PlaylistItem.media_id == MediaFile.id)
+        .filter(PlaylistItem.playlist_id == playlist_id)
+        .order_by(PlaylistItem.display_order)
+        .all()
+    )
+
+    return [
+        {
+            "id": item.id,
+            "media_id": item.media_id,
+            "file_name": item.file_name,
+            "file_type": item.file_type,
+            "file_url": f"/api/player/media/{item.media_id}/download",
+            "display_order": item.display_order,
+            "display_duration": item.display_duration,
+            "file_size": item.file_size,
+            "md5_hash": item.md5_hash
+        }
+        for item in items_query
+    ]
+
+
+def _build_playlist_data(db: Session, playlist: Playlist, name_prefix: str = "") -> dict:
+    """
+    构建播放列表数据
+
+    Args:
+        db: 数据库会话
+        playlist: 播放列表对象
+        name_prefix: 名称前缀（用于标记默认播放列表）
+
+    Returns:
+        播放列表数据字典
+    """
+    items = _build_playlist_items(db, playlist.id)
+    name = f"{name_prefix}{playlist.name}" if name_prefix else playlist.name
+
+    return {
+        "id": playlist.id,
+        "name": name,
+        "version": playlist.updated_at.isoformat(),
+        "is_system": playlist.is_system,
+        "items": items
+    }
+
+
+def _get_device_playlists(db: Session, device: Device, is_disabled: bool) -> List[dict]:
+    """
+    获取设备的播放列表数据
+
+    Args:
+        db: 数据库会话
+        device: 设备对象
+        is_disabled: 设备是否被禁用
+
+    Returns:
+        播放列表数据列表
+    """
+    playlists_data = []
+
+    if is_disabled:
+        # 禁用设备只能获取默认播放列表
+        logger.info(f"Device {device.device_id} is disabled, returning default playlist only")
+        default_playlist = db.query(Playlist).filter(Playlist.is_system == True).first()
+        if default_playlist:
+            playlists_data.append(_build_playlist_data(db, default_playlist, "[默认] "))
+    else:
+        # 正常设备获取激活的播放列表
+        playlist_assignments = db.query(DevicePlaylist).filter(
+            DevicePlaylist.device_id == device.id,
+            DevicePlaylist.is_active == True
+        ).all()
+
+        # 如果没有分配播放列表，使用系统默认播放列表
+        if not playlist_assignments:
+            default_playlist = db.query(Playlist).filter(Playlist.is_system == True).first()
+            if default_playlist:
+                class DefaultPlaylistAssignment:
+                    def __init__(self, playlist_id: int):
+                        self.playlist_id = playlist_id
+                        self.is_active = True
+
+                playlist_assignments = [DefaultPlaylistAssignment(default_playlist.id)]
+
+        for assignment in playlist_assignments:
+            playlist = db.query(Playlist).filter(
+                Playlist.id == assignment.playlist_id
+            ).first()
+            if playlist:
+                playlists_data.append(_build_playlist_data(db, playlist))
+
+    return playlists_data
+
+
 router = APIRouter(
     tags=["播放端"],
     responses={
@@ -185,141 +334,13 @@ def player_init(
     db.commit()
 
     # 获取定时配置
-    schedule = db.query(DeviceSchedule).filter(
-        DeviceSchedule.device_id == device.id
-    ).first()
-
-    schedule_data = None
-    if schedule:
-        schedule_data = {
-            "power_on_time": schedule.power_on_time,
-            "power_off_time": schedule.power_off_time,
-            "is_enabled": schedule.is_enabled,
-            "weekdays": schedule.get_weekdays_list(),
-            "timezone": device.timezone
-        }
+    schedule_data = _get_device_schedule(db, device)
 
     # 检查设备是否被禁用
     is_disabled = getattr(device, 'is_disabled', False)
 
-    playlists_data = []
-
-    if is_disabled:
-        # 禁用设备只能获取默认播放列表
-        logger.info(
-            f"Device {device_id} is disabled, returning default playlist only")
-        default_playlist = db.query(Playlist).filter(
-            Playlist.is_system == True).first()
-        if default_playlist:
-            # 获取播放列表项
-            items_query = (
-                db.query(
-                    PlaylistItem.id,
-                    PlaylistItem.media_id,
-                    MediaFile.file_name,
-                    MediaFile.file_type,
-                    MediaFile.file_path,
-                    MediaFile.converted_path,
-                    MediaFile.file_size,
-                    MediaFile.md5_hash,
-                    PlaylistItem.display_order,
-                    PlaylistItem.display_duration
-                )
-                .join(MediaFile, PlaylistItem.media_id == MediaFile.id)
-                .filter(PlaylistItem.playlist_id == default_playlist.id)
-                .order_by(PlaylistItem.display_order)
-                .all()
-            )
-
-            items = [
-                {
-                    "id": item.id,
-                    "media_id": item.media_id,
-                    "file_name": item.file_name,
-                    "file_type": item.file_type,
-                    "file_url": f"/api/player/media/{item.media_id}/download",
-                    "display_order": item.display_order,
-                    "display_duration": item.display_duration,
-                    "file_size": item.file_size,
-                    "md5_hash": item.md5_hash
-                }
-                for item in items_query
-            ]
-
-            playlists_data.append({
-                "id": default_playlist.id,
-                "name": f"[默认] {default_playlist.name}",
-                "version": default_playlist.updated_at.isoformat(),
-                "is_system": True,
-                "items": items
-            })
-    else:
-        # 正常设备获取激活的播放列表
-        playlist_assignments = db.query(DevicePlaylist).filter(
-            DevicePlaylist.device_id == device.id,
-            DevicePlaylist.is_active == True
-        ).all()
-
-        # 如果没有分配播放列表，使用系统默认播放列表
-        if not playlist_assignments:
-            default_playlist = db.query(Playlist).filter(
-                Playlist.is_system == True).first()
-            if default_playlist:
-                class DefaultPlaylistAssignment:
-                    def __init__(self, playlist_id):
-                        self.playlist_id = playlist_id
-                        self.is_active = True
-                playlist_assignments = [
-                    DefaultPlaylistAssignment(default_playlist.id)]
-
-        for assignment in playlist_assignments:
-            playlist = db.query(Playlist).filter(
-                Playlist.id == assignment.playlist_id).first()
-            if not playlist:
-                continue
-
-            # 获取播放列表项
-            items_query = (
-                db.query(
-                    PlaylistItem.id,
-                    PlaylistItem.media_id,
-                    MediaFile.file_name,
-                    MediaFile.file_type,
-                    MediaFile.file_path,
-                    MediaFile.converted_path,
-                    MediaFile.file_size,
-                    MediaFile.md5_hash,
-                    PlaylistItem.display_order,
-                    PlaylistItem.display_duration
-                )
-                .join(MediaFile, PlaylistItem.media_id == MediaFile.id)
-                .filter(PlaylistItem.playlist_id == playlist.id)
-                .order_by(PlaylistItem.display_order)
-                .all()
-            )
-
-            items = [
-                {
-                    "id": item.id,
-                    "media_id": item.media_id,
-                    "file_name": item.file_name,
-                    "file_type": item.file_type,
-                    "file_url": f"/api/player/media/{item.media_id}/download",
-                    "display_order": item.display_order,
-                    "display_duration": item.display_duration,
-                    "file_size": item.file_size,
-                    "md5_hash": item.md5_hash
-                }
-                for item in items_query
-            ]
-
-            playlists_data.append({
-                "id": playlist.id,
-                "name": playlist.name,
-                "version": playlist.updated_at.isoformat(),
-                "is_system": playlist.is_system,
-                "items": items
-            })
+    # 获取播放列表
+    playlists_data = _get_device_playlists(db, device, is_disabled)
 
     logger.info(
         f"Player initialized for device {device_id} ({device.device_name}), disabled={is_disabled}")

@@ -53,6 +53,7 @@ export interface MediaFile {
   md5_hash?: string
   status: 'ready' | 'processing' | 'failed'
   duration?: number
+  slide_duration?: number
   created_at: string
   updated_at?: string
 }

@@ -8,6 +8,11 @@ from app.models.device import Device, DeviceSchedule, CachedMedia
 from app.models.media import MediaFile
 from app.models.playlist import Playlist, PlaylistItem, DevicePlaylist
 from app.models.alert import AlertConfig, AlertHistory
+from app.models.device_enhancement import (
+    DeviceNotificationLog,
+    PlaylistDownloadTask,
+    PlaylistCleanupSchedule,
+)
 
 # 导出所有模型
 __all__ = [
@@ -23,4 +28,7 @@ __all__ = [
     "DevicePlaylist",
     "AlertConfig",
     "AlertHistory",
+    "DeviceNotificationLog",
+    "PlaylistDownloadTask",
+    "PlaylistCleanupSchedule",
 ]

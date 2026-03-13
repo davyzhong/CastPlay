@@ -37,5 +37,8 @@ class MediaFile(Base, TimestampMixin):
     # 视频时长（秒）
     duration = Column(Integer, nullable=True, doc="视频时长（秒）")
 
+    # PPT 幻灯片间隔时长（秒）
+    slide_duration = Column(Integer, nullable=True, default=5, doc="PPT 幻灯片间隔时长（秒）")
+
     def __repr__(self) -> str:
         return f"<MediaFile(id={self.id}, name='{self.file_name}', type='{self.file_type}')>"

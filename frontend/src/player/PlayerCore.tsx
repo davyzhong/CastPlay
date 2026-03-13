@@ -215,7 +215,7 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
     }
   }, [autoPlay, shouldBePlaying, currentItems.length, isRegistered, isSwitching, play, pause]);
 
-  // 自动切换下一项
+  // 自动切换下一项（视频和PPT由播放器 onEnded 处理，图片使用定时器）
   useEffect(() => {
     if (!isPlaying || !currentItem) {
       if (timerRef.current) {
@@ -225,7 +225,12 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
       return;
     }
 
-    // 根据播放速度计算实际显示时间
+    // 视频和PPT由播放器的 onEnded 事件处理，不设置定时器
+    if (currentItem.file_type === 'video' || currentItem.file_type === 'ppt') {
+      return;
+    }
+
+    // 图片根据播放速度计算实际显示时间
     const duration = (currentItem.display_duration * 1000) / playbackSpeed;
 
     timerRef.current = setTimeout(() => {

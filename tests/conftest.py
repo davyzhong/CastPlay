@@ -26,7 +26,23 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # ============================================================================
 # 测试数据库引擎
 # ============================================================================
-from app.models import Base
+# 导入所有模型，确保它们都被注册到 Base.metadata
+from app.models import (
+    Base,
+    User,
+    Device,
+    DeviceSchedule,
+    CachedMedia,
+    MediaFile,
+    Playlist,
+    PlaylistItem,
+    DevicePlaylist,
+    AlertConfig,
+    AlertHistory,
+    DeviceNotificationLog,
+    PlaylistDownloadTask,
+    PlaylistCleanupSchedule,
+)
 
 # 创建内存数据库引擎
 TEST_ENGINE = create_engine(

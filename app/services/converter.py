@@ -55,18 +55,19 @@ class PPTConverter:
 
         return None
 
-    def convert(self, file_path: str, media_id: int) -> dict:
+    def convert(self, file_path: str, media_id: int, slide_duration: int = 5) -> dict:
         """
         执行完整的 PPT 转换流程
 
         Args:
             file_path: PPT 文件路径
             media_id: 媒体文件 ID（用于更新数据库）
+            slide_duration: 每张幻灯片的显示时长（秒），默认 5 秒
 
         Returns:
             转换结果字典
         """
-        logger.info(f"Starting PPT conversion: {file_path}")
+        logger.info(f"Starting PPT conversion: {file_path}, slide_duration={slide_duration}s")
 
         try:
             # 步骤 1: PPT → PDF
@@ -80,7 +81,7 @@ class PPTConverter:
                 raise Exception("Failed to convert PDF to images")
 
             # 步骤 3: 图片序列 → 视频
-            video_path = self._images_to_video(images_dir, file_path)
+            video_path = self._images_to_video(images_dir, file_path, slide_duration)
             if not video_path:
                 raise Exception("Failed to convert images to video")
 
@@ -233,13 +234,14 @@ class PPTConverter:
             logger.error(f"ImageMagick conversion failed: {e}")
             return None
 
-    def _images_to_video(self, images_dir: str, original_path: str) -> Optional[str]:
+    def _images_to_video(self, images_dir: str, original_path: str, slide_duration: int = 5) -> Optional[str]:
         """
         将图片序列转换为视频
 
         Args:
             images_dir: 图片目录
             original_path: 原始文件路径（用于命名）
+            slide_duration: 每张幻灯片的显示时长（秒），默认 5 秒
 
         Returns:
             视频文件路径，失败返回 None
@@ -259,7 +261,7 @@ class PPTConverter:
             cmd = [
                 self.ffmpeg_path,
                 "-y",  # 覆盖输出文件
-                "-framerate", "1/5",  # 每张幻灯片 5 秒
+                "-framerate", f"1/{slide_duration}",  # 每张幻灯片显示指定秒数
                 "-i", f"{images_dir}/slide-%d.jpg",  # 输入文件模式
                 "-c:v", "libx264",  # 视频编码
                 "-pix_fmt", "yuv420p",  # 像素格式

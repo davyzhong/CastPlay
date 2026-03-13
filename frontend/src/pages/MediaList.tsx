@@ -1,7 +1,7 @@
 /**
  * 媒体库页面
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Table,
   Button,
@@ -12,6 +12,8 @@ import {
   Upload,
   Image,
   App,
+  Modal,
+  InputNumber,
 } from 'antd';
 import {
   UploadOutlined,
@@ -40,6 +42,12 @@ const MediaListPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // PPT 幻灯片间隔时长设置
+  const [pptSlideDuration, setPptSlideDuration] = useState(5);
+  const [pptUploadModalVisible, setPptUploadModalVisible] = useState(false);
+  const [pendingPptFile, setPendingPptFile] = useState<File | null>(null);
+  const uploadRef = useRef<any>(null);
+
   const fetchMedia = async () => {
     setLoading(true);
     try {
@@ -59,11 +67,11 @@ const MediaListPage: React.FC = () => {
     fetchMedia();
   }, []);
 
-  const handleUpload = async (file: File, fileType: string) => {
+  const handleUpload = async (file: File, fileType: string, slideDuration?: number) => {
     setUploading(true);
 
     try {
-      const response = await uploadMedia(file, fileType as 'image' | 'video' | 'ppt');
+      const response = await uploadMedia(file, fileType as 'image' | 'video' | 'ppt', slideDuration);
 
       if (response && response.media) {
         message.success(`${fileType === 'ppt' ? 'PPT' : '文件'}上传成功`);
@@ -75,6 +83,22 @@ const MediaListPage: React.FC = () => {
     } finally {
       setUploading(false);
     }
+  };
+
+  // 处理 PPT 上传确认
+  const handlePptUploadConfirm = async () => {
+    if (!pendingPptFile) return;
+    setPptUploadModalVisible(false);
+    await handleUpload(pendingPptFile, 'ppt', pptSlideDuration);
+    setPendingPptFile(null);
+    setPptSlideDuration(5); // 重置为默认值
+  };
+
+  // 取消 PPT 上传
+  const handlePptUploadCancel = () => {
+    setPptUploadModalVisible(false);
+    setPendingPptFile(null);
+    setPptSlideDuration(5);
   };
 
   const handleDelete = async (media: MediaFile) => {
@@ -301,6 +325,7 @@ const MediaListPage: React.FC = () => {
         <Space style={{ marginBottom: 16 }}>
           <Upload.Dragger
             {...uploadProps}
+            ref={uploadRef}
             disabled={uploading}
             showUploadList={false}
             customRequest={(options: UploadRequestOption) => {
@@ -315,7 +340,14 @@ const MediaListPage: React.FC = () => {
               } else if (['ppt', 'pptx'].includes(fileExt || '')) {
                 fileType = 'ppt';
               }
-              handleUpload(uploadFile, fileType);
+
+              // PPT 文件先弹出设置对话框
+              if (fileType === 'ppt') {
+                setPendingPptFile(uploadFile);
+                setPptUploadModalVisible(true);
+              } else {
+                handleUpload(uploadFile, fileType);
+              }
             }}
           >
             <p className="ant-upload-drag-icon">
@@ -343,6 +375,34 @@ const MediaListPage: React.FC = () => {
           pagination={false}
         />
       </Card>
+
+      {/* PPT 幻灯片间隔设置对话框 */}
+      <Modal
+        title="PPT 上传设置"
+        open={pptUploadModalVisible}
+        onOk={handlePptUploadConfirm}
+        onCancel={handlePptUploadCancel}
+        okText="开始上传"
+        cancelText="取消"
+        confirmLoading={uploading}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ marginBottom: 8 }}>请设置每页幻灯片的显示时长：</p>
+          <Space>
+            <InputNumber
+              min={1}
+              max={60}
+              value={pptSlideDuration}
+              onChange={(value) => setPptSlideDuration(value || 5)}
+              addonAfter="秒"
+              style={{ width: 120 }}
+            />
+          </Space>
+          <p style={{ marginTop: 8, color: '#666', fontSize: 12 }}>
+            提示：PPT 将转换为视频，每页幻灯片按设定的时长显示
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 };

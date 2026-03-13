@@ -41,6 +41,7 @@ httpx==0.26.0
 coverage==7.4.0
 exceptiongroup==1.2.0
 faker==23.1.0
+pytest-playwright==0.4.4
 
 # 系统依赖（需要单独安装）
 # - LibreOffice (用于 PPT 转换)

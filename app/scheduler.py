@@ -16,23 +16,24 @@ scheduler = BackgroundScheduler(
 )
 
 
-def submit_ppt_conversion(media_id: int, file_path: str) -> str:
+def submit_ppt_conversion(media_id: int, file_path: str, slide_duration: int = 5) -> str:
     """
     提交 PPT 转换任务
 
     Args:
         media_id: 媒体文件 ID
         file_path: PPT 文件路径
+        slide_duration: 每张幻灯片的显示时长（秒），默认 5 秒
 
     Returns:
         任务 ID
     """
     logger.info(
-        f"Scheduling PPT conversion: media_id={media_id}, file={file_path}")
+        f"Scheduling PPT conversion: media_id={media_id}, file={file_path}, slide_duration={slide_duration}")
 
     job = scheduler.add_job(
         _convert_ppt_task,
-        args=[media_id, file_path],
+        args=[media_id, file_path, slide_duration],
         max_instances=1,  # 同一任务只允许 1 个实例
         misfire_grace_time=60,  # 容忍 60 秒延迟
         replace_existing=True,  # 替换同名任务
@@ -43,13 +44,14 @@ def submit_ppt_conversion(media_id: int, file_path: str) -> str:
     return job.id
 
 
-def _convert_ppt_task(media_id: int, file_path: str):
+def _convert_ppt_task(media_id: int, file_path: str, slide_duration: int = 5):
     """
     实际执行的 PPT 转换逻辑
 
     Args:
         media_id: 媒体文件 ID
         file_path: PPT 文件路径
+        slide_duration: 每张幻灯片的显示时长（秒），默认 5 秒
     """
     from app.services.converter import PPTConverter
     from app.database import SessionLocal
@@ -57,9 +59,9 @@ def _convert_ppt_task(media_id: int, file_path: str):
 
     db = None
     try:
-        logger.info(f"Starting PPT conversion: media_id={media_id}")
+        logger.info(f"Starting PPT conversion: media_id={media_id}, slide_duration={slide_duration}")
         converter = PPTConverter()
-        result = converter.convert(file_path, media_id)
+        result = converter.convert(file_path, media_id, slide_duration)
 
         # 更新数据库中的媒体文件记录
         if result.get("success"):

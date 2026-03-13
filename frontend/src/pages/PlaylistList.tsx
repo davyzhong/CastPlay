@@ -207,30 +207,38 @@ const SortablePlaylistItem: React.FC<SortableRowProps> = ({
         </Tooltip>
         <Space style={{ marginTop: 4 }} size="small">
           <Tag color={getFileTypeColor(item.file_type)}>{item.file_type.toUpperCase()}</Tag>
-          <span style={{ color: '#666', whiteSpace: 'nowrap' }}>时长:</span>
-          <InputNumber
-            size="small"
-            min={1}
-            max={3600}
-            value={item.display_duration}
-            onBlur={(e) => {
-              const value = parseInt(e.target.value);
-              if (value && value !== item.display_duration && value >= 1 && value <= 3600) {
-                onUpdateDuration(item.id, value);
-              }
-            }}
-            onPressEnter={(e) => {
-              const value = parseInt((e.target as HTMLInputElement).value);
-              if (value && value !== item.display_duration && value >= 1 && value <= 3600) {
-                onUpdateDuration(item.id, value);
-                (e.target as HTMLInputElement).blur();
-              }
-            }}
-            style={{ width: 60 }}
-            disabled={isUpdating}
-          />
-          <span style={{ color: '#666' }}>秒</span>
-          {isUpdating && <LoadingOutlined style={{ color: '#1890ff' }} />}
+          {/* 视频和 PPT 文件不显示时长设置，按实际播放时长 */}
+          {item.file_type !== 'video' && item.file_type !== 'ppt' && (
+            <>
+              <span style={{ color: '#666', whiteSpace: 'nowrap' }}>时长:</span>
+              <InputNumber
+                size="small"
+                min={1}
+                max={3600}
+                value={item.display_duration}
+                onBlur={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (value && value !== item.display_duration && value >= 1 && value <= 3600) {
+                    onUpdateDuration(item.id, value);
+                  }
+                }}
+                onPressEnter={(e) => {
+                  const value = parseInt((e.target as HTMLInputElement).value);
+                  if (value && value !== item.display_duration && value >= 1 && value <= 3600) {
+                    onUpdateDuration(item.id, value);
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                style={{ width: 60 }}
+                disabled={isUpdating}
+              />
+              <span style={{ color: '#666' }}>秒</span>
+              {isUpdating && <LoadingOutlined style={{ color: '#1890ff' }} />}
+            </>
+          )}
+          {(item.file_type === 'video' || item.file_type === 'ppt') && (
+            <span style={{ color: '#999', fontSize: 12 }}>自动播放</span>
+          )}
         </Space>
       </div>
 
@@ -641,7 +649,18 @@ const PlaylistListPage: React.FC = () => {
     setIsPlaying(true);
   };
 
-  // 自动播放下一个
+  // 预览播放下一个
+  const handlePreviewNext = useCallback(() => {
+    if (!selectedPlaylist) return;
+    if (previewIndex < selectedPlaylist.items.length - 1) {
+      setPreviewIndex(previewIndex + 1);
+    } else {
+      setIsPlaying(false);
+      message.info('播放列表播放完毕');
+    }
+  }, [previewIndex, selectedPlaylist, message]);
+
+  // 自动播放下一个（仅图片和PPT使用定时器，视频使用 onEnded）
   useEffect(() => {
     if (!isPlaying || !playlistPreviewVisible || !selectedPlaylist) return;
 
@@ -651,18 +670,18 @@ const PlaylistListPage: React.FC = () => {
       return;
     }
 
+    // 视频由 onEnded 处理，不设置定时器
+    if (currentItem.file_type === 'video' || currentItem.file_type === 'ppt') {
+      return;
+    }
+
+    // 图片使用定时器
     const timer = setTimeout(() => {
-      if (previewIndex < selectedPlaylist.items.length - 1) {
-        setPreviewIndex(previewIndex + 1);
-      } else {
-        // 播放完毕，可以选择循环或停止
-        setIsPlaying(false);
-        message.info('播放列表播放完毕');
-      }
+      handlePreviewNext();
     }, (currentItem.display_duration * 1000) / previewSpeed);
 
     return () => clearTimeout(timer);
-  }, [isPlaying, playlistPreviewVisible, previewIndex, selectedPlaylist, previewSpeed]);
+  }, [isPlaying, playlistPreviewVisible, previewIndex, selectedPlaylist, previewSpeed, handlePreviewNext]);
 
   const columns: ColumnsType<Playlist> = [
     {
@@ -1114,14 +1133,34 @@ const PlaylistListPage: React.FC = () => {
                   </div>
                 )}
 
-                <Form.Item
-                  label="显示时长(秒)"
-                  name="display_duration"
-                  initialValue={5}
-                  rules={[{ required: true, message: '请输入显示时长' }]}
-                >
-                  <InputNumber min={1} max={3600} style={{ width: '100%' }} />
-                </Form.Item>
+                {/* 仅当选择的媒体中有非视频文件时才显示时长设置 */}
+                {(() => {
+                  const selectedMediaTypes = selectedMediaIds
+                    .map(id => mediaFiles.find(m => m.id === id)?.file_type)
+                    .filter(Boolean);
+                  const hasNonVideo = selectedMediaTypes.some(t => t !== 'video');
+                  const hasVideo = selectedMediaTypes.includes('video');
+
+                  if (!hasNonVideo && selectedMediaIds.length > 0) {
+                    return (
+                      <div style={{ padding: '8px 0', color: '#666' }}>
+                        <Tag color="cyan">视频文件将按实际时长自动播放</Tag>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <Form.Item
+                      label={hasVideo ? "显示时长(秒，仅图片)" : "显示时长(秒)"}
+                      name="display_duration"
+                      initialValue={5}
+                      rules={[{ required: true, message: '请输入显示时长' }]}
+                      extra={hasVideo ? '时长设置仅对图片生效，视频将按实际时长播放' : undefined}
+                    >
+                      <InputNumber min={1} max={3600} style={{ width: '100%' }} />
+                    </Form.Item>
+                  );
+                })()}
                 <Form.Item>
                   <Space>
                     <Button type="primary" htmlType="submit">
@@ -1379,6 +1418,7 @@ const PlaylistListPage: React.FC = () => {
                   src={getMediaFileUrl(selectedPlaylist.items[previewIndex].media_id)}
                   controls
                   autoPlay
+                  onEnded={handlePreviewNext}
                   style={{
                     maxWidth: '100%',
                     maxHeight: '100%',
@@ -1391,7 +1431,13 @@ const PlaylistListPage: React.FC = () => {
             </div>
             <div style={{ marginTop: 12, textAlign: 'center' }}>
               <Tag color="blue">{selectedPlaylist.items[previewIndex].file_name}</Tag>
-              <Tag>{selectedPlaylist.items[previewIndex].display_duration}秒</Tag>
+              {/* 视频不显示时长标签 */}
+              {selectedPlaylist.items[previewIndex].file_type !== 'video' && (
+                <Tag>{selectedPlaylist.items[previewIndex].display_duration}秒</Tag>
+              )}
+              {selectedPlaylist.items[previewIndex].file_type === 'video' && (
+                <Tag color="cyan">自动播放</Tag>
+              )}
               {previewSpeed > 1 && <Tag color="orange">{previewSpeed}X 倍速</Tag>}
             </div>
           </div>

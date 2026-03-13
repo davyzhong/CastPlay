@@ -442,13 +442,19 @@ const WebPlayerSimulator: React.FC = () => {
     addLog('info', `播放速度: ${speed}X`);
   };
 
-  // 自动播放下一项
+  // 自动播放下一项（视频和PPT由 onEnded 处理，图片使用定时器）
   useEffect(() => {
     if (!isPlaying || playlistItems.length === 0) return;
 
     const currentItem = playlistItems[currentIndex];
     if (!currentItem) return;
 
+    // 视频和PPT由播放器的 onEnded 事件处理
+    if (currentItem.file_type === 'video' || currentItem.file_type === 'ppt') {
+      return;
+    }
+
+    // 图片使用定时器
     const duration = (currentItem.display_duration * 1000) / playbackSpeed;
 
     playbackTimerRef.current = setTimeout(() => {
@@ -814,6 +820,7 @@ const WebPlayerSimulator: React.FC = () => {
                     style={{ maxWidth: '100%', maxHeight: '100%' }}
                     controls
                     autoPlay={isPlaying}
+                    onEnded={handleNext}
                   />
                 )
               ) : (

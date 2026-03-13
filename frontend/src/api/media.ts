@@ -12,10 +12,18 @@ export interface MediaListParams {
 }
 
 // 上传媒体文件
-export const uploadMedia = async (file: File, fileType: 'image' | 'video' | 'ppt') => {
+export const uploadMedia = async (
+  file: File,
+  fileType: 'image' | 'video' | 'ppt',
+  slideDuration?: number
+) => {
   const formData = new FormData();
   formData.append('file', file);
-  return api.post<{ message: string; media: MediaFile }>(`/media/upload?file_type=${fileType}`, formData, {
+  let url = `/media/upload?file_type=${fileType}`;
+  if (slideDuration !== undefined && fileType === 'ppt') {
+    url += `&slide_duration=${slideDuration}`;
+  }
+  return api.post<{ message: string; media: MediaFile }>(url, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },

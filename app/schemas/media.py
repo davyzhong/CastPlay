@@ -16,6 +16,7 @@ class MediaFileUpdate(BaseModel):
     """更新媒体文件请求"""
     file_name: Optional[str] = None
     status: Optional[str] = Field(None, pattern="^(ready|processing|failed)$")
+    slide_duration: Optional[int] = Field(None, ge=1, le=60)
 
 
 class MediaFileResponse(BaseModel):
@@ -30,6 +31,7 @@ class MediaFileResponse(BaseModel):
     md5_hash: Optional[str] = None
     status: str
     duration: Optional[int] = None
+    slide_duration: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

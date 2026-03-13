@@ -399,6 +399,50 @@ def add_playlist_items_batch(
     )
 
 
+@router.put("/{playlist_id}/items/reorder")
+def reorder_playlist_items(
+    playlist_id: int,
+    reorder_data: ReorderItemsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    重新排序播放列表项
+
+    需要认证
+
+    请求格式：
+    {
+        "items": [
+            {"id": 1, "order": 0},
+            {"id": 2, "order": 1}
+        ]
+    }
+    """
+    # 检查播放列表是否存在
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist not found"
+        )
+
+    # 更新顺序
+    for item_data in reorder_data.items:
+        item = db.query(PlaylistItem).filter(
+            PlaylistItem.id == item_data["id"],
+            PlaylistItem.playlist_id == playlist_id
+        ).first()
+
+        if item:
+            item.display_order = item_data["order"]
+
+    db.commit()
+
+    logger.info(f"Playlist {playlist_id} items reordered")
+    return {"message": "Playlist items reordered successfully"}
+
+
 @router.put("/{playlist_id}/items/{item_id}", response_model=PlaylistItemResponse)
 def update_playlist_item(
     playlist_id: int,
@@ -486,50 +530,6 @@ def remove_playlist_item(
 
     logger.info(f"Item removed from playlist {playlist_id}: item_id={item_id}")
     return None
-
-
-@router.put("/{playlist_id}/items/reorder")
-def reorder_playlist_items(
-    playlist_id: int,
-    reorder_data: ReorderItemsRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    重新排序播放列表项
-
-    需要认证
-
-    请求格式：
-    {
-        "items": [
-            {"id": 1, "order": 0},
-            {"id": 2, "order": 1}
-        ]
-    }
-    """
-    # 检查播放列表是否存在
-    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
-    if not playlist:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Playlist not found"
-        )
-
-    # 更新顺序
-    for item_data in reorder_data.items:
-        item = db.query(PlaylistItem).filter(
-            PlaylistItem.id == item_data["id"],
-            PlaylistItem.playlist_id == playlist_id
-        ).first()
-
-        if item:
-            item.display_order = item_data["order"]
-
-    db.commit()
-
-    logger.info(f"Playlist {playlist_id} items reordered")
-    return {"message": "Playlist items reordered successfully"}
 
 
 @router.post("/{playlist_id}/devices/{device_id}", response_model=DevicePlaylistResponse, status_code=status.HTTP_201_CREATED)

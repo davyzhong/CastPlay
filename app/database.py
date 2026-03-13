@@ -68,6 +68,22 @@ def init_database():
                 ("device_metadata", "TEXT"),
             ]
 
+            # 检查 media_files 表是否需要添加 slide_duration 列
+            cursor.execute("SELECT * FROM pragma_table_info WHERE name='media_files'")
+            media_columns = cursor.fetchall()
+            media_column_names = [col[1] for col in media_columns]
+
+            media_migrations = [
+                ("slide_duration", "INTEGER DEFAULT 5"),
+            ]
+
+            for col_name, col_def in media_migrations:
+                if col_name not in media_column_names:
+                    print(f"Adding {col_name} column to media_files table...")
+                    cursor.execute(f"ALTER TABLE media_files ADD COLUMN {col_name} {col_def}")
+                    conn.commit()
+                    print(f"{col_name} column added successfully")
+
             for col_name, col_def in migrations:
                 if col_name not in column_names:
                     print(f"Adding {col_name} column to devices table...")

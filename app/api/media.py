@@ -73,6 +73,7 @@ router = APIRouter(
 async def upload_media(
     file: UploadFile = File(..., description="上传的媒体文件"),
     file_type: str = Query(..., pattern="^(image|video|ppt)$", description="文件类型：image/video/ppt"),
+    slide_duration: Optional[int] = Query(5, ge=1, le=60, description="PPT 幻灯片间隔时长（秒）"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -131,6 +132,7 @@ async def upload_media(
         file_size=file_size,
         thumbnail_path=thumbnail_path,
         md5_hash=md5_hash,
+        slide_duration=slide_duration if file_type == "ppt" else None,
         status="ready" if file_type != "ppt" else "processing"  # PPT 文件初始状态为 processing
     )
     db.add(new_media)
@@ -152,10 +154,11 @@ async def upload_media(
             # 提交后台转换任务
             job_id = submit_ppt_conversion(
                 media_id=new_media.id,
-                file_path=file_path
+                file_path=file_path,
+                slide_duration=slide_duration
             )
             logger.info(
-                f"PPT conversion task submitted for media {new_media.id}, job_id={job_id}")
+                f"PPT conversion task submitted for media {new_media.id}, job_id={job_id}, slide_duration={slide_duration}")
 
     return {
         "message": "File uploaded successfully",
@@ -366,12 +369,14 @@ def retry_conversion(
     media.status = "processing"
     db.commit()
 
-    # 提交转换任务
+    # 提交转换任务，使用存储的 slide_duration 或默认值
+    slide_duration = media.slide_duration or 5
     job_id = submit_ppt_conversion(
         media_id=media.id,
-        file_path=media.file_path
+        file_path=media.file_path,
+        slide_duration=slide_duration
     )
     logger.info(
-        f"PPT conversion retry submitted for media {media.id}, job_id={job_id}")
+        f"PPT conversion retry submitted for media {media.id}, job_id={job_id}, slide_duration={slide_duration}")
 
     return media

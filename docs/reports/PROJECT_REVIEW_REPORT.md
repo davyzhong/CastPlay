@@ -367,7 +367,7 @@ CastPlay 项目适合 **小规模数字标牌场景**（10-100 台设备），�
 
 | 问题 | 文件 | 状态 |
 |------|------|------|
-| 裸 `except Exception` 捕获 | `app/services/converter.py` | ⏳ 待修复 |
+| 裸 `except Exception` 捕获 | `app/services/converter.py` | ✅ 已修复 (使用具体异常类型) |
 
 ---
 

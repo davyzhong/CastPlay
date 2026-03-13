@@ -44,7 +44,7 @@ def validate_file_path(file_path: str, allowed_dirs: list[Path]) -> Tuple[bool, 
 
         return False, f"File path not in allowed directories: {file_path}"
 
-    except Exception as e:
+    except (OSError, ValueError) as e:
         return False, f"Invalid file path: {e}"
 
 
@@ -166,7 +166,7 @@ class PPTConverter:
                 "duration": duration
             }
 
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             logger.error(f"PPT conversion failed: {e}")
             return {
                 "success": False,
@@ -221,7 +221,7 @@ class PPTConverter:
         except subprocess.TimeoutExpired:
             logger.error("LibreOffice conversion timed out")
             return None
-        except Exception as e:
+        except (FileNotFoundError, OSError, subprocess.SubprocessError) as e:
             logger.error(f"PPT to PDF conversion failed: {e}")
             return None
 
@@ -259,7 +259,7 @@ class PPTConverter:
                 logger.error("No images generated")
                 return None
 
-        except Exception as e:
+        except (FileNotFoundError, OSError, subprocess.SubprocessError) as e:
             logger.error(f"PDF to images conversion failed: {e}")
             return None
 
@@ -293,7 +293,7 @@ class PPTConverter:
         except FileNotFoundError:
             logger.warning("ImageMagick convert not found, using pdftoppm only")
             return None
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             logger.error(f"ImageMagick conversion failed: {e}")
             return None
 
@@ -348,7 +348,7 @@ class PPTConverter:
                 logger.error("Video file not found after conversion")
                 return None
 
-        except Exception as e:
+        except (FileNotFoundError, OSError, subprocess.SubprocessError) as e:
             logger.error(f"Images to video conversion failed: {e}")
             return None
 
@@ -387,7 +387,7 @@ class PPTConverter:
                 logger.warning(f"Failed to create thumbnail: {result.stderr}")
                 return None
 
-        except Exception as e:
+        except (FileNotFoundError, OSError, subprocess.SubprocessError) as e:
             logger.warning(f"Thumbnail generation failed: {e}")
             return None
 
@@ -422,7 +422,7 @@ class PPTConverter:
 
             return None
 
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError, ValueError) as e:
             logger.warning(f"Failed to get video duration: {e}")
             return None
 
@@ -444,7 +444,7 @@ class PPTConverter:
                 shutil.rmtree(images_dir)
                 logger.info(f"Deleted images dir: {images_dir}")
 
-        except Exception as e:
+        except OSError as e:
             logger.warning(f"Cleanup failed: {e}")
 
     def is_available(self) -> Tuple[bool, str]:
@@ -464,7 +464,7 @@ class PPTConverter:
         # 检查 pdftoppm
         try:
             subprocess.run(["which", "pdftoppm"], capture_output=True, check=True)
-        except Exception:
+        except (FileNotFoundError, subprocess.SubprocessError):
             issues.append("pdftoppm not found. Using ImageMagick as fallback.")
 
         if issues:

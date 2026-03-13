@@ -4,7 +4,7 @@
  */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
-import type { PlayerPlaylist, PlayerInitResponse, PlayerWsMessage } from './types';
+import type { PlayerPlaylist, PlayerInitResponse } from './types';
 
 export interface UsePlaylistSyncReturn {
   playlists: PlayerPlaylist[];
@@ -28,6 +28,7 @@ export const usePlaylistSync = (
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const pendingSwitchRef = useRef<number | null>(null);  // 待切换的播放列表 ID
 
   // 初始化播放列表
   const initPlaylists = useCallback(async () => {
@@ -49,15 +50,30 @@ export const usePlaylistSync = (
 
       // 如果有激活的播放列表， 设为当前
       if (fetchedPlaylists.length > 0) {
-        // 检查是否有上次播放的播放列表
-        const lastPlaylistId = localStorage.getItem('last_playlist_id');
-        const lastPlaylist = lastPlaylistId
-          ? fetchedPlaylists.find(p => p.id === parseInt(lastPlaylistId))
-          : null;
+        // 检查是否需要切换到新分配的播放列表
+        if (pendingSwitchRef.current) {
+          const targetPlaylist = fetchedPlaylists.find(p => p.id === pendingSwitchRef.current);
+          if (targetPlaylist) {
+            setCurrentPlaylist(targetPlaylist);
+            localStorage.setItem('last_playlist_id', targetPlaylist.id.toString());
+            console.log('[usePlaylistSync] Switched to newly assigned playlist:', targetPlaylist.name);
+          } else {
+            // 如果找不到指定的播放列表，使用第一个
+            setCurrentPlaylist(fetchedPlaylists[0]);
+            localStorage.setItem('last_playlist_id', fetchedPlaylists[0].id.toString());
+          }
+          pendingSwitchRef.current = null;
+        } else {
+          // 检查是否有上次播放的播放列表
+          const lastPlaylistId = localStorage.getItem('last_playlist_id');
+          const lastPlaylist = lastPlaylistId
+            ? fetchedPlaylists.find(p => p.id === parseInt(lastPlaylistId))
+            : null;
 
-        setCurrentPlaylist(lastPlaylist || fetchedPlaylists[0]);
-        if (lastPlaylist) {
-          localStorage.setItem('last_playlist_id', lastPlaylist.id.toString());
+          setCurrentPlaylist(lastPlaylist || fetchedPlaylists[0]);
+          if (lastPlaylist) {
+            localStorage.setItem('last_playlist_id', lastPlaylist.id.toString());
+          }
         }
       }
     } catch (err) {
@@ -144,15 +160,41 @@ export const usePlaylistSync = (
 
       ws.onmessage = (event) => {
         try {
-          const message: PlayerWsMessage = JSON.parse(event.data);
+          const message = JSON.parse(event.data);
+          console.log('[usePlaylistSync] WebSocket message received:', message.type);
 
-          if (message.event === 'playlist_update') {
-            syncPlaylist(message.playlist_id!);
-          } else if (message.event === 'force_sync') {
-            initPlaylists();
+          // 后端消息格式: { type: "playlist_assigned", device_id: ..., timestamp: ..., data: {...} }
+          switch (message.type) {
+            case 'playlist_assigned': {
+              // 新分配播放列表：自动切换到新播放列表
+              const playlistId = message.data?.playlist_id;
+              if (playlistId) {
+                console.log('[usePlaylistSync] Playlist assigned:', playlistId);
+                // 设置待切换的播放列表 ID，然后获取最新数据
+                pendingSwitchRef.current = playlistId;
+                initPlaylists();
+              }
+              break;
+            }
+            case 'playlist_updated':
+              // 播放列表内容更新：刷新数据
+              console.log('[usePlaylistSync] Playlist updated');
+              initPlaylists();
+              break;
+            case 'playlist_removed':
+              // 播放列表被移除：刷新数据
+              console.log('[usePlaylistSync] Playlist removed');
+              initPlaylists();
+              break;
+            case 'force_sync':
+              console.log('[usePlaylistSync] Force sync');
+              initPlaylists();
+              break;
+            default:
+              console.log('[usePlaylistSync] Unknown message type:', message.type);
           }
-        } catch {
-          // 忽略解析错误
+        } catch (err) {
+          console.error('[usePlaylistSync] Failed to parse WebSocket message:', err);
         }
       };
 
@@ -172,7 +214,7 @@ export const usePlaylistSync = (
         wsRef.current.close();
       }
     };
-  }, [deviceId, isOnline, syncPlaylist, initPlaylists]);
+  }, [deviceId, isOnline, initPlaylists]);
 
   // 初始化时加载播放列表
   useEffect(() => {

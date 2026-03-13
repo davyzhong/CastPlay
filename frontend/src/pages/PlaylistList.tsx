@@ -2,7 +2,7 @@
  * 播放列表页面
  * 支持批量添加媒体、拖拽排序、媒体预览、播放列表预览
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Table,
   Button,
@@ -88,6 +88,7 @@ interface SortableRowProps {
   mediaFiles: MediaFile[];
   onUpdateDuration: (itemId: number, duration: number) => void;
   updatingItemId: number | null;
+  onVideoPreview: (item: PlaylistItem) => void;
 }
 
 const SortablePlaylistItem: React.FC<SortableRowProps> = ({
@@ -95,7 +96,8 @@ const SortablePlaylistItem: React.FC<SortableRowProps> = ({
   onRemove,
   mediaFiles,
   onUpdateDuration,
-  updatingItemId
+  updatingItemId,
+  onVideoPreview
 }) => {
   const {
     attributes,
@@ -148,10 +150,33 @@ const SortablePlaylistItem: React.FC<SortableRowProps> = ({
       );
     }
 
-    // 视频类型或无媒体信息时显示类型图标占位符
+    // 视频类型：显示可点击的图标
+    if (media && media.file_type === 'video') {
+      return (
+        <div
+          onClick={() => onVideoPreview(item)}
+          style={{
+            width: 160,
+            height: 120,
+            backgroundColor: '#1890ff',
+            borderRadius: 4,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '40px',
+            color: '#fff',
+            cursor: 'pointer',
+          }}
+          title="点击预览"
+        >
+          🎬
+        </div>
+      );
+    }
+
+    // 其他类型：显示图标
     const typeConfig: Record<string, { color: string; icon: string }> = {
       image: { color: '#52c41a', icon: '🖼️' },
-      video: { color: '#1890ff', icon: '🎬' },
       ppt: { color: '#fa8c16', icon: '📊' },
     };
     const config = typeConfig[item.file_type] || { color: '#999', icon: '📄' };
@@ -286,6 +311,11 @@ const PlaylistListPage: React.FC = () => {
   const [editingPlaylistId, setEditingPlaylistId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState<string>('');
   const [editNameLoading, setEditNameLoading] = useState(false);
+
+  // 视频预览状态
+  const [videoPreviewItem, setVideoPreviewItem] = useState<PlaylistItem | null>(null);
+  const [videoPlaybackRate, setVideoPlaybackRate] = useState(1);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // 切换媒体选中状态
   const toggleMediaSelection = (mediaId: number) => {
@@ -928,7 +958,11 @@ const PlaylistListPage: React.FC = () => {
       <Modal
         title={selectedPlaylist ? selectedPlaylist.name : '播放列表详情'}
         open={detailModalVisible}
-        onCancel={() => setDetailModalVisible(false)}
+        onCancel={() => {
+          setDetailModalVisible(false);
+          setVideoPreviewItem(null);
+          setVideoPlaybackRate(1);
+        }}
         footer={null}
         width={900}
       >
@@ -979,6 +1013,7 @@ const PlaylistListPage: React.FC = () => {
                         mediaFiles={mediaFiles}
                         onUpdateDuration={handleUpdateItemDuration}
                         updatingItemId={updatingItemId}
+                        onVideoPreview={(item) => setVideoPreviewItem(item)}
                       />
                     ))}
                   </div>
@@ -1526,6 +1561,50 @@ const PlaylistListPage: React.FC = () => {
                 </div>
               </>
             )}
+          </div>
+        )}
+      </Modal>
+
+      {/* 视频预览模态框 */}
+      <Modal
+        title={videoPreviewItem?.file_name || '视频预览'}
+        open={!!videoPreviewItem}
+        onCancel={() => {
+          setVideoPreviewItem(null);
+          setVideoPlaybackRate(1);
+        }}
+        footer={null}
+        width={800}
+        centered
+      >
+        {videoPreviewItem && (
+          <div style={{ textAlign: 'center' }}>
+            <video
+              ref={videoRef}
+              src={getMediaFileUrl(videoPreviewItem.media_id)}
+              controls
+              autoPlay
+              style={{ maxWidth: '100%', maxHeight: '60vh' }}
+            />
+            {/* 变速播放控制 */}
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}>
+              <Typography.Text>播放速度:</Typography.Text>
+              {[1, 2, 4, 8].map((speed) => (
+                <Button
+                  key={speed}
+                  size="small"
+                  type={videoPlaybackRate === speed ? 'primary' : 'default'}
+                  onClick={() => {
+                    setVideoPlaybackRate(speed);
+                    if (videoRef.current) {
+                      videoRef.current.playbackRate = speed;
+                    }
+                  }}
+                >
+                  {speed}X
+                </Button>
+              ))}
+            </div>
           </div>
         )}
       </Modal>

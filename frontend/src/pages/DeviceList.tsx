@@ -190,8 +190,9 @@ const DeviceListPage: React.FC = () => {
         is_enabled: scheduleData.is_enabled,
         weekdays: scheduleData.weekdays,
       });
-    } catch (error: any) {
-      if (error.status === 404) {
+    } catch (error: unknown) {
+      const err = error as { status?: number };
+      if (err.status === 404) {
         setSchedule(null);
         form.setFieldsValue({
           power_on_time: null,
@@ -231,9 +232,10 @@ const DeviceListPage: React.FC = () => {
       setScheduleModalVisible(false);
       // 刷新该设备的定时配置信息
       fetchDeviceExtraInfo([selectedDevice]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Set schedule error:', error);
-      message.error(error.message || '设置定时配置失败');
+      const err = error as { message?: string };
+      message.error(err.message || '设置定时配置失败');
     }
   };
 
@@ -255,7 +257,7 @@ const DeviceListPage: React.FC = () => {
           message.success(`设备已${action}`);
           // 刷新设备列表
           fetchDevices();
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Toggle disabled error:', error);
           message.error(`${action}设备失败`);
         }
@@ -273,7 +275,7 @@ const DeviceListPage: React.FC = () => {
     try {
       const response = await getPlaylistList({ limit: 100 });
       setAllPlaylists(response.items || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Fetch playlists error:', error);
     }
   };
@@ -287,7 +289,7 @@ const DeviceListPage: React.FC = () => {
       const response = await getDevicePlaylists(device.id);
       setDevicePlaylists(response.playlists || []);
       await fetchAllPlaylists();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Fetch device playlists error:', error);
       message.error('获取设备播放列表失败');
     } finally {
@@ -310,9 +312,10 @@ const DeviceListPage: React.FC = () => {
         ...prev,
         [selectedDevice.id]: response.playlists || []
       }));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Assign playlist error:', error);
-      message.error(error.response?.data?.detail || '分配播放列表失败');
+      const err = error as { response?: { data?: { detail?: string } } };
+      message.error(err.response?.data?.detail || '分配播放列表失败');
     } finally {
       setPlaylistLoading(false);
     }
@@ -331,7 +334,7 @@ const DeviceListPage: React.FC = () => {
         ...prev,
         [selectedDevice.id]: response.playlists || []
       }));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Unassign playlist error:', error);
       message.error('取消分配失败');
     }
@@ -350,7 +353,7 @@ const DeviceListPage: React.FC = () => {
         ...prev,
         [selectedDevice.id]: response.playlists || []
       }));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Toggle playlist active error:', error);
       message.error('操作失败');
     }
@@ -586,7 +589,7 @@ const DeviceListPage: React.FC = () => {
           const data = await response.json();
           message.success(data.message || `已清理 ${data.deleted_count} 个无效设备`);
           fetchDevices();
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Cleanup error:', error);
           message.error('清理失败');
         }

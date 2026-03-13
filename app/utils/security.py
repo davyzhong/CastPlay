@@ -51,10 +51,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         JWT Token 字符串
     """
     to_encode = data.copy()
+
+    # 添加签发时间 (iat) - JWT 标准声明，用于 token 唯一性和追踪
+    now = datetime.utcnow()
+    to_encode.update({"iat": now})
+
+    # 添加过期时间 (exp)
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = now + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.get_secret_key(), algorithm=settings.ALGORITHM)
@@ -71,6 +77,9 @@ def decode_access_token(token: str) -> Optional[dict]:
     Returns:
         解码后的数据，失败返回 None
     """
+    if not token or not isinstance(token, str):
+        return None
+
     try:
         payload = jwt.decode(token, settings.get_secret_key(), algorithms=[settings.ALGORITHM])
         return payload

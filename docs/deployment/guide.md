@@ -46,7 +46,7 @@ cd castplay-allinone
 docker-compose up -d
 
 # 3. 初始化数据库
-docker-compose exec castplay python scripts/init_db.py
+docker-compose exec castplay python scripts/db/init.py
 
 # 4. 访问应用
 # API 文档: http://localhost:8000/docs
@@ -135,14 +135,14 @@ pip install -r requirements.txt
 ### 3. 初始化数据库
 
 ```bash
-python scripts/init_db.py
+python scripts/db/init.py
 ```
 
 ### 4. 启动服务
 
 ```bash
 # 开发模式
-python scripts/run.py
+python scripts/server/start.py
 
 # 或使用 uvicorn（生产模式）
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
@@ -266,7 +266,7 @@ sudo certbot --nginx -d castplay.example.com
 
 ```bash
 # 手动备份
-python scripts/backup_db.py
+python scripts/db/backup.py
 
 # 或直接复制数据库文件
 cp data/castplay.db data/backups/castplay_$(date +%Y%m%d_%H%M%S).db
@@ -279,7 +279,7 @@ cp data/castplay.db data/backups/castplay_$(date +%Y%m%d_%H%M%S).db
 crontab -e
 
 # 添加每天凌晨 2 点备份
-0 2 * * * /opt/castplay/scripts/backup_db.py >> /var/log/castplay_backup.log 2>&1
+0 2 * * * /opt/castplay/scripts/db/backup.py >> /var/log/castplay_backup.log 2>&1
 ```
 
 ### 数据库恢复
@@ -326,7 +326,7 @@ rm -rf "$BACKUP_DIR"
 docker-compose logs castplay
 
 # 或手动运行查看错误
-python scripts/run.py
+python scripts/server/start.py
 ```
 
 ### 数据库被锁定
@@ -363,7 +363,7 @@ netstat -tlnp | grep :8000
 
 # 修改端口
 export PORT=8001
-python scripts/run.py
+python scripts/server/start.py
 ```
 
 ### 内存不足
@@ -371,7 +371,7 @@ python scripts/run.py
 ```bash
 # 减少工作线程数
 export NUM_WORKERS=2
-python scripts/run.py
+python scripts/server/start.py
 
 # 或增加 swap 空间
 sudo fallocate -l 2G /swapfile
@@ -438,7 +438,7 @@ docker-compose up -d
 
 ```bash
 # 备份数据库
-python scripts/backup_db.py
+python scripts/db/backup.py
 
 # 拉取最新代码
 git pull

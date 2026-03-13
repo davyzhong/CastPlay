@@ -404,7 +404,7 @@ const PlaylistListPage: React.FC = () => {
     try {
       const response = await getMediaList({ limit: 100 });
       setMediaFiles(response.items || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Fetch media files error:', error);
       setMediaFiles([]);
     }
@@ -414,7 +414,7 @@ const PlaylistListPage: React.FC = () => {
     try {
       const response = await getDeviceList({ limit: 100 });
       setAvailableDevices(response.items || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Fetch devices error:', error);
       setAvailableDevices([]);
     }
@@ -450,7 +450,7 @@ const PlaylistListPage: React.FC = () => {
           await deletePlaylist(playlist.id);
           message.success('播放列表删除成功');
           await fetchPlaylists();
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Delete playlist error:', error);
           message.error('删除播放列表失败');
         }
@@ -464,7 +464,7 @@ const PlaylistListPage: React.FC = () => {
       const response = await getPlaylistDetail(playlist.id);
       setSelectedPlaylist(response);
       setDetailModalVisible(true);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Fetch playlist detail error:', error);
       message.error('获取播放列表详情失败');
     } finally {
@@ -488,7 +488,7 @@ const PlaylistListPage: React.FC = () => {
       setSelectedMediaIds([]);
       setAddItemModalVisible(false);
       await handleShowDetail(selectedPlaylist);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Batch add items error:', error);
       message.error('批量添加媒体失败');
     }
@@ -501,7 +501,7 @@ const PlaylistListPage: React.FC = () => {
       await removeItemFromPlaylist(selectedPlaylist.id, itemId);
       message.success('媒体项已移除');
       await handleShowDetail(selectedPlaylist);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Remove item error:', error);
       message.error('移除媒体项失败');
     }
@@ -527,7 +527,7 @@ const PlaylistListPage: React.FC = () => {
       });
 
       message.success('时长已更新');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update item duration error:', error);
       message.error('更新时长失败');
     } finally {
@@ -566,7 +566,7 @@ const PlaylistListPage: React.FC = () => {
           })),
         });
         message.success('排序已保存');
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Reorder error:', error);
         message.error('保存排序失败');
         // 恢复原始顺序
@@ -596,7 +596,7 @@ const PlaylistListPage: React.FC = () => {
       message.success('名称已更新');
       handleCancelEditName();
       fetchPlaylists();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update playlist name error:', error);
       message.error(error.message || '更新失败');
     } finally {
@@ -611,7 +611,7 @@ const PlaylistListPage: React.FC = () => {
       await assignPlaylistToDevice(selectedPlaylist.id, selectedDevice);
       message.success('播放列表已分配到设备');
       await fetchPlaylists();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Assign playlist error:', error);
       message.error('分配失败');
     }
@@ -630,7 +630,7 @@ const PlaylistListPage: React.FC = () => {
           await unassignPlaylistFromDevice(selectedPlaylist.id, deviceId);
           message.success('已取消设备分配');
           await handleShowDetail(selectedPlaylist);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Unassign playlist error:', error);
           message.error('取消分配失败');
         }

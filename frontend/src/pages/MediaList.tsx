@@ -55,7 +55,7 @@ const MediaListPage: React.FC = () => {
       if (response.items) {
         setMediaFiles(response.items);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Fetch media error:', error);
       message.error('获取媒体列表失败');
     } finally {
@@ -77,7 +77,7 @@ const MediaListPage: React.FC = () => {
         message.success(`${fileType === 'ppt' ? 'PPT' : '文件'}上传成功`);
         await fetchMedia();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Upload error:', error);
       message.error('文件上传失败');
     } finally {
@@ -113,7 +113,7 @@ const MediaListPage: React.FC = () => {
           await deleteMedia(media.id);
           message.success('媒体文件已删除');
           await fetchMedia();
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Delete error:', error);
           message.error('删除失败');
         }
@@ -126,9 +126,10 @@ const MediaListPage: React.FC = () => {
       await retryConversion(media.id);
       message.success('已重新提交转换任务');
       await fetchMedia();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Retry error:', error);
-      const errorMsg = error?.response?.data?.detail || '重试失败';
+      const err = error as { response?: { data?: { detail?: string } } };
+      const errorMsg = err.response?.data?.detail || '重试失败';
       message.error(errorMsg);
     }
   };

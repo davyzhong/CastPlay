@@ -527,8 +527,9 @@ const WebPlayerSimulator: React.FC = () => {
         setPlaylistItems(firstPlaylist.items);
         addLog('info', `已加载 ${playerPlaylists.length} 个播放列表（测试模式）`);
       }
-    } catch (err: any) {
-      addLog('error', `加载播放列表失败: ${err.message}`);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      addLog('error', `加载播放列表失败: ${error.message || '未知错误'}`);
     } finally {
       setAllPlaylistsLoading(false);
     }

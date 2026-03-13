@@ -369,8 +369,8 @@ class TestPlayerBoundaryConditions:
             json={"device_id": "invalid-uuid-format"}
         )
 
-        # 可能接受或拒绝，取决于验证
-        assert response.status_code in [200, 422]
+        # 可能接受（自动注册）或拒绝（验证失败/未找到）
+        assert response.status_code in [200, 422, 404]
 
     def test_check_version_future_date(self, client, test_playlist):
         """测试使用未来日期检查版本"""

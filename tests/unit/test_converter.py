@@ -5,6 +5,7 @@ PPT 转换服务单元测试
 """
 import pytest
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, call
@@ -27,7 +28,7 @@ class TestPPTConverterInit:
         """测试没有工具时的初始化"""
         with patch.object(Path, 'exists', return_value=False):
             with patch('subprocess.run') as mock_run:
-                mock_run.side_effect = Exception("Command not found")
+                mock_run.side_effect = FileNotFoundError("Command not found")
                 from app.services.converter import PPTConverter
                 converter = PPTConverter()
 
@@ -112,7 +113,7 @@ class TestFindFFmpeg:
         """测试查找 FFmpeg 时发生异常"""
         from app.services.converter import PPTConverter
 
-        mock_run.side_effect = Exception("Command failed")
+        mock_run.side_effect = subprocess.SubprocessError("Command failed")
 
         converter = PPTConverter.__new__(PPTConverter)
         result = converter._find_ffmpeg()
@@ -437,7 +438,7 @@ class TestGetVideoDuration:
     @patch('subprocess.run')
     def test_get_duration_exception(self, mock_run, converter):
         """测试获取时长时发生异常"""
-        mock_run.side_effect = Exception("FFmpeg error")
+        mock_run.side_effect = subprocess.SubprocessError("FFmpeg error")
 
         result = converter._get_video_duration("/tmp/test.mp4")
 
@@ -481,7 +482,7 @@ class TestCleanupTempFiles:
     def test_cleanup_handles_exception(self, mock_remove, mock_exists, converter):
         """测试清理时处理异常"""
         mock_exists.return_value = True
-        mock_remove.side_effect = Exception("Permission denied")
+        mock_remove.side_effect = OSError("Permission denied")
 
         # 应该不抛出异常
         converter._cleanup_temp_files("/tmp/test.pdf", None)
@@ -501,48 +502,54 @@ class TestConvert:
 
     def test_convert_success(self, converter):
         """测试完整转换成功"""
-        with patch.object(converter, '_ppt_to_pdf', return_value="/tmp/test.pdf"):
-            with patch.object(converter, '_pdf_to_images', return_value="/tmp/slides"):
-                with patch.object(converter, '_images_to_video', return_value="/tmp/test.mp4"):
-                    with patch.object(converter, '_generate_video_thumbnail', return_value="/tmp/thumb.jpg"):
-                        with patch.object(converter, '_get_video_duration', return_value=90.0):
-                            with patch.object(converter, '_cleanup_temp_files'):
-                                result = converter.convert("/tmp/test.pptx", 1)
+        from app.services.converter import validate_file_path
+        with patch('app.services.converter.validate_file_path', return_value=(True, "/tmp/test.pptx")):
+            with patch.object(converter, '_ppt_to_pdf', return_value="/tmp/test.pdf"):
+                with patch.object(converter, '_pdf_to_images', return_value="/tmp/slides"):
+                    with patch.object(converter, '_images_to_video', return_value="/tmp/test.mp4"):
+                        with patch.object(converter, '_generate_video_thumbnail', return_value="/tmp/thumb.jpg"):
+                            with patch.object(converter, '_get_video_duration', return_value=90.0):
+                                with patch.object(converter, '_cleanup_temp_files'):
+                                    result = converter.convert("/tmp/test.pptx", 1)
 
-                                assert result["success"] is True
-                                assert result["converted_path"] == "/tmp/test.mp4"
-                                assert result["thumbnail_path"] == "/tmp/thumb.jpg"
-                                assert result["duration"] == 90.0
+                                    assert result["success"] is True
+                                    assert result["converted_path"] == "/tmp/test.mp4"
+                                    assert result["thumbnail_path"] == "/tmp/thumb.jpg"
+                                    assert result["duration"] == 90.0
 
     def test_convert_ppt_to_pdf_fails(self, converter):
         """测试 PPT 转 PDF 失败"""
-        with patch.object(converter, '_ppt_to_pdf', return_value=None):
-            result = converter.convert("/tmp/test.pptx", 1)
-
-            assert result["success"] is False
-            assert "error" in result
-
-    def test_convert_pdf_to_images_fails(self, converter):
-        """测试 PDF 转图片失败"""
-        with patch.object(converter, '_ppt_to_pdf', return_value="/tmp/test.pdf"):
-            with patch.object(converter, '_pdf_to_images', return_value=None):
+        with patch('app.services.converter.validate_file_path', return_value=(True, "/tmp/test.pptx")):
+            with patch.object(converter, '_ppt_to_pdf', return_value=None):
                 result = converter.convert("/tmp/test.pptx", 1)
 
                 assert result["success"] is False
+                assert "error" in result
 
-    def test_convert_images_to_video_fails(self, converter):
-        """测试图片转视频失败"""
-        with patch.object(converter, '_ppt_to_pdf', return_value="/tmp/test.pdf"):
-            with patch.object(converter, '_pdf_to_images', return_value="/tmp/slides"):
-                with patch.object(converter, '_images_to_video', return_value=None):
+    def test_convert_pdf_to_images_fails(self, converter):
+        """测试 PDF 转图片失败"""
+        with patch('app.services.converter.validate_file_path', return_value=(True, "/tmp/test.pptx")):
+            with patch.object(converter, '_ppt_to_pdf', return_value="/tmp/test.pdf"):
+                with patch.object(converter, '_pdf_to_images', return_value=None):
                     result = converter.convert("/tmp/test.pptx", 1)
 
                     assert result["success"] is False
 
+    def test_convert_images_to_video_fails(self, converter):
+        """测试图片转视频失败"""
+        with patch('app.services.converter.validate_file_path', return_value=(True, "/tmp/test.pptx")):
+            with patch.object(converter, '_ppt_to_pdf', return_value="/tmp/test.pdf"):
+                with patch.object(converter, '_pdf_to_images', return_value="/tmp/slides"):
+                    with patch.object(converter, '_images_to_video', return_value=None):
+                        result = converter.convert("/tmp/test.pptx", 1)
+
+                        assert result["success"] is False
+
     def test_convert_exception_handling(self, converter):
         """测试转换异常处理"""
-        with patch.object(converter, '_ppt_to_pdf', side_effect=Exception("Unexpected error")):
-            result = converter.convert("/tmp/test.pptx", 1)
+        with patch('app.services.converter.validate_file_path', return_value=(True, "/tmp/test.pptx")):
+                with patch.object(converter, '_ppt_to_pdf', side_effect=RuntimeError("Unexpected error")):
+                    result = converter.convert("/tmp/test.pptx", 1)
 
-            assert result["success"] is False
-            assert "Unexpected error" in result["error"]
+                    assert result["success"] is False
+                    assert "Unexpected error" in result["error"]

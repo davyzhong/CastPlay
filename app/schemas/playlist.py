@@ -102,9 +102,15 @@ class PlaylistListResponse(BaseModel):
     pages: int
 
 
+class ReorderItemData(BaseModel):
+    """单个排序项数据"""
+    id: int = Field(..., ge=1, description="播放列表项 ID")
+    order: int = Field(..., ge=0, le=10000, description="显示顺序")
+
+
 class ReorderItemsRequest(BaseModel):
     """重新排序请求"""
-    items: List[dict]  # [{"id": 1, "order": 0}, ...]
+    items: List[ReorderItemData] = Field(..., min_length=1, max_length=100, description="排序项列表")
 
 
 class PlaylistItemBatchCreate(BaseModel):

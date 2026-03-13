@@ -113,9 +113,15 @@ export const useDeviceRegistration = (): UseDeviceRegistrationReturn => {
             deviceId = storedDeviceId;
           }
         } else {
-          // Web 测试端使用固定的 device_id（用于持久化配置）
-          deviceId = 'web-player-test-01';
-          localStorage.setItem('player_device_id', deviceId);
+          // Web 端使用 UUID 生成唯一 device_id
+          // 优先从 localStorage 读取已保存的 device_id（保持会话持久性）
+          let storedDeviceId = localStorage.getItem('player_device_id');
+          if (!storedDeviceId) {
+            // 生成新的 UUID v4 格式 device_id
+            storedDeviceId = `web-${crypto.randomUUID()}`;
+            localStorage.setItem('player_device_id', storedDeviceId);
+          }
+          deviceId = storedDeviceId;
         }
       }
 

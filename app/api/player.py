@@ -749,7 +749,8 @@ async def player_heartbeat(
             },
             exc_info=True
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        # 返回通用错误消息，不暴露内部错误细节
+        raise HTTPException(status_code=500, detail="Heartbeat processing failed")
 
 
 async def check_playlist_update(

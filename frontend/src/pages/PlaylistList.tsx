@@ -598,7 +598,8 @@ const PlaylistListPage: React.FC = () => {
       fetchPlaylists();
     } catch (error: unknown) {
       console.error('Update playlist name error:', error);
-      message.error(error.message || '更新失败');
+      const err = error as { message?: string };
+      message.error(err.message || '更新失败');
     } finally {
       setEditNameLoading(false);
     }

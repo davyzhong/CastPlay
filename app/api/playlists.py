@@ -248,11 +248,37 @@ def delete_playlist(
 
     需要认证
     """
+    from app.models.playlist import DevicePlaylist
+
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     if not playlist:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Playlist not found"
+        )
+
+    # 检查是否有设备正在使用此播放列表
+    device_count = db.query(DevicePlaylist).filter(
+        DevicePlaylist.playlist_id == playlist_id,
+        DevicePlaylist.is_active == True
+    ).count()
+
+    if device_count > 0:
+        logger.warning(
+            f"Attempting to delete playlist {playlist_id} with {device_count} active device assignments"
+        )
+        # 获取关联设备名称用于提示
+        device_assignments = db.query(DevicePlaylist).filter(
+            DevicePlaylist.playlist_id == playlist_id
+        ).all()
+        device_names = []
+        for assignment in device_assignments:
+            if assignment.device:
+                device_names.append(assignment.device.device_name)
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete playlist: {device_count} device(s) are using it ({', '.join(device_names[:5])}{' ...' if len(device_names) > 5 else ''})"
         )
 
     db.delete(playlist)
@@ -430,12 +456,12 @@ def reorder_playlist_items(
     # 更新顺序
     for item_data in reorder_data.items:
         item = db.query(PlaylistItem).filter(
-            PlaylistItem.id == item_data["id"],
+            PlaylistItem.id == item_data.id,
             PlaylistItem.playlist_id == playlist_id
         ).first()
 
         if item:
-            item.display_order = item_data["order"]
+            item.display_order = item_data.order
 
     db.commit()
 

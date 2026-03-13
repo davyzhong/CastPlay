@@ -154,6 +154,8 @@ const WebPlayerSimulator: React.FC = () => {
   // 定时器引用
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const playbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ============================================================================
   // 日志系统
@@ -303,7 +305,11 @@ const WebPlayerSimulator: React.FC = () => {
       ws.onclose = () => {
         setWsConnected(false);
         addLog('warn', 'WebSocket 连接关闭，5秒后重连...');
-        setTimeout(() => connectWebSocket(devId), 5000);
+        // 清理之前的重连定时器
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
+        }
+        reconnectTimerRef.current = setTimeout(() => connectWebSocket(devId), 5000);
       };
 
       ws.onerror = () => {
@@ -551,7 +557,11 @@ const WebPlayerSimulator: React.FC = () => {
         setCurrentPlaylist(null);
         setPlaylistItems([]);
         setRegistrationCode('');
-        setTimeout(() => {
+        // 清理之前的重置定时器
+        if (resetTimerRef.current) {
+          clearTimeout(resetTimerRef.current);
+        }
+        resetTimerRef.current = setTimeout(() => {
           initializePlayer();
         }, 500);
       },
@@ -566,6 +576,8 @@ const WebPlayerSimulator: React.FC = () => {
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
       if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
       if (wsRef.current) wsRef.current.close();
     };
   }, []);

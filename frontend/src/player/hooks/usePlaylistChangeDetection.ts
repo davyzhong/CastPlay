@@ -8,18 +8,19 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useHeartbeat } from './useHeartbeat';
 
-// 播放列表更新信息
+// 播放列表更新信息（与后端 PlaylistNotificationData 保持一致）
 export interface PlaylistUpdateInfo {
-    action: 'switch' | 'check';
+    action: 'assign' | 'update' | 'remove' | 'activate';
     playlist_id: number;
     playlist_name: string;
     version: string;
-    media_count: number;
+    item_count: number;
+    total_size?: number;
     priority?: 'high' | 'normal' | 'low';
-    switch_policy?: {
-        mode: string;
-        min_ready_ratio: number;
-        download_timeout_ms: number;
+    changes?: {
+        added?: number[];
+        removed?: number[];
+        reordered?: boolean;
     };
 }
 
@@ -114,9 +115,10 @@ export const usePlaylistChangeDetection = (
         }));
 
         // 触发回调（使用 ref 避免依赖变化）
-        if (update.action === 'switch' && callbacksRef.current.onPlaylistAssigned) {
+        // 后端 action 值: "assign", "update", "remove", "activate"
+        if (update.action === 'assign' && callbacksRef.current.onPlaylistAssigned) {
             callbacksRef.current.onPlaylistAssigned(update);
-        } else if (update.action === 'check' && callbacksRef.current.onPlaylistUpdated) {
+        } else if (update.action === 'update' && callbacksRef.current.onPlaylistUpdated) {
             callbacksRef.current.onPlaylistUpdated(update);
         }
     }, []);

@@ -27,17 +27,19 @@ interface DownloadStatus {
     total_files: number;
 }
 
+// 与 usePlaylistChangeDetection 中的类型保持一致
 interface PlaylistUpdateInfo {
-    action: 'switch' | 'check';
+    action: 'assign' | 'update' | 'remove' | 'activate';
     playlist_id: number;
     playlist_name: string;
     version: string;
-    media_count: number;
+    item_count: number;
+    total_size?: number;
     priority?: 'high' | 'normal' | 'low';
-    switch_policy?: {
-        mode: string;
-        min_ready_ratio: number;
-        download_timeout_ms: number;
+    changes?: {
+        added?: number[];
+        removed?: number[];
+        reordered?: boolean;
     };
 }
 

@@ -147,8 +147,28 @@ export const usePlaylistSync = (
   useEffect(() => {
     if (!deviceId || !isOnline) return;
 
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws/${deviceId}`;
+    // 获取 WebSocket URL（支持 Android 环境）
+    let wsUrl: string;
+    if (window.AndroidBridge?.getServerUrl) {
+      // Android 环境：从 Bridge 获取服务器 URL
+      const serverUrl = window.AndroidBridge.getServerUrl();
+      if (serverUrl && serverUrl.length > 0) {
+        const wsProtocol = serverUrl.startsWith('https') ? 'wss' : 'ws';
+        const wsHost = serverUrl.replace(/^https?:\/\//, '');
+        wsUrl = `${wsProtocol}://${wsHost}/ws/${deviceId}`;
+        console.log('[usePlaylistSync] WebSocket URL from AndroidBridge:', wsUrl);
+      } else {
+        console.warn('[usePlaylistSync] AndroidBridge.getServerUrl() returned empty');
+        return;
+      }
+    } else if (window.location.host) {
+      // Web 环境：使用当前页面的 host
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${wsProtocol}//${window.location.host}/ws/${deviceId}`;
+    } else {
+      console.warn('[usePlaylistSync] Cannot determine WebSocket URL');
+      return;
+    }
 
     try {
       const ws = new WebSocket(wsUrl);

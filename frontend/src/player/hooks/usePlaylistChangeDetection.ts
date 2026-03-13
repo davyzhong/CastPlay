@@ -179,7 +179,7 @@ export const usePlaylistChangeDetection = (
         }
 
         try {
-            const fullWsUrl = `${wsUrl}/ws/player/${deviceId}`;
+            const fullWsUrl = `${wsUrl}/ws/${deviceId}`;
             console.log('[PlaylistDetection] Connecting to WebSocket:', fullWsUrl);
             wsRef.current = new WebSocket(fullWsUrl);
 

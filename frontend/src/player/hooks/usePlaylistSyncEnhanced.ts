@@ -548,7 +548,7 @@ export const usePlaylistSyncEnhanced = (
     if (!deviceId || !isOnline) return;
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws/player/${deviceId}`;
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws/${deviceId}`;
 
     try {
       const ws = new WebSocket(wsUrl);

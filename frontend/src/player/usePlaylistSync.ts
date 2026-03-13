@@ -131,7 +131,8 @@ export const usePlaylistSync = (
   useEffect(() => {
     if (!deviceId || !isOnline) return;
 
-    const wsUrl = `ws://${window.location.host}/ws/player/${deviceId}`;
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws/${deviceId}`;
 
     try {
       const ws = new WebSocket(wsUrl);

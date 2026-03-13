@@ -327,28 +327,76 @@ const WebPlayerSimulator: React.FC = () => {
 
     switch (msg.type) {
       case 'playlist_assigned':
-      case 'playlist_updated':
-        addLog('info', `收到播放列表${msg.type === 'playlist_assigned' ? '分配' : '更新'}通知`);
+        // 新分配播放列表：自动切换到新播放列表
+        addLog('info', `收到播放列表分配通知，准备切换到播放列表 ${msg.data?.playlist_id}`);
         if (deviceId) {
           playerInit(deviceId).then((response) => {
             setPlaylists(response.playlists);
             if (response.playlists.length > 0) {
-              // 尝试保持当前播放列表的选择
+              // 查找新分配的播放列表
+              const newPlaylistId = msg.data?.playlist_id as number;
+              const newIndex = response.playlists.findIndex((p: PlayerPlaylist) => p.id === newPlaylistId);
+              const playlistIndex = newIndex >= 0 ? newIndex : 0;
+
+              setCurrentPlaylistIndex(playlistIndex);
+              setCurrentPlaylist(response.playlists[playlistIndex]);
+              setPlaylistItems(response.playlists[playlistIndex].items || []);
+              setCurrentIndex(0);  // 从第一个媒体开始播放
+
+              addLog('info', `已自动切换到播放列表: ${response.playlists[playlistIndex].name}`);
+            }
+          });
+        }
+        break;
+
+      case 'playlist_updated':
+        // 播放列表内容更新：保持当前选择，刷新数据
+        addLog('info', '收到播放列表更新通知');
+        if (deviceId) {
+          playerInit(deviceId).then((response) => {
+            setPlaylists(response.playlists);
+            if (response.playlists.length > 0) {
+              // 保持当前播放列表的选择
               const currentId = currentPlaylist?.id;
               const foundIndex = response.playlists.findIndex((p: PlayerPlaylist) => p.id === currentId);
               const playlistIndex = foundIndex >= 0 ? foundIndex : 0;
+
               setCurrentPlaylistIndex(playlistIndex);
               setCurrentPlaylist(response.playlists[playlistIndex]);
-              setPlaylistItems(response.playlists[playlistIndex].items);
+              setPlaylistItems(response.playlists[playlistIndex].items || []);
+
+              // 如果当前播放的媒体索引超出范围，重置为 0
+              if (currentIndex >= (response.playlists[playlistIndex].items?.length || 0)) {
+                setCurrentIndex(0);
+              }
             }
           });
         }
         break;
 
       case 'playlist_removed':
-        addLog('info', '收到播放列表移除通知');
+        // 播放列表被移除：切换到其他可用列表
+        addLog('info', `收到播放列表移除通知: ${msg.data?.playlist_id}`);
         if (deviceId) {
-          playerInit(deviceId);
+          playerInit(deviceId).then((response) => {
+            setPlaylists(response.playlists);
+            if (response.playlists.length > 0) {
+              // 如果当前播放列表被移除，切换到第一个可用列表
+              const removedId = msg.data?.playlist_id as number;
+              if (currentPlaylist?.id === removedId) {
+                setCurrentPlaylistIndex(0);
+                setCurrentPlaylist(response.playlists[0]);
+                setPlaylistItems(response.playlists[0].items || []);
+                setCurrentIndex(0);
+                addLog('info', '当前播放列表已移除，已切换到默认列表');
+              }
+            } else {
+              // 没有可用的播放列表
+              setCurrentPlaylist(null);
+              setPlaylistItems([]);
+              setCurrentIndex(0);
+            }
+          });
         }
         break;
 

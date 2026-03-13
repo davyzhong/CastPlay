@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # 配置
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 APK_PATH="$PROJECT_DIR/android/app/build/outputs/apk/debug/app-debug.apk"
 PACKAGE_NAME="com.castplay.player.debug"
 ACTIVITY_NAME="$PACKAGE_NAME/com.castplay.player.MainActivity"

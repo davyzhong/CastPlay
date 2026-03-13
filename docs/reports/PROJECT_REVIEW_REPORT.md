@@ -74,8 +74,8 @@
 | **Critical** | `frontend/src/pages/Login.tsx` | 23 | 使用 `any` 类型绕过类型检查 | 定义 `LoginResponse` 接口并使用 |
 | **Critical** | `frontend/src/types/index.ts` | 115 | `ApiResponse<T = any>` 默认类型不安全 | 改为 `ApiResponse<T = unknown>` |
 | **High** | 多个页面文件 | 多处 | 错误处理大量使用 `error: any` | ~~使用 `error: unknown` + 类型守卫~~ ✅ 部分修复 (PlaylistList.tsx) |
-| **High** | `frontend/src/App.tsx` | 114-121 | 路由缺少认证保护 | 添加路由守卫或 Context 检查 |
-| **High** | `frontend/src/pages/DeviceList.tsx` | 211, 215 | 表单值使用 `any` 类型 | 定义 `ScheduleFormValues` 接口 |
+| **High** | `frontend/src/App.tsx` | 114-121 | 路由缺少认证保护 | ~~添加路由守卫或 Context 检查~~ ✅ 已有 ProtectedRoute |
+| **High** | `frontend/src/pages/DeviceList.tsx` | 211, 215 | 表单值使用 `any` 类型 | ~~定义 `ScheduleFormValues` 接口~~ ✅ 已修复 |
 | **Medium** | `WebPlayerSimulator.tsx` | 306 | setTimeout 未清理可能内存泄漏 | ~~使用 ref 存储 timer 并在 cleanup 清理~~ ✅ 已修复 |
 | **Medium** | `PlaylistList.tsx` | 777, 869 | 表格列渲染函数使用 `any` | ~~使用 `unknown` 或具体类型~~ ✅ 已修复 |
 | **Medium** | `useDeviceRegistration.ts` | 117 | 硬编码设备 ID `'web-player-test-01'` | ~~使用 UUID 生成唯一 ID~~ ✅ 已修复 |
@@ -344,6 +344,8 @@ CastPlay 项目适合 **小规模数字标牌场景**（10-100 台设备），�
 | **Medium** | setTimeout 未清理 | `frontend/src/pages/WebPlayerSimulator.tsx` | 使用 `useRef` 存储 timer，cleanup 时清理 | 已提交 |
 | **Medium** | 硬编码设备 ID | `frontend/src/player/useDeviceRegistration.ts` | 使用 `crypto.randomUUID()` 生成唯一 ID | 已提交 |
 | **High** | 错误处理使用 `any` | `frontend/src/pages/PlaylistList.tsx` | 使用类型守卫 `error: unknown` | 已提交 |
+| **High** | 路由缺少认证保护 | `frontend/src/App.tsx` | 已有 ProtectedRoute 组件实现认证保护 | 已存在 |
+| **High** | 表单值使用 `any` 类型 | `frontend/src/pages/DeviceList.tsx` | 定义 `ScheduleFormValues` 接口，添加类型注解 | 本次修复 |
 
 ### 待修复项
 
@@ -351,14 +353,14 @@ CastPlay 项目适合 **小规模数字标牌场景**（10-100 台设备），�
 
 | 问题 | 文件 | 状态 |
 |------|------|------|
-| 命令注入风险 | `app/services/converter.py` | ⏳ 待修复 |
-| 硬编码开发密钥 | `app/config.py` | ⏳ 待修复 |
-| 管理员密码打印到控制台 | `app/config.py` | ⏳ 待修复 |
-| 内部 API 认证可绕过 | `app/utils/internal_auth.py` | ⏳ 待修复 |
-| WebSocket 缺少认证 | `app/main.py` | ⏳ 待修复 |
-| 前端 `any` 类型 | `Login.tsx`, `types/index.ts` | ⏳ 待修复 |
-| 路由缺少认证保护 | `frontend/src/App.tsx` | ⏳ 待修复 |
-| 表单值 `any` 类型 | `DeviceList.tsx` | ⏳ 待修复 |
+| 命令注入风险 | `app/services/converter.py` | ⏳ 待修复 (已添加路径验证，建议增强) |
+| 硬编码开发密钥 | `app/config.py` | ✅ 已修复 (生产环境强制要求 SECRET_KEY) |
+| 管理员密码打印到控制台 | `app/config.py` | ✅ 已修复 (仅首次显示，使用标记位) |
+| 内部 API 认证可绕过 | `app/utils/internal_auth.py` | ✅ 已修复 (生产环境拒绝无密钥请求) |
+| WebSocket 缺少认证 | `app/main.py` | ⏳ 待修复 (已有设备注册验证，建议增加 Token 机制) |
+| 前端 `any` 类型 | `Login.tsx`, `types/index.ts` | ✅ 已修复 |
+| 路由缺少认证保护 | `frontend/src/App.tsx` | ✅ 已有 ProtectedRoute |
+| 表单值 `any` 类型 | `DeviceList.tsx` | ✅ 已修复 |
 
 #### 中优先级（Medium）
 

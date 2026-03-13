@@ -209,16 +209,25 @@ const DeviceListPage: React.FC = () => {
     setScheduleModalVisible(true);
   };
 
-  const handleSetSchedule = async (values: any) => {
+  // 定时配置表单值类型 - antd TimePicker 返回 dayjs 对象
+interface ScheduleFormValues {
+  power_on_time: { format: (fmt: string) => string } | null;
+  power_off_time: { format: (fmt: string) => string } | null;
+  is_enabled: boolean;
+  weekdays: number[];
+}
+
+const handleSetSchedule = async (values: ScheduleFormValues) => {
     if (!selectedDevice) return;
 
     try {
-      const formatTime = (time: any) => {
-        if (!time) return null;
-        if (time && typeof time.format === 'function') {
+      // 格式化时间值，null 转为空字符串（由表单验证确保必填项）
+      const formatTime = (time: ScheduleFormValues['power_on_time']): string => {
+        if (!time) return '';
+        if (typeof time.format === 'function') {
           return time.format('HH:mm');
         }
-        return time;
+        return String(time);
       };
 
       await setDeviceSchedule(selectedDevice.id, {

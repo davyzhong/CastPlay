@@ -89,11 +89,10 @@ const SPEED_OPTIONS = [
   { label: '8X', value: 8 },
 ];
 
-// WebSocket 消息类型
+// WebSocket 消息类型（与后端保持一致）
 interface WSMessage {
-  event: string;
+  type: string;
   device_id: number | string;
-  action: string;
   timestamp: string;
   data?: Record<string, unknown>;
 }
@@ -324,12 +323,12 @@ const WebPlayerSimulator: React.FC = () => {
   };
 
   const handleWSMessage = (msg: WSMessage) => {
-    addLog('debug', `收到消息: ${msg.event}`);
+    addLog('debug', `收到消息: ${msg.type}`);
 
-    switch (msg.event) {
-      case 'playlist_update':
-        addLog('info', '收到播放列表更新通知');
-        // 重新初始化
+    switch (msg.type) {
+      case 'playlist_assigned':
+      case 'playlist_updated':
+        addLog('info', `收到播放列表${msg.type === 'playlist_assigned' ? '分配' : '更新'}通知`);
         if (deviceId) {
           playerInit(deviceId).then((response) => {
             setPlaylists(response.playlists);
@@ -343,6 +342,13 @@ const WebPlayerSimulator: React.FC = () => {
               setPlaylistItems(response.playlists[playlistIndex].items);
             }
           });
+        }
+        break;
+
+      case 'playlist_removed':
+        addLog('info', '收到播放列表移除通知');
+        if (deviceId) {
+          playerInit(deviceId);
         }
         break;
 
@@ -371,7 +377,7 @@ const WebPlayerSimulator: React.FC = () => {
         break;
 
       default:
-        addLog('debug', `未知消息: ${msg.event}`);
+        addLog('debug', `未知消息类型: ${msg.type}`);
     }
   };
 

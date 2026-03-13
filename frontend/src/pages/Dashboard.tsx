@@ -2,7 +2,7 @@
  * 仪表盘页面
  * 展示系统概览数据
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Row,
   Col,
@@ -18,6 +18,8 @@ import {
   Empty,
   Spin,
   Image,
+  Modal,
+  Button,
 } from 'antd';
 import {
   DatabaseOutlined,
@@ -29,10 +31,11 @@ import {
   FileImageOutlined,
   VideoCameraOutlined,
   FilePptOutlined,
+  RedoOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { getDeviceList } from '../api/device';
-import { getMediaList, getThumbnail } from '../api/media';
+import { getMediaList, getThumbnail, getMediaFileUrl } from '../api/media';
 import { getPlaylistList } from '../api/playlist';
 import type { Device, MediaFile, Playlist } from '../types';
 
@@ -66,6 +69,11 @@ const DashboardPage: React.FC = () => {
   });
   const [recentDevices, setRecentDevices] = useState<Device[]>([]);
   const [recentMedia, setRecentMedia] = useState<MediaFile[]>([]);
+
+  // 视频预览状态
+  const [videoPreviewMedia, setVideoPreviewMedia] = useState<MediaFile | null>(null);
+  const [videoPlaybackRate, setVideoPlaybackRate] = useState(1);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -349,24 +357,136 @@ const DashboardPage: React.FC = () => {
                             }}
                           />
                         ) : item.file_type === 'ppt' ? (
-                          // PPT 类型：显示缩略图，点击预览缩略图大图
-                          <Image
-                            src={getThumbnail(item.id)}
-                            alt={item.file_name}
-                            width={48}
-                            height={48}
-                            style={{ borderRadius: 4, objectFit: 'cover', cursor: 'pointer' }}
-                            fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect fill='%23f0f0f0' width='48' height='48'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='10'%3E加载中%3C/text%3E%3C/svg%3E"
-                            preview={{
-                              src: getThumbnail(item.id),
-                            }}
-                          />
+                          // PPT 类型：根据转换状态显示不同 UI
+                          item.status === 'ready' ? (
+                            // 转换成功：显示缩略图带播放图标，点击打开视频预览
+                            <div
+                              onClick={() => setVideoPreviewMedia(item)}
+                              style={{ position: 'relative', width: 48, height: 48, cursor: 'pointer' }}
+                            >
+                              <Image
+                                src={getThumbnail(item.id)}
+                                alt={item.file_name}
+                                width={48}
+                                height={48}
+                                style={{ borderRadius: 4, objectFit: 'cover' }}
+                                fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect fill='%23f0f0f0' width='48' height='48'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='10'%3E加载中%3C/text%3E%3C/svg%3E"
+                                preview={false}
+                              />
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                                  borderRadius: 4,
+                                }}
+                              >
+                                <span style={{ fontSize: 16 }}>▶️</span>
+                              </div>
+                            </div>
+                          ) : item.status === 'processing' ? (
+                            // 转换中：显示缩略图和加载状态
+                            <div style={{ position: 'relative', width: 48, height: 48 }}>
+                              <Image
+                                src={getThumbnail(item.id)}
+                                alt={item.file_name}
+                                width={48}
+                                height={48}
+                                style={{ borderRadius: 4, objectFit: 'cover' }}
+                                fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect fill='%23f0f0f0' width='48' height='48'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='10'%3E加载中%3C/text%3E%3C/svg%3E"
+                                preview={false}
+                              />
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                  borderRadius: 4,
+                                }}
+                              >
+                                <RedoOutlined spin style={{ color: '#fff', fontSize: 14 }} />
+                              </div>
+                            </div>
+                          ) : (
+                            // 转换失败：显示错误状态
+                            <div style={{ position: 'relative', width: 48, height: 48 }}>
+                              <Image
+                                src={getThumbnail(item.id)}
+                                alt={item.file_name}
+                                width={48}
+                                height={48}
+                                style={{ borderRadius: 4, objectFit: 'cover' }}
+                                fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect fill='%23f0f0f0' width='48' height='48'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='10'%3E加载中%3C/text%3E%3C/svg%3E"
+                                preview={false}
+                              />
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  backgroundColor: 'rgba(255, 77, 79, 0.7)',
+                                  borderRadius: 4,
+                                }}
+                              >
+                                <span style={{ fontSize: 14 }}>❌</span>
+                              </div>
+                            </div>
+                          )
+                        ) : item.file_type === 'video' ? (
+                          // 视频类型：显示缩略图带播放图标，点击打开视频预览
+                          <div
+                            onClick={() => setVideoPreviewMedia(item)}
+                            style={{ position: 'relative', width: 48, height: 48, cursor: 'pointer' }}
+                          >
+                            <Image
+                              src={getThumbnail(item.id)}
+                              alt={item.file_name}
+                              width={48}
+                              height={48}
+                              style={{ borderRadius: 4, objectFit: 'cover' }}
+                              fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect fill='%23f0f0f0' width='48' height='48'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='10'%3E加载中%3C/text%3E%3C/svg%3E"
+                              preview={false}
+                            />
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                                borderRadius: 4,
+                              }}
+                            >
+                              <span style={{ fontSize: 16 }}>▶️</span>
+                            </div>
+                          </div>
                         ) : (
-                          // 视频类型：显示图标（后端未生成缩略图）
+                          // 其他类型：显示图标
                           <Avatar
                             shape="square"
                             size={48}
-                            style={{ backgroundColor: item.file_type === 'video' ? '#1890ff' : '#fa8c16' }}
+                            style={{ backgroundColor: '#999' }}
                             icon={getMediaIcon(item.file_type)}
                           />
                         )
@@ -441,6 +561,50 @@ const DashboardPage: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      {/* 视频预览模态框 */}
+      <Modal
+        title={videoPreviewMedia?.file_name || '视频预览'}
+        open={!!videoPreviewMedia}
+        onCancel={() => {
+          setVideoPreviewMedia(null);
+          setVideoPlaybackRate(1);
+        }}
+        footer={null}
+        width={800}
+        centered
+      >
+        {videoPreviewMedia && (
+          <div style={{ textAlign: 'center' }}>
+            <video
+              ref={videoRef}
+              src={getMediaFileUrl(videoPreviewMedia.id)}
+              controls
+              autoPlay
+              style={{ maxWidth: '100%', maxHeight: '60vh' }}
+            />
+            {/* 变速播放控制 */}
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}>
+              <Typography.Text>播放速度:</Typography.Text>
+              {[1, 2, 4, 8].map((speed) => (
+                <Button
+                  key={speed}
+                  size="small"
+                  type={videoPlaybackRate === speed ? 'primary' : 'default'}
+                  onClick={() => {
+                    setVideoPlaybackRate(speed);
+                    if (videoRef.current) {
+                      videoRef.current.playbackRate = speed;
+                    }
+                  }}
+                >
+                  {speed}X
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

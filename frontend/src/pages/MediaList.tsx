@@ -166,44 +166,164 @@ const MediaListPage: React.FC = () => {
           );
         }
 
-        // PPT 类型：显示缩略图，点击预览缩略图大图
+        // PPT 类型：根据转换状态显示不同 UI
         if (record.file_type === 'ppt') {
           const thumbnailUrl = getThumbnail(record.id);
-          return (
-            <Image
-              src={thumbnailUrl}
-              alt={record.file_name}
-              width={80}
-              height={60}
-              style={{ borderRadius: 4, objectFit: 'cover', cursor: 'pointer' }}
-              fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect fill='%23f0f0f0' width='80' height='60'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载中%3C/text%3E%3C/svg%3E"
-              preview={{
-                src: thumbnailUrl,
-              }}
-            />
-          );
+
+          // 转换成功：显示缩略图带播放图标，点击打开视频预览
+          if (record.status === 'ready') {
+            return (
+              <div
+                onClick={() => setVideoPreviewMedia(record)}
+                style={{
+                  position: 'relative',
+                  width: 80,
+                  height: 60,
+                  cursor: 'pointer',
+                }}
+              >
+                <Image
+                  src={thumbnailUrl}
+                  alt={record.file_name}
+                  width={80}
+                  height={60}
+                  style={{ borderRadius: 4, objectFit: 'cover' }}
+                  fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect fill='%23f0f0f0' width='80' height='60'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载中%3C/text%3E%3C/svg%3E"
+                  preview={false}
+                />
+                {/* 播放图标遮罩 */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    borderRadius: 4,
+                  }}
+                >
+                  <span style={{ fontSize: '24px' }}>▶️</span>
+                </div>
+              </div>
+            );
+          }
+
+          // 转换中：显示缩略图和加载状态
+          if (record.status === 'processing') {
+            return (
+              <div style={{ position: 'relative', width: 80, height: 60 }}>
+                <Image
+                  src={thumbnailUrl}
+                  alt={record.file_name}
+                  width={80}
+                  height={60}
+                  style={{ borderRadius: 4, objectFit: 'cover' }}
+                  fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect fill='%23f0f0f0' width='80' height='60'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载中%3C/text%3E%3C/svg%3E"
+                  preview={false}
+                />
+                {/* 蒙版和加载提示 */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    borderRadius: 4,
+                  }}
+                >
+                  <RedoOutlined spin style={{ color: '#fff', fontSize: 16, marginBottom: 4 }} />
+                  <span style={{ color: '#fff', fontSize: 10 }}>暂不可预览</span>
+                </div>
+              </div>
+            );
+          }
+
+          // 转换失败：显示错误状态
+          if (record.status === 'failed') {
+            return (
+              <div style={{ position: 'relative', width: 80, height: 60 }}>
+                <Image
+                  src={thumbnailUrl}
+                  alt={record.file_name}
+                  width={80}
+                  height={60}
+                  style={{ borderRadius: 4, objectFit: 'cover' }}
+                  fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect fill='%23f0f0f0' width='80' height='60'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载中%3C/text%3E%3C/svg%3E"
+                  preview={false}
+                />
+                {/* 错误遮罩 */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(255, 77, 79, 0.7)',
+                    borderRadius: 4,
+                  }}
+                >
+                  <span style={{ fontSize: 16, marginBottom: 2 }}>❌</span>
+                  <span style={{ color: '#fff', fontSize: 10 }}>转换失败</span>
+                </div>
+              </div>
+            );
+          }
         }
 
-        // 视频类型：显示可点击的图标
+        // 视频类型：显示缩略图带播放图标，点击打开视频预览
         if (record.file_type === 'video') {
+          const thumbnailUrl = getThumbnail(record.id);
           return (
             <div
               onClick={() => setVideoPreviewMedia(record)}
               style={{
+                position: 'relative',
                 width: 80,
                 height: 60,
-                backgroundColor: '#1890ff',
-                borderRadius: 4,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '24px',
-                color: '#fff',
                 cursor: 'pointer',
               }}
-              title="点击预览"
             >
-              🎬
+              <Image
+                src={thumbnailUrl}
+                alt={record.file_name}
+                width={80}
+                height={60}
+                style={{ borderRadius: 4, objectFit: 'cover' }}
+                fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect fill='%23f0f0f0' width='80' height='60'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23999' font-size='12'%3E加载中%3C/text%3E%3C/svg%3E"
+                preview={false}
+              />
+              {/* 播放图标遮罩 */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                  borderRadius: 4,
+                }}
+              >
+                <span style={{ fontSize: '24px' }}>▶️</span>
+              </div>
             </div>
           );
         }

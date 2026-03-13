@@ -7,6 +7,7 @@
  * 2. 视频预览模态框 - 点击图标后打开预览
  * 3. 播放速度控制 - 测试 1X/2X/4X/8X 按钮
  * 4. 模态框关闭 - 验证关闭时重置状态
+ * 5. PPT 预览功能 - 根据 PPT 转换状态显示不同 UI
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '../test/utils'
@@ -138,12 +139,12 @@ describe('播放列表视频预览功能', () => {
         expect(screen.getByText('Test Playlist with Video')).toBeInTheDocument()
       }, { timeout: 10000 })
 
-      // 验证视频图标存在且可点击
-      const videoIcons = screen.getAllByText('🎬')
-      expect(videoIcons.length).toBeGreaterThan(0)
+      // 验证视频图标存在且可点击（现在使用播放图标）
+      const playIcons = screen.getAllByText('▶️')
+      expect(playIcons.length).toBeGreaterThan(0)
     })
 
-    it('视频图标应有点击预览提示', async () => {
+    it('视频图标应有点击预览功能', async () => {
       render(<PlaylistListPage />)
 
       await waitFor(() => {
@@ -158,9 +159,10 @@ describe('播放列表视频预览功能', () => {
         expect(screen.getByText('Test Playlist with Video')).toBeInTheDocument()
       }, { timeout: 10000 })
 
-      // 验证视频图标容器有 title 属性
-      const videoIconContainer = screen.getByTitle('点击预览')
-      expect(videoIconContainer).toBeInTheDocument()
+      // 验证视频缩略图容器有 cursor: pointer 样式（可点击）
+      const playIcons = screen.getAllByText('▶️')
+      const videoThumbnail = playIcons[0].closest('div[style*="cursor: pointer"]')
+      expect(videoThumbnail).toBeInTheDocument()
     })
   })
 
@@ -183,8 +185,10 @@ describe('播放列表视频预览功能', () => {
         expect(screen.getByText('Test Playlist with Video')).toBeInTheDocument()
       }, { timeout: 10000 })
 
-      const videoIconContainer = screen.getByTitle('点击预览')
-      fireEvent.click(videoIconContainer)
+      // 点击视频缩略图（通过播放图标找到可点击容器）
+      const playIcons = screen.getAllByText('▶️')
+      const videoThumbnail = playIcons[0].closest('div[style*="cursor: pointer"]') as HTMLElement
+      fireEvent.click(videoThumbnail)
 
       // 等待视频预览模态框打开
       await waitFor(() => {
@@ -211,8 +215,10 @@ describe('播放列表视频预览功能', () => {
         expect(screen.getByText('Test Playlist with Video')).toBeInTheDocument()
       }, { timeout: 10000 })
 
-      const videoIconContainer = screen.getByTitle('点击预览')
-      fireEvent.click(videoIconContainer)
+      // 点击视频缩略图（通过播放图标找到可点击容器）
+      const playIcons = screen.getAllByText('▶️')
+      const videoThumbnail = playIcons[0].closest('div[style*="cursor: pointer"]') as HTMLElement
+      fireEvent.click(videoThumbnail)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '2X' })).toBeInTheDocument()
@@ -246,8 +252,10 @@ describe('播放列表视频预览功能', () => {
         expect(screen.getByText('Test Playlist with Video')).toBeInTheDocument()
       }, { timeout: 10000 })
 
-      const videoIconContainer = screen.getByTitle('点击预览')
-      fireEvent.click(videoIconContainer)
+      // 点击视频缩略图（通过播放图标找到可点击容器）
+      const playIcons = screen.getAllByText('▶️')
+      const videoThumbnail = playIcons[0].closest('div[style*="cursor: pointer"]') as HTMLElement
+      fireEvent.click(videoThumbnail)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '4X' })).toBeInTheDocument()
@@ -286,8 +294,9 @@ describe('播放列表视频预览功能', () => {
         expect(screen.getByText('Test Playlist with Video')).toBeInTheDocument()
       }, { timeout: 10000 })
 
-      // 3. 点击视频图标
-      const videoIconContainer = screen.getByTitle('点击预览')
+      // 3. 点击视频缩略图（通过播放图标找到可点击容器）
+      const playIcons = screen.getAllByText('▶️')
+      const videoIconContainer = playIcons[0].closest('div[style*="cursor: pointer"]') as HTMLElement
       fireEvent.click(videoIconContainer)
 
       // 4. 等待预览模态框打开并验证视频元素
@@ -316,6 +325,197 @@ describe('播放列表视频预览功能', () => {
         expect(video.playbackRate).toBe(4)
         expect(speed4xBtn).toHaveClass('ant-btn-primary')
       })
+    })
+  })
+
+  // ============================================================================
+  // 4. PPT 预览功能测试
+  // ============================================================================
+
+  describe('PPT 预览功能', () => {
+    it('PPT 转换成功时应显示播放图标并打开视频预览', async () => {
+      // 更新 mock 数据以包含 PPT 项目
+      const { getPlaylistDetail } = await import('../api/playlist')
+      const { getMediaList } = await import('../api/media')
+
+      vi.mocked(getPlaylistDetail).mockResolvedValue({
+        id: 1,
+        name: 'Test Playlist with PPT',
+        description: '',
+        items: [
+          {
+            id: 3,
+            playlist_id: 1,
+            media_id: 3,
+            file_name: 'test-ppt.pptx',
+            file_type: 'ppt',
+            display_order: 0,
+            display_duration: 10,
+            created_at: '2024-01-01 00:00:00',
+          },
+        ],
+        devices: [],
+        created_at: '2024-01-01 00:00:00',
+        updated_at: '2024-01-01 00:00:00',
+      })
+
+      vi.mocked(getMediaList).mockResolvedValue({
+        items: [
+          {
+            id: 3,
+            file_name: 'test-ppt.pptx',
+            file_type: 'ppt',
+            file_path: '/data/media/3.pptx',
+            file_size: 1024000,
+            status: 'ready',
+            created_at: '2024-01-01 00:00:00',
+          },
+        ],
+        total: 1,
+      })
+
+      render(<PlaylistListPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText('播放列表管理')).toBeInTheDocument()
+      }, { timeout: 10000 })
+
+      const manageButtons = await screen.findAllByRole('button', { name: /管理/i })
+      fireEvent.click(manageButtons[0])
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Playlist with PPT')).toBeInTheDocument()
+      }, { timeout: 10000 })
+
+      // 验证 PPT 显示播放图标
+      const playIcons = screen.getAllByText('▶️')
+      expect(playIcons.length).toBeGreaterThan(0)
+
+      // 点击播放图标
+      const pptThumbnail = playIcons[0].closest('div[style*="cursor: pointer"]')
+      if (pptThumbnail) {
+        fireEvent.click(pptThumbnail)
+      }
+
+      // 等待视频预览模态框打开
+      await waitFor(() => {
+        const video = document.querySelector('video')
+        expect(video).toBeInTheDocument()
+      }, { timeout: 10000 })
+    })
+
+    it('PPT 转换中时应显示加载状态和"暂不可预览"提示', async () => {
+      const { getPlaylistDetail } = await import('../api/playlist')
+      const { getMediaList } = await import('../api/media')
+
+      vi.mocked(getPlaylistDetail).mockResolvedValue({
+        id: 2,
+        name: 'Test Playlist with Processing PPT',
+        description: '',
+        items: [
+          {
+            id: 4,
+            playlist_id: 2,
+            media_id: 4,
+            file_name: 'processing-ppt.pptx',
+            file_type: 'ppt',
+            display_order: 0,
+            display_duration: 10,
+            created_at: '2024-01-01 00:00:00',
+          },
+        ],
+        devices: [],
+        created_at: '2024-01-01 00:00:00',
+        updated_at: '2024-01-01 00:00:00',
+      })
+
+      vi.mocked(getMediaList).mockResolvedValue({
+        items: [
+          {
+            id: 4,
+            file_name: 'processing-ppt.pptx',
+            file_type: 'ppt',
+            file_path: '/data/media/4.pptx',
+            file_size: 1024000,
+            status: 'processing',
+            created_at: '2024-01-01 00:00:00',
+          },
+        ],
+        total: 1,
+      })
+
+      render(<PlaylistListPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText('播放列表管理')).toBeInTheDocument()
+      }, { timeout: 10000 })
+
+      const manageButtons = await screen.findAllByRole('button', { name: /管理/i })
+      fireEvent.click(manageButtons[0])
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Playlist with Processing PPT')).toBeInTheDocument()
+      }, { timeout: 10000 })
+
+      // 验证显示"暂不可预览"提示
+      expect(screen.getByText('暂不可预览')).toBeInTheDocument()
+    })
+
+    it('PPT 转换失败时应显示错误状态和"转换失败"提示', async () => {
+      const { getPlaylistDetail } = await import('../api/playlist')
+      const { getMediaList } = await import('../api/media')
+
+      vi.mocked(getPlaylistDetail).mockResolvedValue({
+        id: 3,
+        name: 'Test Playlist with Failed PPT',
+        description: '',
+        items: [
+          {
+            id: 5,
+            playlist_id: 3,
+            media_id: 5,
+            file_name: 'failed-ppt.pptx',
+            file_type: 'ppt',
+            display_order: 0,
+            display_duration: 10,
+            created_at: '2024-01-01 00:00:00',
+          },
+        ],
+        devices: [],
+        created_at: '2024-01-01 00:00:00',
+        updated_at: '2024-01-01 00:00:00',
+      })
+
+      vi.mocked(getMediaList).mockResolvedValue({
+        items: [
+          {
+            id: 5,
+            file_name: 'failed-ppt.pptx',
+            file_type: 'ppt',
+            file_path: '/data/media/5.pptx',
+            file_size: 1024000,
+            status: 'failed',
+            created_at: '2024-01-01 00:00:00',
+          },
+        ],
+        total: 1,
+      })
+
+      render(<PlaylistListPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText('播放列表管理')).toBeInTheDocument()
+      }, { timeout: 10000 })
+
+      const manageButtons = await screen.findAllByRole('button', { name: /管理/i })
+      fireEvent.click(manageButtons[0])
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Playlist with Failed PPT')).toBeInTheDocument()
+      }, { timeout: 10000 })
+
+      // 验证显示"转换失败"提示
+      expect(screen.getByText('转换失败')).toBeInTheDocument()
     })
   })
 })

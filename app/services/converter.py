@@ -136,17 +136,17 @@ class PPTConverter:
             # 步骤 1: PPT → PDF
             pdf_path = self._ppt_to_pdf(file_path)
             if not pdf_path:
-                raise Exception("Failed to convert PPT to PDF")
+                raise RuntimeError("Failed to convert PPT to PDF")
 
             # 步骤 2: PDF → 图片序列
             images_dir = self._pdf_to_images(pdf_path)
             if not images_dir:
-                raise Exception("Failed to convert PDF to images")
+                raise RuntimeError("Failed to convert PDF to images")
 
             # 步骤 3: 图片序列 → 视频
             video_path = self._images_to_video(images_dir, file_path, slide_duration)
             if not video_path:
-                raise Exception("Failed to convert images to video")
+                raise RuntimeError("Failed to convert images to video")
 
             # 步骤 4: 生成缩略图
             thumbnail_path = self._generate_video_thumbnail(video_path)
@@ -166,7 +166,7 @@ class PPTConverter:
                 "duration": duration
             }
 
-        except (OSError, subprocess.SubprocessError) as e:
+        except (OSError, subprocess.SubprocessError, RuntimeError) as e:
             logger.error(f"PPT conversion failed: {e}")
             return {
                 "success": False,

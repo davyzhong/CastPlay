@@ -199,8 +199,43 @@ run_integration_tests() {
 
 run_integration_tests
 
-# ==================== 6. 前端测试 ====================
-print_header "6. 前端测试"
+# ==================== 6. 前端预编译 ====================
+print_header "6. 前端预编译"
+
+BUILD_PASSED=0
+BUILD_FAILED=0
+
+run_frontend_build() {
+    if [ ! -d "${PROJECT_DIR}/frontend/node_modules" ]; then
+        print_info "跳过前端编译（依赖未安装）"
+        return
+    fi
+
+    print_info "检查 TypeScript 类型..."
+    cd frontend
+    if npx tsc --noEmit; then
+        print_success "TypeScript 类型检查通过"
+        ((BUILD_PASSED++))
+    else
+        print_error "TypeScript 类型检查失败"
+        ((BUILD_FAILED++))
+    fi
+
+    print_info "编译前端项目..."
+    if npm run build; then
+        print_success "前端编译完成"
+        ((BUILD_PASSED++))
+    else
+        print_error "前端编译失败"
+        ((BUILD_FAILED++))
+    fi
+    cd "${PROJECT_DIR}"
+}
+
+run_frontend_build
+
+# ==================== 7. 前端测试 ====================
+print_header "7. 前端测试"
 
 FRONTEND_PASSED=0
 FRONTEND_FAILED=0
@@ -208,6 +243,12 @@ FRONTEND_FAILED=0
 run_frontend_tests() {
     if [ ! -d "${PROJECT_DIR}/frontend/node_modules" ]; then
         print_info "跳过前端测试（依赖未安装）"
+        return
+    fi
+
+    # 如果编译失败，跳过前端测试
+    if [ ${BUILD_FAILED} -gt 0 ]; then
+        print_info "跳过前端测试（编译失败）"
         return
     fi
 
@@ -225,15 +266,28 @@ run_frontend_tests() {
 
 run_frontend_tests
 
-# ==================== 7. E2E 测试 ====================
-print_header "7. E2E 测试"
+# ==================== 8. E2E 测试 ====================
+print_header "8. E2E 测试"
 
 E2E_PASSED=0
 E2E_FAILED=0
 
 run_e2e_tests() {
+    # 检查依赖是否安装
     if [ ! -d "${PROJECT_DIR}/frontend/node_modules" ]; then
         print_info "跳过 E2E 测试（依赖未安装）"
+        return
+    fi
+
+    # 检查前端编译是否成功
+    if [ ${BUILD_FAILED} -gt 0 ]; then
+        print_info "跳过 E2E 测试（前端编译失败）"
+        return
+    fi
+
+    # 检查是否存在构建产物
+    if [ ! -d "${PROJECT_DIR}/frontend/dist" ]; then
+        print_info "跳过 E2E 测试（构建产物不存在）"
         return
     fi
 
@@ -251,8 +305,8 @@ run_e2e_tests() {
 
 run_e2e_tests
 
-# ==================== 8. 性能测试 ====================
-print_header "8. 性能测试"
+# ==================== 9. 性能测试 ====================
+print_header "9. 性能测试"
 
 PERFORMANCE_PASSED=0
 PERFORMANCE_FAILED=0
@@ -288,7 +342,7 @@ run_performance_tests() {
 run_performance_tests
 
 # ==================== 生成测试报告 ====================
-print_header "9. 生成测试报告"
+print_header "10. 生成测试报告"
 
 generate_summary_report() {
     END_TIME=$(date +%s)
@@ -312,10 +366,11 @@ generate_summary_report() {
 | 安全检查 | ${SECURITY_PASSED} | ${SECURITY_FAILED} |
 | 单元测试 | ${UNIT_PASSED} | ${UNIT_FAILED} |
 | 集成测试 | ${INTEGRATION_PASSED} | ${INTEGRATION_FAILED} |
+| 前端编译 | ${BUILD_PASSED} | ${BUILD_FAILED} |
 | 前端测试 | ${FRONTEND_PASSED} | ${FRONTEND_FAILED} |
 | E2E 测试 | ${E2E_PASSED} | ${E2E_FAILED} |
 | 性能测试 | ${PERFORMANCE_PASSED} | ${PERFORMANCE_FAILED} |
-| **总计** | **$((LINT_PASSED + SECURITY_PASSED + UNIT_PASSED + INTEGRATION_PASSED + FRONTEND_PASSED + E2E_PASSED + PERFORMANCE_PASSED))** | **$((LINT_FAILED + SECURITY_FAILED + UNIT_FAILED + INTEGRATION_FAILED + FRONTEND_FAILED + E2E_FAILED + PERFORMANCE_FAILED))** |
+| **总计** | **$((LINT_PASSED + SECURITY_PASSED + UNIT_PASSED + INTEGRATION_PASSED + BUILD_PASSED + FRONTEND_PASSED + E2E_PASSED + PERFORMANCE_PASSED))** | **$((LINT_FAILED + SECURITY_FAILED + UNIT_FAILED + INTEGRATION_FAILED + BUILD_FAILED + FRONTEND_FAILED + E2E_FAILED + PERFORMANCE_FAILED))** |
 
 ---
 
@@ -333,9 +388,9 @@ generate_summary_report() {
 ## 通过率
 
 \`\`\`
-总检查数: $((LINT_PASSED + LINT_FAILED + SECURITY_PASSED + SECURITY_FAILED + UNIT_PASSED + UNIT_FAILED + INTEGRATION_PASSED + INTEGRATION_FAILED + FRONTEND_PASSED + FRONTEND_FAILED + E2E_PASSED + E2E_FAILED + PERFORMANCE_PASSED + PERFORMANCE_PASSED))
-总通过数: $((LINT_PASSED + SECURITY_PASSED + UNIT_PASSED + INTEGRATION_PASSED + FRONTEND_PASSED + E2E_PASSED + PERFORMANCE_PASSED))
-通过率: $(awk "BEGIN {printf \"%.2f\", ($((LINT_PASSED + SECURITY_PASSED + UNIT_PASSED + INTEGRATION_PASSED + FRONTEND_PASSED + E2E_PASSED + PERFORMANCE_PASSED)) / ($((LINT_PASSED + LINT_FAILED + SECURITY_PASSED + SECURITY_FAILED + UNIT_PASSED + UNIT_FAILED + INTEGRATION_PASSED + INTEGRATION_FAILED + FRONTEND_PASSED + FRONTEND_FAILED + E2E_PASSED + E2E_FAILED + PERFORMANCE_PASSED + PERFORMANCE_PASSED))) * 100}%")
+总检查数: $((LINT_PASSED + LINT_FAILED + SECURITY_PASSED + SECURITY_FAILED + UNIT_PASSED + UNIT_FAILED + INTEGRATION_PASSED + INTEGRATION_FAILED + BUILD_PASSED + BUILD_FAILED + FRONTEND_PASSED + FRONTEND_FAILED + E2E_PASSED + E2E_FAILED + PERFORMANCE_PASSED + PERFORMANCE_FAILED))
+总通过数: $((LINT_PASSED + SECURITY_PASSED + UNIT_PASSED + INTEGRATION_PASSED + BUILD_PASSED + FRONTEND_PASSED + E2E_PASSED + PERFORMANCE_PASSED))
+通过率: $(awk "BEGIN {printf \"%.2f\", ($((LINT_PASSED + SECURITY_PASSED + UNIT_PASSED + INTEGRATION_PASSED + BUILD_PASSED + FRONTEND_PASSED + E2E_PASSED + PERFORMANCE_PASSED)) / ($((LINT_PASSED + LINT_FAILED + SECURITY_PASSED + SECURITY_FAILED + UNIT_PASSED + UNIT_FAILED + INTEGRATION_PASSED + INTEGRATION_FAILED + BUILD_PASSED + BUILD_FAILED + FRONTEND_PASSED + FRONTEND_FAILED + E2E_PASSED + E2E_FAILED + PERFORMANCE_PASSED + PERFORMANCE_FAILED))) * 100}%")
 \`\`\`
 
 ---
@@ -352,8 +407,8 @@ generate_summary_report
 # ==================== 打印汇总 ====================
 print_header "测试执行完成"
 
-TOTAL_PASSED=$((LINT_PASSED + SECURITY_PASSED + UNIT_PASSED + INTEGRATION_PASSED + FRONTEND_PASSED + E2E_PASSED + PERFORMANCE_PASSED))
-TOTAL_FAILED=$((LINT_FAILED + SECURITY_FAILED + UNIT_FAILED + INTEGRATION_FAILED + FRONTEND_FAILED + E2E_FAILED + PERFORMANCE_FAILED))
+TOTAL_PASSED=$((LINT_PASSED + SECURITY_PASSED + UNIT_PASSED + INTEGRATION_PASSED + BUILD_PASSED + FRONTEND_PASSED + E2E_PASSED + PERFORMANCE_PASSED))
+TOTAL_FAILED=$((LINT_FAILED + SECURITY_FAILED + UNIT_FAILED + INTEGRATION_FAILED + BUILD_FAILED + FRONTEND_FAILED + E2E_FAILED + PERFORMANCE_FAILED))
 TOTAL_CHECKS=$((TOTAL_PASSED + TOTAL_FAILED))
 
 echo -e "\n${BLUE}汇总统计:${NC}"

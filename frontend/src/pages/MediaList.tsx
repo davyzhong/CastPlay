@@ -32,6 +32,7 @@ import {
   downloadMedia,
   retryConversion,
   getThumbnail,
+  getMediaFileUrl,
 } from '../api/media';
 
 const { Title } = Typography;
@@ -47,6 +48,11 @@ const MediaListPage: React.FC = () => {
   const [pptUploadModalVisible, setPptUploadModalVisible] = useState(false);
   const [pendingPptFile, setPendingPptFile] = useState<File | null>(null);
   const uploadRef = useRef<any>(null);
+
+  // 视频预览状态
+  const [videoPreviewMedia, setVideoPreviewMedia] = useState<MediaFile | null>(null);
+  const [videoPlaybackRate, setVideoPlaybackRate] = useState(1);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const fetchMedia = async () => {
     setLoading(true);
@@ -178,10 +184,33 @@ const MediaListPage: React.FC = () => {
           );
         }
 
-        // 视频类型：显示图标（后端未生成缩略图）
+        // 视频类型：显示可点击的图标
+        if (record.file_type === 'video') {
+          return (
+            <div
+              onClick={() => setVideoPreviewMedia(record)}
+              style={{
+                width: 80,
+                height: 60,
+                backgroundColor: '#1890ff',
+                borderRadius: 4,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '24px',
+                color: '#fff',
+                cursor: 'pointer',
+              }}
+              title="点击预览"
+            >
+              🎬
+            </div>
+          );
+        }
+
+        // 其他类型：显示图标
         const typeConfig: Record<string, { color: string; icon: string }> = {
           image: { color: '#52c41a', icon: '🖼️' },
-          video: { color: '#1890ff', icon: '🎬' },
           ppt: { color: '#fa8c16', icon: '📊' },
         };
         const config = typeConfig[record.file_type] || { color: '#999', icon: '📄' };
@@ -403,6 +432,50 @@ const MediaListPage: React.FC = () => {
             提示：PPT 将转换为视频，每页幻灯片按设定的时长显示
           </p>
         </div>
+      </Modal>
+
+      {/* 视频预览模态框 */}
+      <Modal
+        title={videoPreviewMedia?.file_name || '视频预览'}
+        open={!!videoPreviewMedia}
+        onCancel={() => {
+          setVideoPreviewMedia(null);
+          setVideoPlaybackRate(1);
+        }}
+        footer={null}
+        width={800}
+        centered
+      >
+        {videoPreviewMedia && (
+          <div style={{ textAlign: 'center' }}>
+            <video
+              ref={videoRef}
+              src={getMediaFileUrl(videoPreviewMedia.id)}
+              controls
+              autoPlay
+              style={{ maxWidth: '100%', maxHeight: '60vh' }}
+            />
+            {/* 变速播放控制 */}
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}>
+              <Typography.Text>播放速度:</Typography.Text>
+              {[1, 2, 4, 8].map((speed) => (
+                <Button
+                  key={speed}
+                  size="small"
+                  type={videoPlaybackRate === speed ? 'primary' : 'default'}
+                  onClick={() => {
+                    setVideoPlaybackRate(speed);
+                    if (videoRef.current) {
+                      videoRef.current.playbackRate = speed;
+                    }
+                  }}
+                >
+                  {speed}X
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

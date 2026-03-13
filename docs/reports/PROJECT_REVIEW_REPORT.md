@@ -45,11 +45,11 @@
 | **High** | `app/config.py` | 134 | 管理员密码打印到控制台 | 仅首次启动显示，之后写入安全文件 |
 | **High** | `app/utils/internal_auth.py` | 34-41 | 内部 API 认证可被绕过 | 未配置 `INTERNAL_API_KEY` 时拒绝请求 |
 | **High** | `app/main.py` | 99-136 | WebSocket 缺少认证 | 添加设备注册验证或 Token 机制 |
-| **High** | `app/api/playlists.py` | 402-443 | 播放列表项重排序缺乏验证 | 使用 Pydantic 模型严格验证输入 |
+| **High** | `app/api/playlists.py` | 402-443 | 播放列表项重排序缺乏验证 | ~~使用 Pydantic 模型严格验证输入~~ ✅ 已修复 |
 | **Medium** | `app/services/converter.py` | 53, 404 | 裸 `except Exception` 捕获 | 捕获具体异常类型，至少记录日志 |
-| **Medium** | `app/api/player.py` | 741-752 | 心跳异常直接返回 `str(e)` | 返回通用错误消息，详细信息只记录日志 |
-| **Medium** | `app/api/player.py` | 169-341 | `player_init` 函数过长（170+行） | 拆分为 `_get_device_schedule()` 等辅助函数 |
-| **Medium** | `app/api/playlists.py` | 240-262 | 删除播放列表缺少级联检查 | 删除前检查是否有关联设备 |
+| **Medium** | `app/api/player.py` | 741-752 | 心跳异常直接返回 `str(e)` | ~~返回通用错误消息，详细信息只记录日志~~ ✅ 已修复 |
+| **Medium** | `app/api/player.py` | 169-341 | `player_init` 函数过长（170+行） | ~~拆分为 `_get_device_schedule()` 等辅助函数~~ ✅ 已修复 |
+| **Medium** | `app/api/playlists.py` | 240-262 | 删除播放列表缺少级联检查 | ~~删除前检查是否有关联设备~~ ✅ 已修复 |
 | **Low** | 多个文件 | - | 魔术字符串状态值（"online", "ready" 等） | 使用枚举类定义状态常量 |
 | **Low** | `app/services/notification.py` | 272-300 | deprecated 方法未设置移除时间表 | 添加移除版本和迁移路径文档 |
 
@@ -73,12 +73,12 @@
 |---------|------|------|------|-------------|
 | **Critical** | `frontend/src/pages/Login.tsx` | 23 | 使用 `any` 类型绕过类型检查 | 定义 `LoginResponse` 接口并使用 |
 | **Critical** | `frontend/src/types/index.ts` | 115 | `ApiResponse<T = any>` 默认类型不安全 | 改为 `ApiResponse<T = unknown>` |
-| **High** | 多个页面文件 | 多处 | 错误处理大量使用 `error: any` | 使用 `error: unknown` + 类型守卫 |
+| **High** | 多个页面文件 | 多处 | 错误处理大量使用 `error: any` | ~~使用 `error: unknown` + 类型守卫~~ ✅ 部分修复 (PlaylistList.tsx) |
 | **High** | `frontend/src/App.tsx` | 114-121 | 路由缺少认证保护 | 添加路由守卫或 Context 检查 |
 | **High** | `frontend/src/pages/DeviceList.tsx` | 211, 215 | 表单值使用 `any` 类型 | 定义 `ScheduleFormValues` 接口 |
-| **Medium** | `WebPlayerSimulator.tsx` | 306 | setTimeout 未清理可能内存泄漏 | 使用 ref 存储 timer 并在 cleanup 清理 |
-| **Medium** | `PlaylistList.tsx` | 777, 869 | 表格列渲染函数使用 `any` | 使用 `unknown` 或具体类型 |
-| **Medium** | `useDeviceRegistration.ts` | 117 | 硬编码设备 ID `'web-player-test-01'` | 使用 UUID 生成唯一 ID |
+| **Medium** | `WebPlayerSimulator.tsx` | 306 | setTimeout 未清理可能内存泄漏 | ~~使用 ref 存储 timer 并在 cleanup 清理~~ ✅ 已修复 |
+| **Medium** | `PlaylistList.tsx` | 777, 869 | 表格列渲染函数使用 `any` | ~~使用 `unknown` 或具体类型~~ ✅ 已修复 |
+| **Medium** | `useDeviceRegistration.ts` | 117 | 硬编码设备 ID `'web-player-test-01'` | ~~使用 UUID 生成唯一 ID~~ ✅ 已修复 |
 | **Low** | 多个文件 | - | 大量 console.log 调试语句 | 使用环境变量控制或专用日志库 |
 | **Low** | `SortablePlaylistItem` | - | 缺少 React.memo | 添加 memoization 减少重渲染 |
 
@@ -88,9 +88,10 @@
 |--------|------|------|
 | XSS 风险 | ✅ 通过 | 未发现 `dangerouslySetInnerHTML` 使用 |
 | Token 存储 | ⚠️ 需注意 | 使用 localStorage，建议考虑 HttpOnly cookie |
-| 敏感信息暴露 | ✅ 通过 | 未发现敏感信息硬编码 |
+| 敏感信息暴露 | ✅ 通过 | ~~未发现敏感信息硬编码~~ 硬编码设备 ID 已修复 |
 | API 认证 | ✅ 通过 | 请求拦截器正确添加 Authorization header |
 | 路由保护 | ❌ 需改进 | 前端路由缺乏认证保护 |
+| 错误信息泄露 | ✅ 已修复 | 心跳异常不再返回详细错误信息 |
 
 ---
 
@@ -328,6 +329,45 @@ CastPlay 项目适合 **小规模数字标牌场景**（10-100 台设备），�
 
 ---
 
+## 修复进度
+
+> **更新日期**: 2026-03-13
+
+### 已完成修复
+
+| 优先级 | 问题 | 文件 | 修复内容 | 提交 |
+|--------|------|------|----------|------|
+| **Medium** | 心跳异常返回敏感信息 | `app/api/player.py` | 返回通用错误消息，详情仅记录日志 | 已提交 |
+| **Medium** | `player_init` 函数过长 | `app/api/player.py` | 拆分为 4 个辅助函数 | 已提交 |
+| **High** | 播放列表重排序缺乏验证 | `app/api/playlists.py`, `app/schemas/playlist.py` | 添加 `ReorderItemData` Pydantic 模型，严格验证 ID 和 order | 已提交 |
+| **Medium** | 删除播放列表缺级联检查 | `app/api/playlists.py` | 删除前检查关联设备，提供错误提示 | 已提交 |
+| **Medium** | setTimeout 未清理 | `frontend/src/pages/WebPlayerSimulator.tsx` | 使用 `useRef` 存储 timer，cleanup 时清理 | 已提交 |
+| **Medium** | 硬编码设备 ID | `frontend/src/player/useDeviceRegistration.ts` | 使用 `crypto.randomUUID()` 生成唯一 ID | 已提交 |
+| **High** | 错误处理使用 `any` | `frontend/src/pages/PlaylistList.tsx` | 使用类型守卫 `error: unknown` | 已提交 |
+
+### 待修复项
+
+#### 高优先级（Critical/High）
+
+| 问题 | 文件 | 状态 |
+|------|------|------|
+| 命令注入风险 | `app/services/converter.py` | ⏳ 待修复 |
+| 硬编码开发密钥 | `app/config.py` | ⏳ 待修复 |
+| 管理员密码打印到控制台 | `app/config.py` | ⏳ 待修复 |
+| 内部 API 认证可绕过 | `app/utils/internal_auth.py` | ⏳ 待修复 |
+| WebSocket 缺少认证 | `app/main.py` | ⏳ 待修复 |
+| 前端 `any` 类型 | `Login.tsx`, `types/index.ts` | ⏳ 待修复 |
+| 路由缺少认证保护 | `frontend/src/App.tsx` | ⏳ 待修复 |
+| 表单值 `any` 类型 | `DeviceList.tsx` | ⏳ 待修复 |
+
+#### 中优先级（Medium）
+
+| 问题 | 文件 | 状态 |
+|------|------|------|
+| 裸 `except Exception` 捕获 | `app/services/converter.py` | ⏳ 待修复 |
+
+---
+
 ## 附录
 
 ### 审查方法
@@ -347,4 +387,5 @@ CastPlay 项目适合 **小规模数字标牌场景**（10-100 台设备），�
 ---
 
 *报告生成时间: 2026-03-13*
+*最后更新: 2026-03-13 - 修复进度更新*
 *审查工具: Claude Code Agent Review*

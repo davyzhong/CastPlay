@@ -1,8 +1,6 @@
-# CastPlay All-in-One v2.0 - 轻量化智能投屏播放系统
+# CastPlay - 智能投屏播放系统
 
-
-> ⚡ 快速启动的轻量化智能投屏播放系统
-> 🎉 **v2.0 全新发布** - 零依赖、极简部署、bootstrap 架构
+> ⚡ 轻量级智能投屏播放系统，支持 Android 离线播放
 
 ## ✨ 功能特性
 
@@ -15,6 +13,7 @@
 - **定时控制** - 支持设备定时开关机，可配置工作日
 - **远程管理** - Web 管理后台实现设备监控和内容管理
 - **混合播放** - 图片、视频、PPT 混合播放，自动循环切换
+- **播放列表自动切换** - 支持按时间自动切换播放列表
 
 ### 📊 管理功能
 
@@ -32,15 +31,13 @@
 - **信息公告** - 学校、医院等场所的通知公告
 - **数据大屏** - 数据中心、控制室的实时数据展示
 
-
 ## ✨ 核心优势
 
 - 🚀 **零依赖部署** - 无需 Redis、Celery、PostgreSQL
 - 📦 **一体化设计** - 后端 + 前端 + 数据库，开箱即用
 - ⚡ **极速启动** - 5 分钟完成部署，10 秒启动
-- 🎯 **小规模优化** - 专为<50 设备场景设计
-- 📊 **34% 代码精简** - 比原项目更轻量
-- 🔧 **bootstrap 架构** - 模块化设计，易维护
+- 🎯 **小规模优化** - 专为 <50 设备场景设计
+- 🔧 **模块化架构** - 易于维护和扩展
 
 ## 🚀 快速开始
 
@@ -78,51 +75,51 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ### 5. 访问服务
 
 - 管理后台：http://localhost:8000/
+- 播放器页面：http://localhost:8000/player
 - API 文档：http://localhost:8000/docs
-- API 文档 (ReDoc): http://localhost:8000/redoc
+- API 文档 (ReDoc)：http://localhost:8000/redoc
 
-## 📈 与原项目对比
-
-| 指标            | CastPlay        | All-in-One v2.0 | 改进         |
-| --------------- | --------------- | --------------- | ------------ |
-| **代码量**      | 8,106 行        | 5,330 行        | **-34%** ✅  |
-| **Python 文件** | 79 个           | 36 个           | **-54%** ✅  |
-| **外部依赖**    | Redis+Celery+PG | 无              | **-100%** ✅ |
-| **部署时间**    | 30 分钟         | 5 分钟          | **-83%** ✅  |
-| **启动时间**    | ~2 分钟         | ~10 秒          | **-92%** ✅  |
-| **运维成本**    | 高              | 几乎为零        | **-90%** ✅  |
-
-## 🆕 v2.0 新特性
+## 📁 项目结构
 
 ```
-castplay-allinone/
-├── app/                  # 应用主目录
+castplay/
+├── app/                  # 后端应用
 │   ├── api/             # API 路由
-│   ├── bootstrap/       # ⭐ 应用引导模块
+│   ├── bootstrap/       # 应用引导模块
 │   ├── models/          # 数据模型
 │   ├── schemas/         # Pydantic 模型
 │   ├── services/        # 业务服务
 │   ├── utils/           # 工具函数
 │   └── websocket/       # WebSocket 处理
-├── frontend/            # 前端代码
+├── frontend/            # 前端代码 (React + TypeScript)
+│   └── src/
+│       ├── api/         # API 调用
+│       ├── pages/       # 页面组件
+│       ├── player/      # 播放器核心
+│       └── store/       # 状态管理
+├── android/             # Android 客户端
 ├── data/                # 数据目录
-├── docs/                # ⭐ 文档目录
-│   ├── MIGRATION.md     # 迁移指南
-│   ├── FINAL_REPORT.md  # 整合报告
-│   └── ...
-└── scripts/             # 工具脚本
+├── tests/               # 测试文件
+│   ├── unit/           # 单元测试
+│   ├── integration/    # 集成测试
+│   └── e2e/            # 端到端测试
+├── scripts/            # 工具脚本
+└── docs/               # 文档
 ```
 
 ## 📚 文档
 
 ### 核心文档
 
-- 📖 [README.md](./README.md) - 项目介绍和快速开始
 - 📖 [DEPLOYMENT.md](./DEPLOYMENT.md) - 部署指南
 - 📖 [DEVELOPER.md](./DEVELOPER.md) - 开发手册
-- 📖 [docs/MIGRATION.md](./docs/MIGRATION.md) - **从原项目迁移指南** ⭐
-- 📖 [docs/FINAL_REPORT.md](./docs/FINAL_REPORT.md) - **项目整合报告** ⭐
-- 📖 [docs/REVIEW_REPORT.md](./docs/REVIEW_REPORT.md) - **审查报告** ⭐
+- 📖 [Android_部署与测试指南.md](./Android_部署与测试指南.md) - Android 部署
+- 📖 [WEB_PLAYER_SIMULATOR.md](./WEB_PLAYER_SIMULATOR.md) - Web 播放器模拟器
+
+### 架构文档
+
+- 📖 [docs/PROJECT_ARCHITECTURE.md](./docs/PROJECT_ARCHITECTURE.md) - 项目架构
+- 📖 [docs/PLAYER_CLIENT_DESIGN_V3.md](./docs/PLAYER_CLIENT_DESIGN_V3.md) - 播放器设计
 
 ### API 文档
 
@@ -135,38 +132,64 @@ castplay-allinone/
 ### 运行测试
 
 ```bash
+# 运行所有测试
 pytest tests/ -v
+
+# 运行单元测试
+pytest tests/unit/ -v
+
+# 运行集成测试
+pytest tests/integration/ -v
+
+# Android 端测试
+./scripts/android-test.sh
 ```
 
-**测试覆盖**: 685 个测试用例，覆盖率 ~85%
+## 📱 Android 客户端
 
-## 🔄 从原项目迁移
+### 构建 APK
 
-如果你正在使用 CastPlay 原项目，请参考 **[迁移指南](docs/MIGRATION.md)**
+```bash
+./build-android.sh [serverUrl]
+# 例如: ./build-android.sh http://192.168.1.100:8000
+```
 
-**迁移收益**:
+### 测试
 
-- ✅ API 接口 95% 兼容
-- ✅ 数据完全兼容
-- ✅ 零 Redis/Celery 依赖
-- ✅ 部署更简单
+```bash
+./scripts/android-test.sh [选项]
+# --skip-build     跳过 APK 构建
+# --skip-emulator  使用已连接的设备
+# --auto-close     测试完成后自动关闭
+```
+
+## 🔧 开发命令
+
+```bash
+# 启动后端开发服务器
+python -m uvicorn app.main:app --reload
+
+# 启动前端开发服务器
+cd frontend && npm run dev
+
+# 构建前端
+cd frontend && npm run build
+
+# 运行测试
+pytest tests/ -v
+
+# 代码格式化
+make format
+```
 
 ## 📊 项目状态
 
 - ✅ 核心功能完成
-- ✅ 单元测试覆盖率 85%+
+- ✅ 单元测试覆盖
 - ✅ 集成测试通过
-- ✅ Phase 1-5 圆满完成
-- 🎉 **v2.0.0 正式发布**
-
-## 🤝 贡献
+- ✅ Android 客户端可用
+- ✅ 播放列表自动切换功能
 
 ## 📝 许可证
 
 MIT License
-
----
-
-**版本**: v2.0.0
-**发布时间**: 2026-03-07
-**核心改进**: Bootstrap 架构、零依赖、代码精简 34%

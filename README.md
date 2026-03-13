@@ -63,21 +63,24 @@ pip install -r requirements.txt
 ### 3. 初始化数据库
 
 ```bash
-python scripts/init_db.py
+python scripts/db/init.py
 ```
 
 ### 4. 启动服务
 
 ```bash
+# 方式1: 直接启动
+python scripts/server/start.py
+
+# 方式2: 使用 uvicorn
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### 5. 访问服务
 
 - 管理后台：http://localhost:8000/
-- 播放器页面：http://localhost:8000/player
+- 播放器页面：http://localhost:8000/player.html
 - API 文档：http://localhost:8000/docs
-- API 文档 (ReDoc)：http://localhost:8000/redoc
 
 ## 📁 项目结构
 
@@ -92,40 +95,42 @@ castplay/
 │   ├── utils/           # 工具函数
 │   └── websocket/       # WebSocket 处理
 ├── frontend/            # 前端代码 (React + TypeScript)
-│   └── src/
-│       ├── api/         # API 调用
-│       ├── pages/       # 页面组件
-│       ├── player/      # 播放器核心
-│       └── store/       # 状态管理
 ├── android/             # Android 客户端
 ├── data/                # 数据目录
 ├── tests/               # 测试文件
-│   ├── unit/           # 单元测试
-│   ├── integration/    # 集成测试
-│   └── e2e/            # 端到端测试
-├── scripts/            # 工具脚本
+├── scripts/             # 工具脚本
+│   ├── server/         # 服务器启动脚本
+│   ├── db/             # 数据库脚本
+│   ├── migration/      # 数据迁移脚本
+│   ├── testing/        # 测试脚本
+│   └── dev/            # 开发工具脚本
 └── docs/               # 文档
+    ├── architecture/   # 架构设计文档
+    ├── deployment/     # 部署文档
+    ├── development/    # 开发指南
+    ├── features/       # 功能文档
+    ├── android/        # Android 相关文档
+    ├── testing/        # 测试文档
+    └── reports/        # 测试报告
 ```
 
 ## 📚 文档
 
 ### 核心文档
 
-- 📖 [DEPLOYMENT.md](./DEPLOYMENT.md) - 部署指南
-- 📖 [DEVELOPER.md](./DEVELOPER.md) - 开发手册
-- 📖 [Android_部署与测试指南.md](./Android_部署与测试指南.md) - Android 部署
-- 📖 [WEB_PLAYER_SIMULATOR.md](./WEB_PLAYER_SIMULATOR.md) - Web 播放器模拟器
+- 📖 [部署指南](./docs/deployment/guide.md)
+- 📖 [开发手册](./docs/development/guide.md)
+- 📖 [项目架构](./docs/architecture/README.md)
 
-### 架构文档
+### Android 相关
 
-- 📖 [docs/PROJECT_ARCHITECTURE.md](./docs/PROJECT_ARCHITECTURE.md) - 项目架构
-- 📖 [docs/PLAYER_CLIENT_DESIGN_V3.md](./docs/PLAYER_CLIENT_DESIGN_V3.md) - 播放器设计
+- 📖 [Android 部署指南](./docs/android/deployment_guide.md)
+- 📖 [模拟器配置](./docs/android/emulator_setup.md)
 
-### API 文档
+### 测试相关
 
-启动服务后访问：
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+- 📖 [Web 播放器模拟器](./docs/features/web_player_simulator.md)
+- 📖 [播放列表推送测试](./docs/testing/playlist_push_guide.md)
 
 ## 🧪 测试
 
@@ -141,8 +146,21 @@ pytest tests/unit/ -v
 # 运行集成测试
 pytest tests/integration/ -v
 
-# Android 端测试
-./scripts/android-test.sh
+# 运行 Android 测试
+python scripts/testing/run_android_tests.py
+
+# 运行 Web 播放端测试
+python scripts/testing/run_web_tests.py --e2e --headed
+```
+
+### 测试环境启动
+
+```bash
+# 启动 Web 播放端测试环境
+python scripts/testing/start_web_env.py
+
+# 启动 Android 测试环境
+python scripts/testing/start_android_env.py
 ```
 
 ## 📱 Android 客户端
@@ -157,26 +175,35 @@ pytest tests/integration/ -v
 ### 测试
 
 ```bash
-./scripts/android-test.sh [选项]
+python scripts/testing/android-test.sh [选项]
 # --skip-build     跳过 APK 构建
 # --skip-emulator  使用已连接的设备
 # --auto-close     测试完成后自动关闭
 ```
 
-## 🔧 开发命令
+## 🔧 常用命令
+
+### 服务管理
 
 ```bash
-# 启动后端开发服务器
-python -m uvicorn app.main:app --reload
+# 启动服务器
+python scripts/server/start.py
 
+# 初始化数据库
+python scripts/db/init.py
+
+# 备份数据库
+python scripts/db/backup.py
+```
+
+### 开发
+
+```bash
 # 启动前端开发服务器
 cd frontend && npm run dev
 
 # 构建前端
 cd frontend && npm run build
-
-# 运行测试
-pytest tests/ -v
 
 # 代码格式化
 make format

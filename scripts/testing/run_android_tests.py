@@ -6,20 +6,20 @@ Android 播放端自动化测试运行脚本
 
 前置条件：
     - 集成测试使用内存数据库，不需要启动服务器
-    - E2E 测试需要先启动服务器: python scripts/start_android_test_env.py
+    - E2E 测试需要先启动服务器: python scripts/testing/start_android_env.py
 
 运行方式：
     # 运行所有 Android 播放端测试
-    python scripts/run_android_tests.py
+    python scripts/testing/run_android_tests.py
 
     # 运行单元测试
-    python scripts/run_android_tests.py --unit
+    python scripts/testing/run_android_tests.py --unit
 
     # 运行集成测试（API 测试）
-    python scripts/run_android_tests.py --integration
+    python scripts/testing/run_android_tests.py --integration
 
     # 显示详细输出
-    python scripts/run_android_tests.py -v
+    python scripts/testing/run_android_tests.py -v
 
 依赖安装：
     pip install pytest
@@ -35,7 +35,7 @@ class AndroidTestRunner:
     """Android 播放端测试运行器"""
 
     def __init__(self):
-        self.project_root = Path(__file__).parent.parent
+        self.project_root = Path(__file__).parent.parent.parent
         self.tests_dir = self.project_root / "tests"
 
     def check_dependencies(self):
@@ -111,16 +111,16 @@ def main():
         epilog="""
 示例:
   # 运行所有 Android 播放端测试
-  python scripts/run_android_tests.py
+  python scripts/testing/run_android_tests.py
 
   # 只运行单元测试
-  python scripts/run_android_tests.py --unit
+  python scripts/testing/run_android_tests.py --unit
 
   # 只运行集成测试
-  python scripts/run_android_tests.py --integration
+  python scripts/testing/run_android_tests.py --integration
 
   # 显示详细输出
-  python scripts/run_android_tests.py -v
+  python scripts/testing/run_android_tests.py -v
         """
     )
 

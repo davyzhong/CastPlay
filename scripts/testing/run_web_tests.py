@@ -5,24 +5,24 @@ Web 播放端自动化测试运行脚本
 运行 Web 播放端的集成测试和 E2E 测试。
 
 前置条件：
-    1. 后端服务器已启动 (运行 scripts/start_web_player_test_env.py)
+    1. 后端服务器已启动 (运行 scripts/testing/start_web_env.py)
     2. 访问地址: http://localhost:8000
 
 运行方式：
     # 运行所有 Web 播放端测试
-    python scripts/run_web_player_tests.py
+    python scripts/testing/run_web_tests.py
 
     # 运行集成测试（API 测试，不需要服务器）
-    python scripts/run_web_player_tests.py --integration
+    python scripts/testing/run_web_tests.py --integration
 
     # 运行 E2E 测试（Playwright 浏览器测试，需要服务器）
-    python scripts/run_web_player_tests.py --e2e
+    python scripts/testing/run_web_tests.py --e2e
 
     # 显示浏览器窗口
-    python scripts/run_web_player_tests.py --e2e --headed
+    python scripts/testing/run_web_tests.py --e2e --headed
 
     # 慢速模式（便于观察）
-    python scripts/run_web_player_tests.py --e2e --headed --slowmo=500
+    python scripts/testing/run_web_tests.py --e2e --headed --slowmo=500
 
 依赖安装：
     pip install pytest pytest-playwright
@@ -40,7 +40,7 @@ class WebPlayerTestRunner:
     """Web 播放端测试运行器"""
 
     def __init__(self):
-        self.project_root = Path(__file__).parent.parent
+        self.project_root = Path(__file__).parent.parent.parent
         self.tests_dir = self.project_root / "tests"
         self.base_url = "http://localhost:8000"
 
@@ -164,26 +164,26 @@ def main():
         epilog="""
 前置条件:
   E2E 测试需要先启动后端服务器:
-    python scripts/start_web_player_test_env.py
+    python scripts/testing/start_web_env.py
 
 示例:
   # 运行所有 Web 播放端测试
-  python scripts/run_web_player_tests.py
+  python scripts/testing/run_web_tests.py
 
   # 只运行集成测试（不需要服务器）
-  python scripts/run_web_player_tests.py --integration
+  python scripts/testing/run_web_tests.py --integration
 
   # 只运行 E2E 测试（需要服务器）
-  python scripts/run_web_player_tests.py --e2e
+  python scripts/testing/run_web_tests.py --e2e
 
   # 显示浏览器窗口
-  python scripts/run_web_player_tests.py --e2e --headed
+  python scripts/testing/run_web_tests.py --e2e --headed
 
   # 慢速模式
-  python scripts/run_web_player_tests.py --e2e --headed --slowmo=500
+  python scripts/testing/run_web_tests.py --e2e --headed --slowmo=500
 
   # 安装 Playwright 浏览器
-  python scripts/run_web_player_tests.py --install-playwright
+  python scripts/testing/run_web_tests.py --install-playwright
         """
     )
 

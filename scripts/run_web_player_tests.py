@@ -2,14 +2,20 @@
 """
 Web 播放端自动化测试运行脚本
 
+运行 Web 播放端的集成测试和 E2E 测试。
+
+前置条件：
+    1. 后端服务器已启动 (运行 scripts/start_web_player_test_env.py)
+    2. 访问地址: http://localhost:8000
+
 运行方式：
     # 运行所有 Web 播放端测试
     python scripts/run_web_player_tests.py
 
-    # 运行集成测试（API 测试）
+    # 运行集成测试（API 测试，不需要服务器）
     python scripts/run_web_player_tests.py --integration
 
-    # 运行 E2E 测试（Playwright 浏览器测试）
+    # 运行 E2E 测试（Playwright 浏览器测试，需要服务器）
     python scripts/run_web_player_tests.py --e2e
 
     # 显示浏览器窗口
@@ -26,6 +32,7 @@ import argparse
 import subprocess
 import sys
 import os
+import requests
 from pathlib import Path
 
 
@@ -35,17 +42,17 @@ class WebPlayerTestRunner:
     def __init__(self):
         self.project_root = Path(__file__).parent.parent
         self.tests_dir = self.project_root / "tests"
+        self.base_url = "http://localhost:8000"
 
     def check_dependencies(self):
         """检查依赖是否安装"""
         try:
             import pytest
             print("✓ pytest 已安装")
+            return True
         except ImportError:
             print("✗ pytest 未安装，请运行: pip install pytest")
             return False
-
-        return True
 
     def check_playwright(self):
         """检查 Playwright 是否安装"""
@@ -57,8 +64,22 @@ class WebPlayerTestRunner:
             print("✗ playwright 未安装，请运行: pip install pytest-playwright")
             return False
 
+    def check_server(self):
+        """检查后端服务器是否运行"""
+        try:
+            response = requests.get(f"{self.base_url}/health", timeout=2)
+            if response.status_code == 200:
+                print(f"✓ 后端服务器运行中: {self.base_url}")
+                return True
+        except Exception:
+            pass
+
+        print(f"✗ 后端服务器未运行: {self.base_url}")
+        print("  请先启动服务器: python scripts/start_web_player_test_env.py")
+        return False
+
     def run_integration_tests(self, verbose=False):
-        """运行 Web 播放端集成测试"""
+        """运行 Web 播放端集成测试（不需要服务器）"""
         print("\n" + "=" * 50)
         print("运行 Web 播放端集成测试 (API)")
         print("=" * 50 + "\n")
@@ -74,12 +95,16 @@ class WebPlayerTestRunner:
         return result.returncode
 
     def run_e2e_tests(self, verbose=False, headed=False, slowmo=0):
-        """运行 Web 播放端 E2E 测试"""
+        """运行 Web 播放端 E2E 测试（需要服务器）"""
         print("\n" + "=" * 50)
         print("运行 Web 播放端 E2E 测试 (Playwright)")
         print("=" * 50 + "\n")
 
         if not self.check_playwright():
+            return 1
+
+        # 检查服务器是否运行
+        if not self.check_server():
             return 1
 
         args = [
@@ -137,14 +162,18 @@ def main():
         description="Web 播放端自动化测试运行器",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+前置条件:
+  E2E 测试需要先启动后端服务器:
+    python scripts/start_web_player_test_env.py
+
 示例:
   # 运行所有 Web 播放端测试
   python scripts/run_web_player_tests.py
 
-  # 只运行集成测试
+  # 只运行集成测试（不需要服务器）
   python scripts/run_web_player_tests.py --integration
 
-  # 只运行 E2E 测试
+  # 只运行 E2E 测试（需要服务器）
   python scripts/run_web_player_tests.py --e2e
 
   # 显示浏览器窗口
@@ -161,13 +190,13 @@ def main():
     parser.add_argument(
         "--integration",
         action="store_true",
-        help="只运行集成测试"
+        help="只运行集成测试（不需要服务器）"
     )
 
     parser.add_argument(
         "--e2e",
         action="store_true",
-        help="只运行 E2E 测试"
+        help="只运行 E2E 测试（需要服务器）"
     )
 
     parser.add_argument(

@@ -5,8 +5,9 @@ import { useState } from 'react';
 import { Form, Input, Button, Card, Typography, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { login } from '../api/auth';
+import { login, LoginResponse } from '../api/auth';
 import { useStore } from '../store';
+import type { User } from '../types';
 
 const { Title } = Typography;
 
@@ -20,7 +21,7 @@ const LoginPage: React.FC = () => {
     console.log('Login button clicked, values:', values);
     setLoading(true);
     try {
-      const response: any = await login(values);
+      const response: LoginResponse = await login(values);
       console.log('Login response:', response);
 
       if (response.access_token) {
@@ -28,7 +29,9 @@ const LoginPage: React.FC = () => {
         localStorage.setItem('token', response.access_token);
 
         // 保存用户信息
-        setUser(response.user);
+        if (response.user) {
+          setUser(response.user as User);
+        }
 
         // 显示成功消息
         message.success('登录成功');

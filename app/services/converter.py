@@ -4,6 +4,7 @@ PPT 转换服务
 """
 import subprocess
 import os
+import re
 from pathlib import Path
 from typing import Optional, Tuple
 from loguru import logger
@@ -14,6 +15,55 @@ from app.utils.file_utils import (
     generate_thumbnail,
     get_unique_filename
 )
+
+
+def validate_file_path(file_path: str, allowed_dirs: list[Path]) -> Tuple[bool, str]:
+    """
+    验证文件路径是否在允许的目录内，防止路径遍历攻击
+
+    Args:
+        file_path: 要验证的文件路径
+        allowed_dirs: 允许的目录列表
+
+    Returns:
+        (是否有效, 规范化后的绝对路径或错误信息)
+    """
+    try:
+        # 获取绝对路径并规范化
+        abs_path = Path(file_path).resolve()
+
+        # 检查是否在允许的目录内
+        for allowed_dir in allowed_dirs:
+            allowed_abs = allowed_dir.resolve()
+            try:
+                # 检查路径是否在允许目录下
+                abs_path.relative_to(allowed_abs)
+                return True, str(abs_path)
+            except ValueError:
+                continue
+
+        return False, f"File path not in allowed directories: {file_path}"
+
+    except Exception as e:
+        return False, f"Invalid file path: {e}"
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    清理文件名，移除可能危险的字符
+
+    Args:
+        filename: 原始文件名
+
+    Returns:
+        清理后的安全文件名
+    """
+    # 只保留字母、数字、下划线、连字符和点
+    safe_name = re.sub(r'[^\w\-\.]', '_', filename)
+    # 防止隐藏文件
+    if safe_name.startswith('.'):
+        safe_name = '_' + safe_name[1:]
+    return safe_name
 
 
 class PPTConverter:
@@ -50,8 +100,8 @@ class PPTConverter:
             result = subprocess.run(["which", "ffmpeg"], capture_output=True, text=True)
             if result.returncode == 0:
                 return result.stdout.strip()
-        except Exception:
-            pass
+        except (OSError, subprocess.SubprocessError) as e:
+            logger.debug(f"Failed to find ffmpeg: {e}")
 
         return None
 
@@ -68,6 +118,19 @@ class PPTConverter:
             转换结果字典
         """
         logger.info(f"Starting PPT conversion: {file_path}, slide_duration={slide_duration}s")
+
+        # 安全验证：确保文件路径在允许的目录内
+        allowed_dirs = [settings.UPLOADS_DIR, settings.DATA_DIR]
+        is_valid, result = validate_file_path(file_path, allowed_dirs)
+        if not is_valid:
+            logger.error(f"Security: Invalid file path rejected: {result}")
+            return {
+                "success": False,
+                "error": "Invalid file path"
+            }
+
+        # 使用验证后的规范化路径
+        file_path = result
 
         try:
             # 步骤 1: PPT → PDF

@@ -66,6 +66,7 @@ docs/
 
 | 文档 | 说明 |
 |------|------|
+| [PROJECT_REVIEW_REPORT.md](./reports/PROJECT_REVIEW_REPORT.md) | **项目完整性 Review 报告** (推荐阅读) |
 | [FINAL_REPORT.md](./reports/FINAL_REPORT.md) | 最终测试报告 |
 | [PHASE4_TEST_REPORT.md](./reports/PHASE4_TEST_REPORT.md) | Phase 4 测试报告 |
 | [COMPLETE_REVIEW_AND_TEST_PLAN.md](./reports/COMPLETE_REVIEW_AND_TEST_PLAN.md) | 完整测试计划 |

@@ -2,7 +2,7 @@
  * 认证 API
  */
 import { api } from './client';
-import type { User, ApiResponse } from '../types';
+import type { User } from '../types';
 
 export interface LoginParams {
   username: string;
@@ -16,16 +16,22 @@ export interface RegisterParams {
   full_name?: string;
 }
 
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  user?: User;
+}
+
 // 用户登录
-export const login = (params: LoginParams) =>
-  api.post<ApiResponse<{ access_token: string; user: User }>>('/auth/login', params);
+export const login = (params: LoginParams): Promise<LoginResponse> =>
+  api.post<LoginResponse>('/auth/login', params);
 
 // 用户注册
-export const register = (params: RegisterParams) =>
-  api.post<ApiResponse<{ user: User }>>('/auth/register', params);
+export const register = (params: RegisterParams): Promise<{ message: string; user: User }> =>
+  api.post<{ message: string; user: User }>('/auth/register', params);
 
 // 获取当前用户信息
-export const getCurrentUser = () =>
+export const getCurrentUser = (): Promise<User> =>
   api.get<User>('/auth/me');
 
 // 退出登录

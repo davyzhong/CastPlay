@@ -102,11 +102,31 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
     WebSocket 端点
 
     设备连接后：
-    1. 接受连接
-    2. 处理心跳
-    3. 接收服务器推送的更新通知
+    1. 验证设备是否已注册
+    2. 接受连接
+    3. 处理心跳
+    4. 接收服务器推送的更新通知
     """
     from app.websocket.handler import manager as connection_manager
+    from app.database import SessionLocal
+    from app.models.device import Device
+
+    # 验证设备是否已注册（生产环境必须验证）
+    if settings.ENVIRONMENT == "production":
+        db = SessionLocal()
+        try:
+            device = db.query(Device).filter(Device.device_id == device_id).first()
+            if not device:
+                logger.warning(f"WebSocket rejected: unregistered device {device_id}")
+                await websocket.close(code=4004, reason="Device not registered")
+                return
+            # 检查设备是否被禁用
+            if device.is_disabled:
+                logger.warning(f"WebSocket rejected: disabled device {device_id}")
+                await websocket.close(code=4003, reason="Device is disabled")
+                return
+        finally:
+            db.close()
 
     try:
         # 使用全局 connection_manager 单例

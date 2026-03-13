@@ -112,10 +112,22 @@ export interface DevicePlaylist {
 }
 
 // API 响应类型
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   message?: string
   data?: T
   error?: string
+}
+
+// 登录响应类型
+export interface LoginResponse {
+  access_token: string
+  token_type: string
+  user?: User
+}
+
+// 错误响应类型
+export interface ErrorResponse {
+  detail: string | { msg: string; type: string; loc: (string | number)[] }[]
 }
 
 export interface PaginatedResponse<T> {

@@ -1,4 +1,4 @@
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { Layout, theme, Menu } from 'antd';
 import { AppstoreOutlined, DatabaseOutlined, FolderOutlined, PlayCircleOutlined, DesktopOutlined } from '@ant-design/icons';
 import Login from './pages/Login';
@@ -8,6 +8,7 @@ import MediaList from './pages/MediaList';
 import PlaylistList from './pages/PlaylistList';
 import WebPlayerSimulator from './pages/WebPlayerSimulator';
 import { useState, useEffect } from 'react';
+import { getToken } from './api/auth';
 
 const { Content, Sider } = Layout;
 
@@ -111,11 +112,33 @@ const MainLayout: React.FC = () => {
   );
 };
 
+/**
+ * 受保护的路由组件
+ * 检查用户是否已登录，未登录则重定向到登录页
+ */
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const token = getToken();
+
+  if (!token) {
+    // 未登录，重定向到登录页
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 const App: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/*" element={<MainLayout />} />
+      <Route
+        path="/*"
+        element={
+          <ProtectedRoute>
+            <MainLayout />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 };

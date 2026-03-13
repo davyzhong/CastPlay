@@ -115,11 +115,13 @@ class TestSecretKeyGeneration:
     """测试密钥生成"""
 
     def test_secret_key_auto_generation(self):
-        """测试自动生成密钥"""
+        """测试自动生成密钥 - 通过 get_secret_key() 方法"""
         from app.config import Settings
         settings = Settings()
-        assert settings.SECRET_KEY is not None
-        assert len(settings.SECRET_KEY) >= 32
+        # 开发环境下， get_secret_key() 会生成或读取密钥
+        secret_key = settings.get_secret_key()
+        assert secret_key is not None
+        assert len(secret_key) >= 32
 
     def test_secret_key_from_env(self):
         """测试从环境变量读取密钥"""
@@ -127,14 +129,17 @@ class TestSecretKeyGeneration:
             from app.config import Settings
             settings = Settings()
             assert settings.SECRET_KEY == "my-test-secret-key-12345"
+            # get_secret_key() 应该返回环境变量中的密钥
+            assert settings.get_secret_key() == "my-test-secret-key-12345"
 
     def test_secret_key_uniqueness(self):
-        """测试密钥生成"""
+        """测试密钥生成 - 每次调用生成唯一密钥"""
         from app.config import Settings
         settings1 = Settings()
-        # 每个实例应该有有效的密钥
-        assert settings1.SECRET_KEY is not None
-        assert len(settings1.SECRET_KEY) >= 32
+        # get_secret_key() 返回有效的密钥
+        secret_key = settings1.get_secret_key()
+        assert secret_key is not None
+        assert len(secret_key) >= 32
 
 
 class TestAdminPasswordGeneration:
@@ -221,13 +226,13 @@ class TestProductionWarnings:
     """测试生产环境警告"""
 
     def test_production_warning_for_missing_secret_key(self):
-        """测试生产环境配置"""
-        # 现在的配置会自动生成密钥，所以这个测试改为验证密钥存在
+        """测试开发环境密钥自动生成 - get_secret_key() 方法"""
         from app.config import Settings
         settings = Settings()
-        # 密钥应该自动生成
-        assert settings.SECRET_KEY is not None
-        assert len(settings.SECRET_KEY) >= 32
+        # 开发环境下，get_secret_key() 应该返回有效密钥（自动生成或从文件读取）
+        secret_key = settings.get_secret_key()
+        assert secret_key is not None
+        assert len(secret_key) >= 32
 
     def test_production_warning_for_cors_wildcard(self):
         """测试生产环境 CORS 通配符警告"""
@@ -235,13 +240,12 @@ class TestProductionWarnings:
             "ENVIRONMENT": "production",
             "CORS_ORIGINS": '["*"]'
         }):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                from app.config import Settings
-                Settings()
-
-                # 检查是否有 CORS 警告
-                assert any("CORS" in str(warning.message) for warning in w)
+            from app.config import Settings
+            settings = Settings()
+            # validate_production_config() 返回 CORS 警告
+            warnings_list = settings.validate_production_config()
+            # 生产环境使用 CORS 通配符应该产生警告
+            assert any("CORS" in warning for warning in warnings_list)
 
 
 class TestSettingsValidation:

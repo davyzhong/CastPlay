@@ -15,6 +15,7 @@ type MessageHandler = (data: WebSocketMessage) => void;
 class WebSocketClient {
   private socket: WebSocket | null = null;
   private deviceId: string | null = null;
+  private token: string | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 5000;
@@ -25,18 +26,25 @@ class WebSocketClient {
   /**
    * 连接到 WebSocket 服务器
    * @param deviceId 设备 ID
+   * @param token 认证令牌（可选，生产环境建议使用）
    */
-  connect(deviceId: string) {
+  connect(deviceId: string, token?: string) {
     if (this.socket?.readyState === WebSocket.OPEN) {
       console.log('WebSocket already connected');
       return;
     }
 
     this.deviceId = deviceId;
+    this.token = token || null;
     this.isManualClose = false;
-    const wsUrl = `${WS_BASE_URL}/ws/${deviceId}`;
 
-    console.log('Connecting to WebSocket:', wsUrl);
+    // 构建 WebSocket URL，包含可选的 token 参数
+    let wsUrl = `${WS_BASE_URL}/ws/${deviceId}`;
+    if (token) {
+      wsUrl += `?token=${encodeURIComponent(token)}`;
+    }
+
+    console.log('Connecting to WebSocket:', wsUrl.replace(/token=[^&]+/, 'token=***'));
 
     try {
       this.socket = new WebSocket(wsUrl);
@@ -153,7 +161,7 @@ class WebSocketClient {
 
     setTimeout(() => {
       if (this.deviceId && !this.isManualClose) {
-        this.connect(this.deviceId);
+        this.connect(this.deviceId, this.token || undefined);
       }
     }, delay);
   }

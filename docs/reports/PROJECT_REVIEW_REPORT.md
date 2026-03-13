@@ -337,6 +337,7 @@ CastPlay 项目适合 **小规模数字标牌场景**（10-100 台设备），�
 
 | 优先级 | 问题 | 文件 | 修复内容 | 提交 |
 |--------|------|------|----------|------|
+| **High** | WebSocket 缺少认证 | `app/main.py`, `frontend/src/utils/websocket.ts` | 生产环境要求 Token 参数，使用 registration_code 验证 | 本次修复 |
 | **Medium** | 心跳异常返回敏感信息 | `app/api/player.py` | 返回通用错误消息，详情仅记录日志 | 已提交 |
 | **Medium** | `player_init` 函数过长 | `app/api/player.py` | 拆分为 4 个辅助函数 | 已提交 |
 | **High** | 播放列表重排序缺乏验证 | `app/api/playlists.py`, `app/schemas/playlist.py` | 添加 `ReorderItemData` Pydantic 模型，严格验证 ID 和 order | 已提交 |
@@ -353,11 +354,11 @@ CastPlay 项目适合 **小规模数字标牌场景**（10-100 台设备），�
 
 | 问题 | 文件 | 状态 |
 |------|------|------|
-| 命令注入风险 | `app/services/converter.py` | ⏳ 待修复 (已添加路径验证，建议增强) |
+| 命令注入风险 | `app/services/converter.py` | ✅ 已修复 (路径验证 + 列表形式 subprocess) |
 | 硬编码开发密钥 | `app/config.py` | ✅ 已修复 (生产环境强制要求 SECRET_KEY) |
 | 管理员密码打印到控制台 | `app/config.py` | ✅ 已修复 (仅首次显示，使用标记位) |
 | 内部 API 认证可绕过 | `app/utils/internal_auth.py` | ✅ 已修复 (生产环境拒绝无密钥请求) |
-| WebSocket 缺少认证 | `app/main.py` | ⏳ 待修复 (已有设备注册验证，建议增加 Token 机制) |
+| WebSocket 缺少认证 | `app/main.py` | ✅ 已修复 (生产环境要求 Token，使用 registration_code) |
 | 前端 `any` 类型 | `Login.tsx`, `types/index.ts` | ✅ 已修复 |
 | 路由缺少认证保护 | `frontend/src/App.tsx` | ✅ 已有 ProtectedRoute |
 | 表单值 `any` 类型 | `DeviceList.tsx` | ✅ 已修复 |

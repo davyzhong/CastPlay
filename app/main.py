@@ -5,6 +5,7 @@ CastPlay All-in-One - FastAPI 主应用
 简化版：使用 bootstrap 模块负责所有初始化，避免 main.py 膨胀
 """
 from contextlib import asynccontextmanager
+from typing import Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -97,36 +98,59 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 # WebSocket 路由（保留在主文件中，因为需要直接处理连接）
 @app.websocket("/ws/{device_id}")
-async def websocket_endpoint(websocket: WebSocket, device_id: str):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    device_id: str,
+    token: Optional[str] = None
+):
     """
     WebSocket 端点
 
     设备连接后：
     1. 验证设备是否已注册
-    2. 接受连接
-    3. 处理心跳
-    4. 接收服务器推送的更新通知
+    2. 验证 Token（生产环境必须，使用 registration_code 作为 Token）
+    3. 接受连接
+    4. 处理心跳
+    5. 接收服务器推送的更新通知
+
+    Args:
+        device_id: 设备唯一标识
+        token: 认证令牌（可选，生产环境必须，使用设备的 registration_code）
     """
     from app.websocket.handler import manager as connection_manager
     from app.database import SessionLocal
     from app.models.device import Device
 
-    # 验证设备是否已注册（生产环境必须验证）
-    if settings.ENVIRONMENT == "production":
-        db = SessionLocal()
-        try:
-            device = db.query(Device).filter(Device.device_id == device_id).first()
-            if not device:
-                logger.warning(f"WebSocket rejected: unregistered device {device_id}")
-                await websocket.close(code=4004, reason="Device not registered")
+    db = SessionLocal()
+    try:
+        device = db.query(Device).filter(Device.device_id == device_id).first()
+
+        # 验证设备是否已注册
+        if not device:
+            logger.warning(f"WebSocket rejected: unregistered device {device_id}")
+            await websocket.close(code=4004, reason="Device not registered")
+            return
+
+        # 检查设备是否被禁用
+        if device.is_disabled:
+            logger.warning(f"WebSocket rejected: disabled device {device_id}")
+            await websocket.close(code=4003, reason="Device is disabled")
+            return
+
+        # 生产环境必须验证 Token
+        if settings.ENVIRONMENT == "production":
+            if not token:
+                logger.warning(f"WebSocket rejected: missing token for {device_id}")
+                await websocket.close(code=4001, reason="Authentication token required")
                 return
-            # 检查设备是否被禁用
-            if device.is_disabled:
-                logger.warning(f"WebSocket rejected: disabled device {device_id}")
-                await websocket.close(code=4003, reason="Device is disabled")
+
+            # 使用 registration_code 作为 Token
+            if token != device.registration_code:
+                logger.warning(f"WebSocket rejected: invalid token for {device_id}")
+                await websocket.close(code=4001, reason="Invalid authentication token")
                 return
-        finally:
-            db.close()
+    finally:
+        db.close()
 
     try:
         # 使用全局 connection_manager 单例

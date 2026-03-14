@@ -1,0 +1,17 @@
+[project]
+name = "castplay-android-tools-mcp"
+version = "0.1.0"
+description = "MCP server for CastPlay Android build and debug tools"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+    "loguru>=0.7.0",
+]
+
+[project.scripts]
+android-tools-mcp = "android_tools_server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

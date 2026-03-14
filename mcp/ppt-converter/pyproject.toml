@@ -1,0 +1,17 @@
+[project]
+name = "castplay-ppt-converter-mcp"
+version = "0.1.0"
+description = "MCP server for CastPlay PPT conversion tools"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+    "loguru>=0.7.0",
+]
+
+[project.scripts]
+ppt-converter-mcp = "ppt_converter_server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

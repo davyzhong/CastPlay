@@ -124,7 +124,7 @@ castplay/
 
 ### Android 相关
 
-- 📖 [Android 部署指南](./docs/android/deployment_guide.md)
+- 📖 [Android 部署与测试指南](./docs/android/deployment_testing_guide.md)
 - 📖 [模拟器配置](./docs/android/emulator_setup.md)
 
 ### 测试相关

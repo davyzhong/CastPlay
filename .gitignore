@@ -90,3 +90,15 @@ tests/integration/data/
 
 # Temporary directories
 castplay-allinone/
+
+# Screenshots and test outputs
+*-test*.png
+screen_test_*.png
+video-preview*.png
+android_test_screen*.png
+android_manual_test.png
+web-test-result.png
+-X
+
+# Python lock files (use requirements.txt instead)
+uv.lock

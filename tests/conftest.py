@@ -140,13 +140,14 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_db] = override_get_db
 
     # 注册路由
-    from app.api import auth, devices, media, playlists, player, schedules
+    from app.api import auth, devices, media, playlists, player, schedules, control
     app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
     app.include_router(devices.router, prefix="/api/devices", tags=["设备"])
     app.include_router(media.router, prefix="/api/media", tags=["媒体"])
     app.include_router(playlists.router, prefix="/api/playlists", tags=["播放列表"])
     app.include_router(player.router, prefix="/api/player", tags=["播放端"])
     app.include_router(schedules.router, prefix="/api/schedules", tags=["调度"])
+    app.include_router(control.router, prefix="/api/control", tags=["控制"])
 
     # 健康检查
     @app.get("/health")

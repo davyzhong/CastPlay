@@ -28,6 +28,10 @@ export interface AndroidBridge {
   cancelPlaylistDownload(playlistId: string): boolean;
   isPlaylistDownloading(playlistId: string): boolean;
   reportSwitchComplete(playlistId: string, version: string): void;
+  // 配置存储接口
+  getConfig(key: string): string;
+  setConfig(key: string, value: string): void;
+  copyToClipboard(text: string): boolean;
 }
 
 // 扩展 Window 接口

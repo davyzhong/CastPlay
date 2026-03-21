@@ -388,13 +388,17 @@ export class PlaylistDownloadManager {
 
             const chunks: Uint8Array[] = [];
             let loadedBytes = 0;
+            let done = false;
 
-            while (true) {
-                const { done, value } = await reader.read();
+            while (!done) {
+                const result = await reader.read();
+                done = result.done;
                 if (done) break;
 
-                chunks.push(value);
-                loadedBytes += value.length;
+                if (result.value) {
+                    chunks.push(result.value);
+                    loadedBytes += result.value.length;
+                }
                 task.loadedBytes = loadedBytes;
 
                 if (task.totalBytes > 0) {

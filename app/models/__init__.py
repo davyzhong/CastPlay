@@ -13,6 +13,7 @@ from app.models.device_enhancement import (
     PlaylistDownloadTask,
     PlaylistCleanupSchedule,
 )
+from app.models.schedule import PlaylistSchedule, DayOfWeek
 
 # 导出所有模型
 __all__ = [
@@ -31,4 +32,6 @@ __all__ = [
     "DeviceNotificationLog",
     "PlaylistDownloadTask",
     "PlaylistCleanupSchedule",
+    "PlaylistSchedule",
+    "DayOfWeek",
 ]

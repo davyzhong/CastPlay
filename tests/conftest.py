@@ -42,6 +42,7 @@ from app.models import (
     DeviceNotificationLog,
     PlaylistDownloadTask,
     PlaylistCleanupSchedule,
+    PlaylistSchedule,
 )
 
 # 创建内存数据库引擎
@@ -139,19 +140,20 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_db] = override_get_db
 
     # 注册路由
-    from app.api import auth, devices, media, playlists, player
+    from app.api import auth, devices, media, playlists, player, schedules
     app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
     app.include_router(devices.router, prefix="/api/devices", tags=["设备"])
     app.include_router(media.router, prefix="/api/media", tags=["媒体"])
     app.include_router(playlists.router, prefix="/api/playlists", tags=["播放列表"])
     app.include_router(player.router, prefix="/api/player", tags=["播放端"])
+    app.include_router(schedules.router, prefix="/api/schedules", tags=["调度"])
 
     # 健康检查
     @app.get("/health")
     def health():
         return {"status": "ok"}
 
-    with TestClient(app=app, raise_server_exceptions=True) as c:
+    with TestClient(app, raise_server_exceptions=True) as c:
         yield c
 
     app.dependency_overrides.clear()

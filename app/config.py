@@ -96,6 +96,12 @@ class Settings(BaseSettings):
     DEFAULT_ADMIN_USERNAME: str = "admin"
     DEFAULT_ADMIN_PASSWORD: Optional[str] = None  # 必须通过环境变量设置
 
+    # 设备注册码配置（构建时嵌入前端）
+    REGISTRATION_CODE: Optional[str] = None  # 通过环境变量设置，用于设备注册验证
+
+    # 设备注册码配置（构建时嵌入前端）
+    REGISTRATION_CODE: Optional[str] = None  # 通过环境变量设置，用于设备注册验证
+
     # 标记是否已显示过密码（避免重复打印）
     _password_displayed: bool = False
 

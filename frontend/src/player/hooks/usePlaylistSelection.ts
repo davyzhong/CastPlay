@@ -1,134 +1,232 @@
 /**
  * 播放列表选择 Hook
- * 处理首次安装时的播放列表选择和后台下载
+ * 支持多选、持久化存储、至少保留一个限制
  */
 import { useState, useEffect, useCallback } from 'react';
-import { createDownloadManager } from '../services/DownloadManager';
+import { playerApi } from '../../utils/apiClient';
+import { configStorage } from '../services/ConfigStorage';
+import { STORAGE_KEYS } from '../types/config';
 
 export interface PlaylistInfo {
-    id: number;
-    name: string;
-    media_count: number;
-    total_size_mb: number;
+  id: number;
+  name: string;
+  media_count: number;
+  total_size_mb: number;
+  thumbnail_url?: string;
+}
+
+export interface PlaylistSelectionState {
+  /** 选中的播放列表 ID 列表 */
+  selectedIds: number[];
+  /** 最后更新时间 */
+  updatedAt: string;
+  /** 是否由用户手动修改 */
+  userModified: boolean;
 }
 
 export interface UsePlaylistSelectionResult {
-    availablePlaylists: PlaylistInfo[];
-    selectedPlaylist: PlaylistInfo | null;
-    isLoading: boolean;
-    isDownloading: boolean;
-    error: string | null;
-    loadPlaylists: () => Promise<void>;
-    selectPlaylist: (playlist: PlaylistInfo) => void;
-    skipSelection: () => void;
+  /** 可用的播放列表 */
+  availablePlaylists: PlaylistInfo[];
+  /** 选中的播放列表 ID 列表 */
+  selectedIds: number[];
+  /** 是否正在加载 */
+  isLoading: boolean;
+  /** 错误信息 */
+  error: string | null;
+  /** 加载播放列表 */
+  loadPlaylists: () => Promise<void>;
+  /** 切换播放列表选择状态 */
+  toggleSelection: (playlistId: number) => void;
+  /** 全选 */
+  selectAll: () => void;
+  /** 取消全选（保留一个） */
+  deselectAll: () => void;
+  /** 确认选择 */
+  confirmSelection: () => void;
+  /** 跳过选择 */
+  skipSelection: () => void;
+  /** 是否已完成选择 */
+  isSelectionComplete: boolean;
+  /** 选中的播放列表详情 */
+  selectedPlaylists: PlaylistInfo[];
 }
 
+const SELECTION_STORAGE_KEY = 'castplay_playlist_selection';
 const SETUP_COMPLETED_KEY = 'castplay_setup_completed';
-const SELECTED_PLAYLIST_KEY = 'castplay_selected_playlist_id';
 
 /**
- * 获取可用播放列表
+ * 从存储加载选择状态
  */
-async function fetchAvailablePlaylists(): Promise<PlaylistInfo[]> {
-    const response = await fetch('/api/player/playlists/available');
-    if (!response.ok) {
-        throw new Error('Failed to fetch available playlists');
+function loadSelectionState(): PlaylistSelectionState | null {
+  const stored = localStorage.getItem(SELECTION_STORAGE_KEY);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return null;
     }
-    const data = await response.json();
-    return data.playlists || [];
+  }
+  return null;
+}
+
+/**
+ * 保存选择状态到存储
+ */
+function saveSelectionState(state: PlaylistSelectionState): void {
+  localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(state));
 }
 
 /**
  * 播放列表选择 Hook
  */
-export function usePlaylistSelection(deviceId: string): UsePlaylistSelectionResult {
-    const [availablePlaylists, setAvailablePlaylists] = useState<PlaylistInfo[]>([]);
-    const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistInfo | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isDownloading, setIsDownloading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+export function usePlaylistSelection(deviceId: string | null): UsePlaylistSelectionResult {
+  const [availablePlaylists, setAvailablePlaylists] = useState<PlaylistInfo[]>([]);
+  const [selectedIds, setSelectedIds] = useState<number[]>(() => {
+    const state = loadSelectionState();
+    return state?.selectedIds || [];
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSelectionComplete, setIsSelectionComplete] = useState(() => {
+    return localStorage.getItem(SETUP_COMPLETED_KEY) === 'true';
+  });
 
-    // 检查是否已完成设置
-    const isSetupCompleted = localStorage.getItem(SETUP_COMPLETED_KEY) === 'true';
+  // 加载可用播放列表
+  const loadPlaylists = useCallback(async () => {
+    if (!deviceId) {
+      return;
+    }
 
-    /**
-     * 加载可用播放列表
-     */
-    const loadPlaylists = useCallback(async () => {
-        if (isSetupCompleted) {
-            return; // 已完成设置，无需加载
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const data = await playerApi.get<{ playlists: PlaylistInfo[] }>('/player/playlists/available');
+      const playlists = data.playlists || [];
+      setAvailablePlaylists(playlists);
+
+      // 如果是首次加载且没有选择，默认全选
+      const state = loadSelectionState();
+      if (!state || state.selectedIds.length === 0) {
+        if (playlists.length > 0) {
+          const allIds = playlists.map(p => p.id);
+          setSelectedIds(allIds);
+          console.log('[usePlaylistSelection] First load, selecting all playlists:', allIds);
         }
+      } else {
+        // 恢复之前的选择
+        setSelectedIds(state.selectedIds);
+      }
+    } catch (err) {
+      console.error('[usePlaylistSelection] Failed to load playlists:', err);
+      setError('加载播放列表失败');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [deviceId]);
 
-        setIsLoading(true);
-        setError(null);
+  // 切换选择状态
+  const toggleSelection = useCallback((playlistId: number) => {
+    setSelectedIds(prev => {
+      // 如果只剩一个且要取消，阻止操作
+      if (prev.length === 1 && prev.includes(playlistId)) {
+        console.log('[usePlaylistSelection] Cannot deselect last playlist');
+        return prev;
+      }
 
-        try {
-            const playlists = await fetchAvailablePlaylists();
-            setAvailablePlaylists(playlists);
-        } catch (err) {
-            console.error('Failed to load playlists:', err);
-            setError('加载播放列表失败，将使用默认播放列表');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [isSetupCompleted]);
+      if (prev.includes(playlistId)) {
+        return prev.filter(id => id !== playlistId);
+      } else {
+        return [...prev, playlistId];
+      }
+    });
+  }, []);
 
-    /**
-     * 选择播放列表并开始后台下载
-     */
-    const selectPlaylist = useCallback(async (playlist: PlaylistInfo) => {
-        setSelectedPlaylist(playlist);
-        setIsDownloading(true);
-        setError(null);
+  // 全选
+  const selectAll = useCallback(() => {
+    const allIds = availablePlaylists.map(p => p.id);
+    setSelectedIds(allIds);
+    console.log('[usePlaylistSelection] Selected all playlists:', allIds);
+  }, [availablePlaylists]);
 
-        try {
-            // 检查存储空间
-            const downloadManager = createDownloadManager(deviceId);
-            const hasSpace = await downloadManager.checkStorageSpace(playlist.total_size_mb);
+  // 取消全选（保留第一个）
+  const deselectAll = useCallback(() => {
+    if (availablePlaylists.length > 0) {
+      const firstId = availablePlaylists[0].id;
+      setSelectedIds([firstId]);
+      console.log('[usePlaylistSelection] Deselected all, keeping first:', firstId);
+    }
+  }, [availablePlaylists]);
 
-            if (!hasSpace) {
-                throw new Error('存储空间不足');
-            }
+  // 确认选择
+  const confirmSelection = useCallback(() => {
+    if (selectedIds.length === 0) {
+      setError('请至少选择一个播放列表');
+      return;
+    }
 
-            // TODO: 开始后台下载播放列表
-            // 这里需要集成到实际的下载流程中
-            console.log('Starting background download for playlist:', playlist);
-
-            // 标记为已完成设置
-            localStorage.setItem(SETUP_COMPLETED_KEY, 'true');
-            localStorage.setItem(SELECTED_PLAYLIST_KEY, playlist.id.toString());
-
-            setIsDownloading(false);
-        } catch (err) {
-            console.error('Failed to select playlist:', err);
-            setError(err instanceof Error ? err.message : '选择播放列表失败');
-            setIsDownloading(false);
-        }
-    }, [deviceId]);
-
-    /**
-     * 跳过选择，使用默认播放列表
-     */
-    const skipSelection = useCallback(() => {
-        localStorage.setItem(SETUP_COMPLETED_KEY, 'true');
-        setSelectedPlaylist(null);
-    }, []);
-
-    // 初始加载
-    useEffect(() => {
-        if (!isSetupCompleted) {
-            loadPlaylists();
-        }
-    }, [isSetupCompleted, loadPlaylists]);
-
-    return {
-        availablePlaylists,
-        selectedPlaylist,
-        isLoading,
-        isDownloading,
-        error,
-        loadPlaylists,
-        selectPlaylist,
-        skipSelection
+    // 保存选择状态
+    const state: PlaylistSelectionState = {
+      selectedIds,
+      updatedAt: new Date().toISOString(),
+      userModified: true,
     };
+    saveSelectionState(state);
+
+    // 同时保存到 configStorage 以便跨平台使用
+    configStorage.set(STORAGE_KEYS.PLAYLIST_SELECTION, {
+      selectedIds,
+      updatedAt: state.updatedAt,
+      userModified: true,
+    });
+
+    // 标记设置完成
+    localStorage.setItem(SETUP_COMPLETED_KEY, 'true');
+    setIsSelectionComplete(true);
+
+    console.log('[usePlaylistSelection] Selection confirmed:', selectedIds);
+  }, [selectedIds]);
+
+  // 跳过选择（使用全部）
+  const skipSelection = useCallback(() => {
+    const allIds = availablePlaylists.map(p => p.id);
+    setSelectedIds(allIds);
+
+    const state: PlaylistSelectionState = {
+      selectedIds: allIds,
+      updatedAt: new Date().toISOString(),
+      userModified: false,
+    };
+    saveSelectionState(state);
+
+    localStorage.setItem(SETUP_COMPLETED_KEY, 'true');
+    setIsSelectionComplete(true);
+
+    console.log('[usePlaylistSelection] Skipped selection, using all playlists');
+  }, [availablePlaylists]);
+
+  // 获取选中的播放列表详情
+  const selectedPlaylists = availablePlaylists.filter(p => selectedIds.includes(p.id));
+
+  // 初始加载
+  useEffect(() => {
+    if (deviceId && !isSelectionComplete) {
+      loadPlaylists();
+    }
+  }, [deviceId, isSelectionComplete, loadPlaylists]);
+
+  return {
+    availablePlaylists,
+    selectedIds,
+    isLoading,
+    error,
+    loadPlaylists,
+    toggleSelection,
+    selectAll,
+    deselectAll,
+    confirmSelection,
+    skipSelection,
+    isSelectionComplete,
+    selectedPlaylists,
+  };
 }

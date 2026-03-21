@@ -1,11 +1,12 @@
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { Layout, theme, Menu } from 'antd';
-import { AppstoreOutlined, DatabaseOutlined, FolderOutlined, PlayCircleOutlined, DesktopOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, DatabaseOutlined, FolderOutlined, PlayCircleOutlined, DesktopOutlined, ScheduleOutlined } from '@ant-design/icons';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DeviceList from './pages/DeviceList';
 import MediaList from './pages/MediaList';
 import PlaylistList from './pages/PlaylistList';
+import SchedulePage from './pages/SchedulePage';
 import WebPlayerSimulator from './pages/WebPlayerSimulator';
 import { useState, useEffect } from 'react';
 import { getToken } from './api/auth';
@@ -44,6 +45,12 @@ const MainLayout: React.FC = () => {
       icon: <PlayCircleOutlined />,
       label: '播放列表',
       path: '/playlists',
+    },
+    {
+      key: 'schedules',
+      icon: <ScheduleOutlined />,
+      label: '调度管理',
+      path: '/schedules',
     },
     {
       key: 'webplayer',
@@ -104,6 +111,7 @@ const MainLayout: React.FC = () => {
             <Route path="/devices" element={<DeviceList />} />
             <Route path="/media" element={<MediaList />} />
             <Route path="/playlists" element={<PlaylistList />} />
+            <Route path="/schedules" element={<SchedulePage />} />
             <Route path="/webplayer" element={<WebPlayerSimulator />} />
           </Routes>
         </Content>

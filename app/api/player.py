@@ -1217,3 +1217,77 @@ async def get_player_playlist(
         "is_system": playlist.is_system,
         "items": items
     }
+
+
+# ============================================================================
+# 调度相关端点
+# ============================================================================
+
+from app.models.schedule import PlaylistSchedule
+from app.services.schedule_service import ScheduleService
+from app.schemas.schedule import PlayerSchedulesResponse, PlayerScheduleData
+
+
+@router.get(
+    "/{device_id}/schedules",
+    response_model=PlayerSchedulesResponse,
+    summary="获取设备调度规则（播放端专用）",
+    description="""
+获取指定设备的所有调度规则，供播放端离线评估使用。
+
+**响应包含：**
+- `schedules`: 调度规则列表
+- `default_playlist_id`: 默认播放列表 ID（无匹配调度时使用）
+- `server_time`: 服务器时间（用于时间同步）
+- `timezone`: 服务器时区
+
+**离线评估逻辑：**
+1. 播放端根据 server_time 同步本地时间
+2. 遍历 schedules，找到 enabled=true 且时间/星期匹配的调度
+3. 如果多个调度匹配，选择 priority 最高的
+4. 如果没有匹配的调度，使用 default_playlist_id
+""",
+)
+def get_player_schedules(
+    device_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    获取设备调度规则（供播放端离线评估）
+    """
+    # 查找设备
+    device = db.query(Device).filter(Device.device_id == device_id).first()
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Device not found"
+        )
+
+    service = ScheduleService(db)
+
+    # 获取设备的所有启用的调度
+    schedules = service.get_by_device(device.id, enabled_only=True)
+
+    # 转换为播放端格式
+    schedule_data = [
+        PlayerScheduleData(
+            id=s.id,
+            playlist_id=s.playlist_id,
+            start_time=s.start_time.strftime("%H:%M:%S"),
+            end_time=s.end_time.strftime("%H:%M:%S"),
+            days_of_week=s.days_of_week,
+            enabled=s.enabled,
+            priority=s.priority
+        )
+        for s in schedules
+    ]
+
+    # 获取默认播放列表 ID
+    default_playlist_id = service.get_default_playlist_id(device.id)
+
+    return PlayerSchedulesResponse(
+        schedules=schedule_data,
+        default_playlist_id=default_playlist_id,
+        server_time=datetime.utcnow(),
+        timezone="Asia/Shanghai"
+    )

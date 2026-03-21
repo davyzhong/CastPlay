@@ -76,7 +76,13 @@ class ApplicationBootstrap:
 
     def _register_routes(self):
         """注册 API 路由"""
-        from app.api import auth, devices, media, playlists, player
+        from app.api import auth, devices, media, playlists, player, control, schedules
+
+        # 健康检查端点（用于播放器连接测试）
+        @self.app.get("/api/health", tags=["健康检查"])
+        async def health_check():
+            """健康检查端点，用于播放器验证服务器连接"""
+            return {"status": "ok", "version": settings.APP_VERSION}
 
         self.app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
         self.app.include_router(
@@ -86,6 +92,10 @@ class ApplicationBootstrap:
             playlists.router, prefix="/api/playlists", tags=["播放列表"])
         self.app.include_router(
             player.router, prefix="/api/player", tags=["播放端"])
+        self.app.include_router(
+            control.router, prefix="/api/control", tags=["控制"])
+        self.app.include_router(
+            schedules.router, prefix="/api/schedules", tags=["调度"])
 
     def _setup_spa_routes(self):
         """设置 SPA 路由（在所有 API 路由之后）"""

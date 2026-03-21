@@ -2,7 +2,22 @@
  * Zustand 状态管理
  */
 import { create } from 'zustand';
-import type { User, Device, MediaFile, Playlist, WebSocketMessage } from '../types';
+import type { User, Device, MediaFile, Playlist, WebSocketMessage, PlaylistSchedule } from '../types';
+import type { ServerConfig, DeviceRegistration, PlaylistSelection, ConnectionStatus } from '../player/types/config';
+
+// 服务器配置初始值
+const defaultDeviceRegistration: DeviceRegistration = {
+  isRegistered: false,
+  deviceId: null,
+  registeredAt: null,
+  registeredBy: null,
+};
+
+const defaultPlaylistSelection: PlaylistSelection = {
+  selectedIds: [],
+  updatedAt: new Date().toISOString(),
+  userModified: false,
+};
 
 interface AppState {
   // 用户状态
@@ -29,6 +44,24 @@ interface AppState {
   updatePlaylist: (playlist: Playlist) => void;
   removePlaylist: (playlistId: number) => void;
 
+  // 调度状态
+  schedules: PlaylistSchedule[];
+  setSchedules: (schedules: PlaylistSchedule[]) => void;
+  addSchedule: (schedule: PlaylistSchedule) => void;
+  updateSchedule: (schedule: PlaylistSchedule) => void;
+  removeSchedule: (scheduleId: number) => void;
+
+  // 播放器配置状态 (新增)
+  serverConfig: ServerConfig | null;
+  setServerConfig: (config: Omit<ServerConfig, 'configuredAt' | 'lastConnectionStatus'>) => void;
+  updateConnectionStatus: (status: ConnectionStatus) => void;
+  deviceRegistration: DeviceRegistration;
+  setDeviceRegistration: (registration: DeviceRegistration) => void;
+  setRegistrationComplete: (deviceId: string) => void;
+  playlistSelection: PlaylistSelection;
+  setPlaylistSelection: (ids: number[], userModified: boolean) => void;
+  clearAllConfig: () => void;
+
   // WebSocket 消息
   wsMessages: WebSocketMessage[];
   addWsMessage: (message: WebSocketMessage) => void;
@@ -42,7 +75,7 @@ interface AppState {
   setNotification: (notification: { message: string; type: 'success' | 'error' | 'info' }) => void;
 }
 
-const useStore = create<AppState>((set) => ({
+const useStore = create<AppState>((set, _get) => ({
   // 用户状态
   user: null,
   setUser: (user) => set({ user }),
@@ -88,6 +121,71 @@ const useStore = create<AppState>((set) => ({
     set((state) => ({
       playlists: state.playlists.filter((p) => p.id !== playlistId),
     })),
+
+  // 调度状态
+  schedules: [],
+  setSchedules: (schedules) => set({ schedules }),
+  addSchedule: (schedule) =>
+    set((state) => ({ schedules: [...state.schedules, schedule] })),
+  updateSchedule: (schedule) =>
+    set((state) => ({
+      schedules: state.schedules.map((s) => (s.id === schedule.id ? schedule : s)),
+    })),
+  removeSchedule: (scheduleId) =>
+    set((state) => ({
+      schedules: state.schedules.filter((s) => s.id !== scheduleId),
+    })),
+
+  // 播放器配置状态 (新增)
+  serverConfig: null,
+  setServerConfig: (config) =>
+    set({
+      serverConfig: {
+        ...config,
+        configuredAt: new Date().toISOString(),
+        lastConnectionStatus: 'pending' as ConnectionStatus,
+        lastConnectionAt: null,
+      },
+    }),
+  updateConnectionStatus: (status) =>
+    set((state) => ({
+      serverConfig: state.serverConfig
+        ? {
+            ...state.serverConfig,
+            lastConnectionStatus: status,
+            lastConnectionAt: new Date().toISOString(),
+          }
+        : null,
+    })),
+
+  deviceRegistration: defaultDeviceRegistration,
+  setDeviceRegistration: (registration) => set({ deviceRegistration: registration }),
+  setRegistrationComplete: (deviceId) =>
+    set({
+      deviceRegistration: {
+        isRegistered: true,
+        deviceId,
+        registeredAt: new Date().toISOString(),
+        registeredBy: 'user',
+      },
+    }),
+
+  playlistSelection: defaultPlaylistSelection,
+  setPlaylistSelection: (ids, userModified) =>
+    set({
+      playlistSelection: {
+        selectedIds: ids,
+        updatedAt: new Date().toISOString(),
+        userModified,
+      },
+    }),
+
+  clearAllConfig: () =>
+    set({
+      serverConfig: null,
+      deviceRegistration: defaultDeviceRegistration,
+      playlistSelection: defaultPlaylistSelection,
+    }),
 
   // WebSocket 消息
   wsMessages: [],

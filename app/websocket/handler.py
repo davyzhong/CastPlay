@@ -29,6 +29,7 @@ class MessageType(str, Enum):
     DEVICE_CONFIG_UPDATED = "device_config_updated" # 设备配置更新
     DEVICE_DISABLED = "device_disabled"          # 设备已禁用
     SCHEDULE_UPDATED = "schedule_updated"        # 定时配置更新
+    SCHEDULE_UPDATE = "schedule_update"          # 调度触发播放列表切换
     FORCE_SYNC = "force_sync"                    # 强制同步
     CONTROL = "control"                          # 播放控制指令
 
@@ -349,6 +350,39 @@ class ConnectionManager:
         }
         await self.send_to_device(device_id, message)
         logger.info(f"Schedule updated notification sent to {device_id}")
+
+    async def notify_schedule_trigger(
+        self,
+        device_id: str,
+        playlist_id: int,
+        schedule_id: int | None = None,
+        schedule_name: str | None = None
+    ):
+        """
+        通知设备：调度触发，需要切换播放列表
+
+        Args:
+            device_id: 设备 ID (UUID)
+            playlist_id: 目标播放列表 ID
+            schedule_id: 触发的调度 ID（可选）
+            schedule_name: 调度名称（可选）
+        """
+        message = {
+            "type": MessageType.SCHEDULE_UPDATE,
+            "device_id": device_id,
+            "timestamp": self._now(),
+            "data": {
+                "playlist_id": playlist_id,
+                "schedule_id": schedule_id,
+                "schedule_name": schedule_name,
+                "action": "switch"
+            }
+        }
+        await self.send_to_device(device_id, message)
+        logger.info(
+            f"Schedule trigger notification sent to {device_id}: "
+            f"switch to playlist {playlist_id} (schedule {schedule_id})"
+        )
 
     async def notify_force_sync(self, device_id: str):
         """

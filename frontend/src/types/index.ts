@@ -145,3 +145,91 @@ export interface WebSocketMessage {
   action?: string
   timestamp?: string
 }
+
+// 播放列表调度类型
+export interface PlaylistSchedule {
+  id: number
+  device_id: number
+  playlist_id: number
+  playlist_name?: string
+  start_time: string  // HH:MM:SS
+  end_time: string    // HH:MM:SS
+  days_of_week: number  // 位掩码 1-127
+  days_display: string[]  // ["Mon", "Tue", ...]
+  enabled: boolean
+  priority: number
+  conflicts: ScheduleConflict[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ScheduleConflict {
+  schedule_id: number
+  playlist_name: string
+  overlap: string
+}
+
+export interface ScheduleCreateParams {
+  device_id: number
+  playlist_id: number
+  start_time: string  // HH:MM:SS
+  end_time: string    // HH:MM:SS
+  days_of_week?: number  // 默认 127 (每天)
+  enabled?: boolean
+  priority?: number
+}
+
+export interface ScheduleUpdateParams {
+  device_id?: number
+  playlist_id?: number
+  start_time?: string
+  end_time?: string
+  days_of_week?: number
+  enabled?: boolean
+  priority?: number
+}
+
+export interface ScheduleListResponse {
+  schedules: PlaylistSchedule[]
+  total: number
+}
+
+export interface ActiveScheduleResponse {
+  active_playlist_id: number | null
+  schedule_id: number | null
+  schedule_name: string | null
+}
+
+// 播放端调度数据（用于离线评估）
+export interface PlayerScheduleData {
+  id: number
+  playlist_id: number
+  start_time: string
+  end_time: string
+  days_of_week: number
+  enabled: boolean
+  priority: number
+}
+
+export interface PlayerSchedulesResponse {
+  schedules: PlayerScheduleData[]
+  default_playlist_id: number | null
+  server_time: string
+  timezone: string
+}
+
+// 星期常量
+export const DAY_OF_WEEK = {
+  MONDAY: 1,
+  TUESDAY: 2,
+  WEDNESDAY: 4,
+  THURSDAY: 8,
+  FRIDAY: 16,
+  SATURDAY: 32,
+  SUNDAY: 64,
+  WEEKDAYS: 31,   // Mon-Fri
+  WEEKENDS: 96,   // Sat-Sun
+  ALL_WEEK: 127,  // All days
+} as const
+
+export const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const

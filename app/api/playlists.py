@@ -249,6 +249,7 @@ def delete_playlist(
     需要认证
     """
     from app.models.playlist import DevicePlaylist
+    from app.models.schedule import PlaylistSchedule
 
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     if not playlist:
@@ -280,6 +281,26 @@ def delete_playlist(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot delete playlist: {device_count} device(s) are using it ({', '.join(device_names[:5])}{' ...' if len(device_names) > 5 else ''})"
         )
+
+    # 检查是否有活跃的调度使用此播放列表
+    active_schedule_count = db.query(PlaylistSchedule).filter(
+        PlaylistSchedule.playlist_id == playlist_id,
+        PlaylistSchedule.enabled == True
+    ).count()
+
+    if active_schedule_count > 0:
+        logger.warning(
+            f"Attempting to delete playlist {playlist_id} with {active_schedule_count} active schedules"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete playlist: {active_schedule_count} active schedule(s) are using it. Please disable or delete the schedules first."
+        )
+
+    # 级联删除关联的调度（非启用的）
+    db.query(PlaylistSchedule).filter(
+        PlaylistSchedule.playlist_id == playlist_id
+    ).delete()
 
     db.delete(playlist)
     db.commit()

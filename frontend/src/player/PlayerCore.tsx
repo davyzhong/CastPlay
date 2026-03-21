@@ -1,6 +1,6 @@
 /**
  * 播放器核心组件
- * 整合设备注册、播放列表同步、媒体缓存、离线模式、定时播放
+ * 整合设备注册、播放列表同步、媒体缓存、离线模式、定时播放、调度切换、服务器配置
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDeviceRegistration } from './useDeviceRegistration';
@@ -9,8 +9,16 @@ import { useMediaCache } from './useMediaCache';
 import { useOfflineMode } from './useOfflineMode';
 import { usePlaybackScheduler } from './usePlaybackScheduler';
 import { usePlaylistSwitch } from './hooks/usePlaylistSwitch';
+import { useSchedule } from './hooks/useSchedule';
+import { useServerConfig } from './hooks/useServerConfig';
 import { ErrorReporter } from './services/ErrorReporter';
 import { DeviceIdDisplay } from './components/DeviceIdDisplay';
+import { ServerConfigDialog } from './components/ServerConfigDialog';
+import { SettingsButton } from './components/SettingsButton';
+import { RegistrationCodeDisplay } from './components/RegistrationCodeDisplay';
+import { useRegistrationCode } from './hooks/useRegistrationCode';
+import { PlaylistSelectionModal } from './components/PlaylistSelectionModal';
+import { usePlaylistSelection } from './hooks/usePlaylistSelection';
 import type { PlayerPlaylistItem, PlayerState, PlayerPlaylist } from './types';
 
 interface PlayerCoreProps {
@@ -28,6 +36,19 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
     defaultSpeed = 1,
   } = props;
 
+  // 服务器配置状态
+  const { isConfigured: hasServerConfig } = useServerConfig();
+
+  // 注册码状态
+  const {
+    hasRegistrationCode,
+    isRegistered: isCodeRegistered,
+    completeRegistration,
+  } = useRegistrationCode();
+
+  // 服务器配置对话框状态
+  const [showServerConfig, setShowServerConfig] = useState(!hasServerConfig);
+
   // 设备注册
   const {
     deviceInfo,
@@ -43,14 +64,43 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
   const {
     currentPlaylist,
     setCurrentPlaylist,
+    selectPlaylist,
+    playlists,
   } = usePlaylistSync(deviceInfo?.device_id || null, isOnline);
+
+  // 设备是否已被管理员配置（有播放列表分配）
+  const isDeviceConfigured = playlists.length > 0;
+
+  // 播放列表多选（US3）- 只获取选择状态，具体操作在 PlaylistSelectionModal 中完成
+  const { isSelectionComplete: isPlaylistSelectionComplete } = usePlaylistSelection(deviceInfo?.device_id || null);
+
+  // 是否显示播放列表选择界面（US3: 多播放列表 + 选择未完成）
+  const shouldShowPlaylistSelection = isDeviceConfigured &&
+    playlists.length > 1 &&
+    !isPlaylistSelectionComplete;
+
+  // 当设备注册成功且有播放列表时，标记注册完成
+  useEffect(() => {
+    if (isRegistered && deviceInfo?.device_id && isDeviceConfigured && !isCodeRegistered) {
+      console.log('[PlayerCore] Device configured with playlists, marking registration complete');
+      completeRegistration(deviceInfo.device_id);
+    }
+  }, [isRegistered, deviceInfo?.device_id, isDeviceConfigured, isCodeRegistered, completeRegistration]);
+
+  // 是否显示注册码界面（服务器已配置 + 有注册码 + 设备未配置）
+  // 注意：需要等待设备注册完成后再检查播放列表
+  const shouldShowRegistrationCode = hasServerConfig &&
+    hasRegistrationCode &&
+    deviceInfo && // 设备已连接服务器
+    !isRegistering && // 不在注册中
+    !isDeviceConfigured; // 无播放列表（管理员尚未配置）
 
   // 媒体缓存
   const {
     preloadPlaylist,
   } = useMediaCache(isOnline);
 
-  // 定时播放
+  // 定时播放 (must come before handleScheduleSwitch)
   const {
     shouldPlay: shouldBePlaying,
   } = usePlaybackScheduler(
@@ -58,12 +108,52 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
     deviceInfo?.timezone
   );
 
-  // 播放器状态
+  // 播放器状态 (must come before handleScheduleSwitch)
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playbackSpeed] = useState(defaultSpeed);
   const [loopEnabled] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 调度切换回调
+  const handleScheduleSwitch = useCallback((playlistId: number, scheduleId: number | null) => {
+    console.log('[PlayerCore] Schedule triggered switch:', {
+      playlistId,
+      scheduleId,
+      currentPlaylistId: currentPlaylist?.id,
+    });
+
+    // 检查是否需要切换
+    if (currentPlaylist?.id !== playlistId) {
+      // 先检查播放列表是否已在本地
+      const targetPlaylist = playlists.find(p => p.id === playlistId);
+      if (targetPlaylist) {
+        console.log('[PlayerCore] Switching to scheduled playlist (cached):', targetPlaylist.name);
+        setCurrentPlaylist(targetPlaylist);
+        setCurrentIndex(0);
+        if (autoPlay && shouldBePlaying) {
+          setIsPlaying(true);
+        }
+      } else {
+        // 需要从服务器获取新播放列表
+        console.log('[PlayerCore] Need to fetch scheduled playlist:', playlistId);
+        selectPlaylist(playlistId);
+        setCurrentIndex(0);
+      }
+    }
+  }, [currentPlaylist, playlists, setCurrentPlaylist, selectPlaylist, autoPlay, shouldBePlaying]);
+
+  // 调度管理
+  const {
+    activeSchedule,
+    nextSwitchTime,
+  } = useSchedule({
+    deviceId: deviceInfo?.device_id || null,
+    currentPlaylistId: currentPlaylist?.id || null,
+    isOnline,
+    onScheduleSwitch: handleScheduleSwitch,
+    evaluationInterval: 60000, // 1分钟检查一次
+  });
 
   // 当前播放项
   const currentItems = currentPlaylist?.items || [];
@@ -245,15 +335,81 @@ export const PlayerCore: React.FC<PlayerCoreProps> = (props: PlayerCoreProps) =>
   }, [isPlaying, currentItem, playbackSpeed, next]);
 
   // 渲染（显示设备 ID 和切换状态）
+  // 未配置服务器时显示配置对话框
+  if (!hasServerConfig || showServerConfig) {
+    return (
+      <ServerConfigDialog
+        visible={showServerConfig}
+        onConfigured={() => {
+          setShowServerConfig(false);
+          // 配置完成后重新加载页面以连接新服务器
+          window.location.reload();
+        }}
+        isInitialSetup={!hasServerConfig}
+      />
+    );
+  }
+
+  // 显示注册码界面（服务器已配置 + 有注册码 + 未注册）
+  if (shouldShowRegistrationCode) {
+    return (
+      <RegistrationCodeDisplay
+        onRegistered={() => {
+          // 注册成功后重新加载页面以进入播放模式
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
+  // 等待设备注册
   if (!deviceInfo?.device_id) {
     return null;
   }
 
+  // 显示播放列表选择界面（多个播放列表 + 选择未完成）
+  if (shouldShowPlaylistSelection) {
+    return (
+      <PlaylistSelectionModal
+        deviceId={deviceInfo.device_id}
+        visible={true}
+        onCompleted={() => {
+          // 选择完成后重新加载页面
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
   return (
     <>
+      {/* 设置按钮 */}
+      <SettingsButton onClick={() => setShowServerConfig(true)} />
+
       <DeviceIdDisplay
         deviceId={deviceInfo.device_id}
       />
+      {/* 调度状态显示 */}
+      {activeSchedule && (
+        <div style={{
+          position: 'fixed',
+          bottom: 10,
+          left: 10,
+          background: 'rgba(0, 0, 0, 0.7)',
+          color: 'white',
+          padding: '8px 16px',
+          borderRadius: 4,
+          fontSize: 12,
+          zIndex: 1000,
+        }}>
+          <div>📅 调度模式: {activeSchedule.start_time.slice(0, 5)} - {activeSchedule.end_time.slice(0, 5)}</div>
+          {nextSwitchTime && (
+            <div style={{ fontSize: 10, opacity: 0.8 }}>
+              下次切换: {nextSwitchTime.toLocaleTimeString()}
+            </div>
+          )}
+        </div>
+      )}
       {/* 显示切换状态 */}
       {isSwitching && (
         <div style={{

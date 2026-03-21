@@ -3,7 +3,7 @@
  * 处理设备注册逻辑，支持 MAC 地址注册和传统 device_id 注册
  */
 import { useState, useCallback, useEffect } from 'react';
-import axios from 'axios';
+import { playerApi } from '../utils/apiClient';
 import type { PlayerDeviceInfo } from './types';
 
 // 模拟 MAC 地址生成
@@ -138,16 +138,16 @@ export const useDeviceRegistration = (): UseDeviceRegistrationReturn => {
         payload.ip_address = deviceData.ipAddress;
       }
 
-      const response = await axios.post('/api/devices/register', payload);
+      const response = await playerApi.post<{ id: number; device_id: string; device_name: string; timezone: string; mac_address?: string; ip_address?: string; registration_code: string; playback_speed?: number }>('/devices/register', payload);
       const registeredDevice: PlayerDeviceInfo = {
-        id: response.data.id,
-        device_id: response.data.device_id,
-        device_name: response.data.device_name,
-        timezone: response.data.timezone,
-        mac_address: response.data.mac_address,
-        ip_address: response.data.ip_address,
-        registration_code: response.data.registration_code,
-        playback_speed: response.data.playback_speed || 1,
+        id: response.id,
+        device_id: response.device_id,
+        device_name: response.device_name,
+        timezone: response.timezone,
+        mac_address: response.mac_address,
+        ip_address: response.ip_address,
+        registration_code: response.registration_code,
+        playback_speed: response.playback_speed || 1,
       };
 
       // 保存到本地存储
@@ -155,8 +155,8 @@ export const useDeviceRegistration = (): UseDeviceRegistrationReturn => {
       setDeviceInfo(registeredDevice);
       setIsRegistered(true);
     } catch (err) {
-      const errorMessage = axios.isAxiosError(err)
-        ? (err.response?.data?.detail || '注册失败')
+      const errorMessage = err instanceof Error
+        ? err.message
         : '注册失败';
       setError(errorMessage);
       throw err;

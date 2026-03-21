@@ -14,13 +14,13 @@
 |------|--------|--------|------|
 | **MCP** | PPT 转换服务 | ★★★★★ | ✅ 已实现 |
 | **MCP** | Android 构建/调试 | ★★★★★ | ✅ 已实现 |
-| **MCP** | 文件处理服务 | ★★★★ | 待实施 |
+| **MCP** | 文件处理服务 | ★★★★ | ✅ 已实现 |
 | **Skill** | android-test | ★★★★★ | ✅ 已完成 |
 | **Skill** | web-test | ★★★★ | ✅ 已实现 |
 | **Skill** | build-android | ★★★★ | ✅ 已实现 |
 | **Skill** | test-push | ★★★ | ✅ 已实现 |
-| **Skill** | db-maintenance | ★★★ | 待实施 |
-| **Skill** | quality-check | ★★★ | 待实施 |
+| **Skill** | db-maintenance | ★★★ | ✅ 已实现 |
+| **Skill** | quality-check | ★★★ | ✅ 已实现 |
 
 ---
 
@@ -309,19 +309,19 @@ description: CastPlay Web 播放端测试技能。用于启动 Web 播放端并�
 ## 五、实施路线图
 
 ```
-Phase 1: MCP 基础设施
+Phase 1: MCP 基础设施 ✅ 已完成
 ├── 创建 MCP 项目结构
 ├── PPT 转换服务 MCP
 └── Android 构建 MCP
 
-Phase 2: Skill 扩展
+Phase 2: Skill 扩展 ✅ 已完成
 ├── web-test Skill
 ├── build-android Skill
 └── test-push Skill
 
-Phase 3: 高级功能
+Phase 3: 高级功能 ✅ 已完成
 ├── 文件处理 MCP
-├── WebSocket 通知 MCP (可选)
+├── db-maintenance Skill
 └── quality-check Skill
 ```
 

@@ -16,6 +16,10 @@ scheduler = BackgroundScheduler(
 )
 
 
+# 调度评估状态跟踪（避免重复通知）
+_last_schedule_states: dict[int, int] = {}  # device_id -> active_schedule_id
+
+
 def submit_ppt_conversion(media_id: int, file_path: str, slide_duration: int = 5) -> str:
     """
     提交 PPT 转换任务
@@ -101,8 +105,128 @@ def _convert_ppt_task(media_id: int, file_path: str, slide_duration: int = 5):
             db.close()
 
 
+def _evaluate_schedules_task():
+    """
+    调度评估任务：检查所有设备的调度规则，触发播放列表切换
+
+    每分钟执行一次：
+    1. 遍历所有在线设备
+    2. 评估每个设备的活跃调度
+    3. 如果活跃调度变化，通过 WebSocket 通知设备
+    """
+    from app.database import SessionLocal
+    from app.models.device import Device
+    from app.services.schedule_service import ScheduleService
+
+    db = None
+    try:
+        db = SessionLocal()
+        service = ScheduleService(db)
+
+        # 获取所有设备
+        devices = db.query(Device).filter(Device.status == "online").all()
+
+        for device in devices:
+            try:
+                # 获取当前激活的调度
+                active_schedule = service.get_active_schedule(device.id)
+
+                # 确定当前应该播放的播放列表
+                active_playlist_id = None
+                active_schedule_id = None
+                schedule_name = None
+
+                if active_schedule:
+                    active_playlist_id = active_schedule.playlist_id
+                    active_schedule_id = active_schedule.id
+                    # 获取播放列表名称
+                    from app.models.playlist import Playlist
+                    playlist = db.query(Playlist).filter(
+                        Playlist.id == active_playlist_id
+                    ).first()
+                    schedule_name = playlist.name if playlist else None
+                else:
+                    # 没有匹配的调度，使用默认播放列表
+                    active_playlist_id = service.get_default_playlist_id(device.id)
+
+                # 检查是否需要通知（状态变化）
+                last_schedule_id = _last_schedule_states.get(device.id)
+                if active_schedule_id != last_schedule_id and active_playlist_id:
+                    # 状态变化，需要通知
+                    _notify_device_schedule_change(
+                        device.device_id,
+                        active_playlist_id,
+                        active_schedule_id,
+                        schedule_name
+                    )
+                    _last_schedule_states[device.id] = active_schedule_id
+
+                    logger.info(
+                        f"Schedule change for device {device.device_id}: "
+                        f"schedule_id={active_schedule_id}, playlist_id={active_playlist_id}"
+                    )
+
+            except Exception as device_error:
+                logger.error(
+                    f"Error evaluating schedule for device {device.id}: {device_error}"
+                )
+                continue
+
+    except Exception as e:
+        logger.error(f"Schedule evaluation task failed: {e}", exc_info=True)
+    finally:
+        if db:
+            db.close()
+
+
+def _notify_device_schedule_change(
+    device_id: str,
+    playlist_id: int,
+    schedule_id: int | None,
+    schedule_name: str | None
+):
+    """
+    通知设备调度变化
+
+    通过 WebSocket 发送 schedule_update 消息
+    """
+    try:
+        from app.websocket.handler import manager
+
+        # 发送 WebSocket 消息
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(
+                manager.notify_schedule_trigger(
+                    device_id,
+                    playlist_id,
+                    schedule_id,
+                    schedule_name
+                )
+            )
+        finally:
+            loop.close()
+
+    except Exception as e:
+        logger.warning(f"Failed to notify device {device_id}: {e}")
+
+
 def start():
     """启动调度器"""
+    # 添加调度评估任务（每分钟执行）
+    scheduler.add_job(
+        _evaluate_schedules_task,
+        'interval',
+        minutes=1,
+        id='schedule_evaluation',
+        replace_existing=True,
+        max_instances=1,
+        misfire_grace_time=30
+    )
+    logger.info("Schedule evaluation job scheduled (every 1 minute)")
+
     scheduler.start()
     logger.info("APScheduler started")
 

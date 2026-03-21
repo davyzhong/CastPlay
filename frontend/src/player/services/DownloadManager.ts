@@ -165,13 +165,9 @@ export class DownloadManager {
      * 获取文件大小
      */
     private async getFileSize(_path: string): Promise<number> {
-        try {
-            // 使用 File System Access API 或 IndexedDB
-            // 这里简化处理
-            return 0;
-        } catch {
-            return 0;
-        }
+        // 使用 File System Access API 或 IndexedDB
+        // 这里简化处理
+        return 0;
     }
 
     /**

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>CastPlay Player</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html, body, #root {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+      }
+      /* 隐藏滚动条 */
+      ::-webkit-scrollbar {
+        display: none;
+      }
+      /* 防止文字选中 */
+      body {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+    </style>
+    <script>
+      // 在 Android WebView 中设置 API 基础 URL 并拦截请求
+      (function() {
+        var baseUrl = '';
+        if (window.AndroidBridge && window.AndroidBridge.getServerUrl) {
+          baseUrl = window.AndroidBridge.getServerUrl();
+          console.log('[Android] API Base URL:', baseUrl);
+        }
+
+        if (baseUrl) {
+          // 重写 URL 的辅助函数
+          function rewriteUrl(url) {
+            if (typeof url === 'string') {
+              // 处理 /api/ 开头的 URL
+              if (url.startsWith('/api/')) {
+                return baseUrl + url;
+              }
+              // 处理相对路径的媒体文件
+              if (url.startsWith('/media/') || url.startsWith('/uploads/') || url.startsWith('/converted/')) {
+                return baseUrl + url;
+              }
+            }
+            return url;
+          }
+
+          // 拦截 fetch 请求
+          var originalFetch = window.fetch;
+          window.fetch = function(url, options) {
+            return originalFetch(rewriteUrl(url), options);
+          };
+
+          // 拦截 XMLHttpRequest
+          var originalOpen = XMLHttpRequest.prototype.open;
+          XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+            return originalOpen.call(this, method, rewriteUrl(url), async, user, password);
+          };
+
+          // 拦截 setAttribute
+          var originalSetAttribute = Element.prototype.setAttribute;
+          Element.prototype.setAttribute = function(name, value) {
+            if ((name === 'src' || name === 'href' || name === 'poster') && (this.tagName === 'IMG' || this.tagName === 'VIDEO' || this.tagName === 'SOURCE' || this.tagName === 'A')) {
+              value = rewriteUrl(value);
+            }
+            return originalSetAttribute.call(this, name, value);
+          };
+
+          // 拦截 HTMLImageElement.prototype.src (React 直接设置属性)
+          var imgSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+          Object.defineProperty(HTMLImageElement.prototype, 'src', {
+            set: function(value) {
+              imgSrcDescriptor.set.call(this, rewriteUrl(value));
+            },
+            get: function() {
+              return imgSrcDescriptor.get.call(this);
+            }
+          });
+
+          // 拦截 HTMLVideoElement.prototype.src
+          var videoSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+          Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+            set: function(value) {
+              videoSrcDescriptor.set.call(this, rewriteUrl(value));
+            },
+            get: function() {
+              return videoSrcDescriptor.get.call(this);
+            }
+          });
+
+          // 拦截 Image 构造函数
+          var OriginalImage = window.Image;
+          window.Image = function(width, height) {
+            var img = new OriginalImage(width, height);
+            return img;
+          };
+          window.Image.prototype = OriginalImage.prototype;
+
+          console.log('[Android] Request interceptor installed');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/player-main.tsx"></script>
+  </body>
+</html>

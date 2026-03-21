@@ -1,0 +1,146 @@
+openapi: 3.0.3
+info:
+  title: Player Configuration API
+  description: API endpoints for player configuration and registration
+  version: 1.0.0
+
+paths:
+  /api/health:
+    get:
+      summary: Health check endpoint
+      description: Used by player to test server connection and determine protocol
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  version:
+                    type: string
+        '503':
+          description: Server unavailable
+
+  /api/player/{device_id}/register:
+    post:
+      summary: Register device with registration code
+      description: Validates registration code and completes device registration
+      operationId: registerDevice
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationRequest'
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResponse'
+        '400':
+          description: Invalid registration code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Device not found
+
+  /api/player/{device_id}/playlists:
+    get:
+      summary: Get available playlists for device
+      description: Returns all playlists assigned to the device for selection
+      operationId: getDevicePlaylists
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of available playlists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  playlists:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlaylistInfo'
+        '404':
+          description: Device not found
+
+components:
+  schemas:
+    RegistrationRequest:
+      type: object
+      required:
+        - registration_code
+      properties:
+        registration_code:
+          type: string
+          description: Registration code from build configuration
+          example: "ABC123XYZ"
+
+    RegistrationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        device_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+        registered_at:
+          type: string
+          format: date-time
+
+    PlaylistInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        media_count:
+          type: integer
+          description: Number of media items in playlist
+        total_size_mb:
+          type: number
+          description: Total size in megabytes
+        thumbnail_url:
+          type: string
+          format: uri
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+          enum:
+            - INVALID_REGISTRATION_CODE
+            - DEVICE_NOT_FOUND
+            - SERVER_ERROR

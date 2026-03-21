@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CastPlay</string>
+    <string name="no_server_connection">无法连接到服务器，请检查网络设置</string>
+    <string name="device_admin_label">CastPlay 设备管理</string>
+    <string name="device_admin_description">允许 CastPlay 进行设备管理操作</string>
+    <string name="device_admin_description">CastPlay Kiosk Mode</string>
+</resources>

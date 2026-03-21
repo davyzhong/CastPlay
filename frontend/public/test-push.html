@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>播放列表推送测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #00d9ff;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 1000px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .panel {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #0f3460;
+        }
+        .panel h2 {
+            font-size: 16px;
+            color: #00d9ff;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #0f3460;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #0f3460;
+        }
+        .status-label {
+            color: #888;
+        }
+        .status-value {
+            font-weight: bold;
+        }
+        .status-value.online { color: #00ff88; }
+        .status-value.offline { color: #ff6b6b; }
+        .status-value.syncing { color: #ffd93d; }
+        .status-value.downloading { color: #6bcbff; }
+        .status-value.ready { color: #00ff88; }
+        .status-value.error { color: #ff6b6b; }
+
+        .log-container {
+            height: 300px;
+            overflow-y: auto;
+            background: #0f0f23;
+            border-radius: 8px;
+            padding: 10px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #1a1a3e;
+        }
+        .log-time {
+            color: #666;
+            margin-right: 8px;
+        }
+        .log-type {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            margin-right: 8px;
+        }
+        .log-type.ws { background: #4a00e0; }
+        .log-type.download { background: #0077b6; }
+        .log-type.playlist { background: #00b894; }
+        .log-type.error { background: #d63031; }
+        .log-type.info { background: #636e72; }
+
+        .progress-container {
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 20px;
+            background: #0f3460;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #000;
+            font-weight: bold;
+        }
+
+        .playlist-item {
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 8px 0;
+        }
+        .playlist-item.active {
+            border: 2px solid #00ff88;
+        }
+        .media-list {
+            margin-top: 10px;
+        }
+        .media-item {
+            display: flex;
+            align-items: center;
+            padding: 5px 10px;
+            background: #1a1a3e;
+            margin: 4px 0;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .media-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .media-status.cached { background: #00ff88; }
+        .media-status.downloading { background: #ffd93d; animation: pulse 1s infinite; }
+        .media-status.pending { background: #636e72; }
+        .media-status.failed { background: #ff6b6b; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .test-controls {
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #00d9ff;
+            color: #000;
+        }
+        .btn-success {
+            background: #00ff88;
+            color: #000;
+        }
+        .btn-warning {
+            background: #ffd93d;
+            color: #000;
+        }
+        .btn-danger {
+            background: #ff6b6b;
+            color: #fff;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .test-step {
+            background: #0f3460;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .test-step h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .test-step.completed {
+            border-left: 4px solid #00ff88;
+        }
+        .test-step.running {
+            border-left: 4px solid #ffd93d;
+        }
+        .test-step.pending {
+            border-left: 4px solid #636e72;
+        }
+
+        .instructions {
+            background: #0f3460;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .instructions h3 {
+            color: #00d9ff;
+            margin-bottom: 15px;
+        }
+        .instructions ol {
+            margin-left: 20px;
+        }
+        .instructions li {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+        .instructions code {
+            background: #1a1a3e;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>播放列表推送功能测试</h1>
+
+        <!-- 测试说明 -->
+        <div class="instructions">
+            <h3>测试步骤</h3>
+            <ol>
+                <li>在<strong>管理后台</strong> (<code>/dashboard</code>) 创建一个测试播放列表，添加一些媒体文件</li>
+                <li>在<strong>设备管理</strong>页面找到测试设备（<code>web-player-test-01</code>），将播放列表分配给该设备</li>
+                <li>在<strong>新标签页</strong>打开播放端 (<code>/player.html</code>) 或本测试页面</li>
+                <li>观察本页面的 WebSocket 连接状态和日志</li>
+                <li>在管理后台修改播放列表（添加/删除媒体），观察推送是否生效</li>
+                <li>检查下载进度和自动切换是否正常</li>
+            </ol>
+        </div>
+
+        <div class="grid">
+            <!-- 左侧：状态和播放列表 -->
+            <div>
+                <!-- 连接状态 -->
+                <div class="panel">
+                    <h2>连接状态</h2>
+                    <div class="status-item">
+                        <span class="status-label">WebSocket</span>
+                        <span class="status-value" id="ws-status">未连接</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">设备 ID</span>
+                        <span class="status-value" id="device-id">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">同步状态</span>
+                        <span class="status-value" id="sync-status">idle</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">最后同步</span>
+                        <span class="status-value" id="last-sync">-</span>
+                    </div>
+                </div>
+
+                <!-- 当前播放列表 -->
+                <div class="panel" style="margin-top: 20px;">
+                    <h2>当前播放列表</h2>
+                    <div id="current-playlist">
+                        <p style="color: #666;">暂无播放列表</p>
+                    </div>
+                </div>
+
+                <!-- 下载进度 -->
+                <div class="panel" style="margin-top: 20px;">
+                    <h2>下载进度</h2>
+                    <div id="download-progress">
+                        <p style="color: #666;">暂无下载任务</p>
+                    </div>
+                </div>
+
+                <!-- 测试控制 -->
+                <div class="panel test-controls" style="margin-top: 20px;">
+                    <h2>测试操作</h2>
+                    <button class="btn btn-primary" onclick="connectWebSocket()">连接 WebSocket</button>
+                    <button class="btn btn-success" onclick="initPlayer()">初始化播放器</button>
+                    <button class="btn btn-warning" onclick="forceSync()">强制同步</button>
+                    <button class="btn btn-danger" onclick="disconnectWebSocket()">断开连接</button>
+                    <button class="btn btn-primary" onclick="clearLogs()">清空日志</button>
+                </div>
+            </div>
+
+            <!-- 右侧：日志和消息 -->
+            <div>
+                <!-- WebSocket 消息 -->
+                <div class="panel">
+                    <h2>WebSocket 消息日志</h2>
+                    <div class="log-container" id="ws-log"></div>
+                </div>
+
+                <!-- 测试进度 -->
+                <div class="panel" style="margin-top: 20px;">
+                    <h2>测试检查点</h2>
+                    <div id="test-checkpoints">
+                        <div class="test-step pending" id="step-1">
+                            <h3>1. WebSocket 连接</h3>
+                            <span>等待连接...</span>
+                        </div>
+                        <div class="test-step pending" id="step-2">
+                            <h3>2. 接收推送通知</h3>
+                            <span>等待播放列表分配...</span>
+                        </div>
+                        <div class="test-step pending" id="step-3">
+                            <h3>3. 媒体下载</h3>
+                            <span>等待下载开始...</span>
+                        </div>
+                        <div class="test-step pending" id="step-4">
+                            <h3>4. 自动切换</h3>
+                            <span>等待切换完成...</span>
+                        </div>
+                        <div class="test-step pending" id="step-5">
+                            <h3>5. 增量更新</h3>
+                            <span>等待播放列表更新...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 配置 ====================
+        const DEVICE_ID = 'web-player-test-01';
+        let ws = null;
+        let currentPlaylist = null;
+        let playlists = [];
+        let downloadProgress = {};
+
+        // ==================== 工具函数 ====================
+        function formatTime() {
+            return new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        }
+
+        function log(message, type = 'info') {
+            const container = document.getElementById('ws-log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <span class="log-time">${formatTime()}</span>
+                <span class="log-type ${type}">${type.toUpperCase()}</span>
+                <span>${message}</span>
+            `;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('ws-log').innerHTML = '';
+            log('日志已清空', 'info');
+        }
+
+        function updateStatus(id, value, className = '') {
+            const el = document.getElementById(id);
+            el.textContent = value;
+            el.className = 'status-value ' + className;
+        }
+
+        function updateStep(stepNum, status, message) {
+            const step = document.getElementById(`step-${stepNum}`);
+            step.className = `test-step ${status}`;
+            step.querySelector('span').textContent = message;
+        }
+
+        // ==================== WebSocket 连接 ====================
+        function connectWebSocket() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log('WebSocket 已连接', 'info');
+                return;
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/player/${DEVICE_ID}`;
+
+            log(`正在连接: ${wsUrl}`, 'ws');
+
+            try {
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    log('WebSocket 连接成功', 'ws');
+                    updateStatus('ws-status', '已连接', 'online');
+                    updateStatus('device-id', DEVICE_ID, 'ready');
+                    updateStep(1, 'completed', '已连接');
+
+                    // 发送连接确认
+                    ws.send(JSON.stringify({
+                        type: 'connection_ready',
+                        device_id: DEVICE_ID,
+                        timestamp: new Date().toISOString()
+                    }));
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        handleWebSocketMessage(message);
+                    } catch (error) {
+                        log(`消息解析失败: ${error.message}`, 'error');
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    log('WebSocket 错误', 'error');
+                    updateStatus('ws-status', '错误', 'error');
+                    updateStep(1, 'pending', '连接失败');
+                };
+
+                ws.onclose = () => {
+                    log('WebSocket 连接关闭', 'ws');
+                    updateStatus('ws-status', '已断开', 'offline');
+                };
+
+            } catch (error) {
+                log(`连接失败: ${error.message}`, 'error');
+            }
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                log('已断开连接', 'info');
+                updateStatus('ws-status', '已断开', 'offline');
+            }
+        }
+
+        // ==================== 消息处理 ====================
+        function handleWebSocketMessage(message) {
+            log(`收到消息: ${message.type}`, 'ws');
+            log(`数据: ${JSON.stringify(message.data, null, 2)}`, 'info');
+
+            switch (message.type) {
+                case 'playlist_assigned':
+                    handlePlaylistAssigned(message.data);
+                    break;
+
+                case 'playlist_updated':
+                    handlePlaylistUpdated(message.data);
+                    break;
+
+                case 'playlist_removed':
+                    handlePlaylistRemoved(message.data);
+                    break;
+
+                case 'playlist_activated':
+                case 'playlist_deactivated':
+                    handlePlaylistActivation(message.data);
+                    break;
+
+                case 'force_sync':
+                    log('收到强制同步指令', 'ws');
+                    initPlayer();
+                    break;
+
+                case 'device_disabled':
+                    log(`设备状态: ${message.data.is_disabled ? '已禁用' : '已启用'}`, 'ws');
+                    break;
+
+                case 'schedule_updated':
+                    log('定时配置已更新', 'ws');
+                    break;
+
+                case 'control':
+                    handleControlCommand(message.data);
+                    break;
+
+                default:
+                    log(`未知消息类型: ${message.type}`, 'info');
+            }
+        }
+
+        async function handlePlaylistAssigned(data) {
+            log(`播放列表已分配: ${data.playlist_name} (ID: ${data.playlist_id})`, 'playlist');
+            updateStatus('sync-status', 'syncing', 'syncing');
+            updateStep(2, 'completed', `收到: ${data.playlist_name}`);
+
+            // 模拟下载过程
+            await simulateDownload(data);
+        }
+
+        async function handlePlaylistUpdated(data) {
+            log(`播放列表已更新: ${data.playlist_name} v${data.version}`, 'playlist');
+            updateStep(5, 'running', `正在处理: v${data.version}`);
+
+            // 显示变更内容
+            if (data.changes) {
+                log(`变更: ${JSON.stringify(data.changes)}`, 'playlist');
+            }
+
+            // 模拟增量下载
+            if (data.changes?.added?.length > 0) {
+                log(`新增媒体: ${data.changes.added.join(', ')}`, 'download');
+            }
+
+            updateStep(5, 'completed', `已更新到 v${data.version}`);
+        }
+
+        function handlePlaylistRemoved(data) {
+            log(`播放列表已移除: ID ${data.playlist_id}`, 'playlist');
+
+            if (currentPlaylist?.id === data.playlist_id) {
+                currentPlaylist = null;
+                updateCurrentPlaylistUI();
+            }
+        }
+
+        function handlePlaylistActivation(data) {
+            log(`播放列表激活状态: ID ${data.playlist_id}, 激活: ${data.is_active}`, 'playlist');
+        }
+
+        function handleControlCommand(data) {
+            log(`控制命令: ${data.action}`, 'ws');
+
+            switch (data.action) {
+                case 'reload':
+                    initPlayer();
+                    break;
+                case 'switch_playlist':
+                    log(`切换到播放列表: ${data.playlist_id}`, 'playlist');
+                    break;
+            }
+        }
+
+        // ==================== 模拟下载 ====================
+        async function simulateDownload(playlistData) {
+            updateStep(3, 'running', '下载中...');
+            updateStatus('sync-status', 'downloading', 'downloading');
+
+            // 模拟多个媒体下载
+            const mediaCount = playlistData.item_count || 3;
+            const progressContainer = document.getElementById('download-progress');
+            progressContainer.innerHTML = '';
+
+            for (let i = 1; i <= mediaCount; i++) {
+                const mediaId = i;
+                const mediaName = `Media_${i}.mp4`;
+
+                // 创建进度条
+                const progressDiv = document.createElement('div');
+                progressDiv.className = 'progress-container';
+                progressDiv.id = `progress-${mediaId}`;
+                progressDiv.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span>${mediaName}</span>
+                        <span id="percent-${mediaId}">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="fill-${mediaId}" style="width: 0%">0%</div>
+                    </div>
+                `;
+                progressContainer.appendChild(progressDiv);
+
+                // 发送下载进度到服务器
+                for (let progress = 0; progress <= 100; progress += 10) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                    document.getElementById(`percent-${mediaId}`).textContent = `${progress}%`;
+                    document.getElementById(`fill-${mediaId}`).style.width = `${progress}%`;
+                    document.getElementById(`fill-${mediaId}`).textContent = `${progress}%`;
+
+                    // 上报进度
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            type: 'download_progress',
+                            device_id: DEVICE_ID,
+                            timestamp: new Date().toISOString(),
+                            data: {
+                                playlist_id: playlistData.playlist_id,
+                                media_id: mediaId,
+                                media_name: mediaName,
+                                progress: progress,
+                                status: progress < 100 ? 'downloading' : 'completed',
+                                downloaded_bytes: progress * 10000,
+                                total_bytes: 1000000
+                            }
+                        }));
+                    }
+                }
+
+                log(`${mediaName} 下载完成`, 'download');
+            }
+
+            // 下载完成，执行切换
+            updateStep(3, 'completed', `已下载 ${mediaCount} 个文件`);
+            await simulateSwitch(playlistData);
+        }
+
+        async function simulateSwitch(playlistData) {
+            updateStep(4, 'running', '切换中...');
+            updateStatus('sync-status', 'switching', 'syncing');
+
+            // 模拟切换延迟
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // 更新当前播放列表
+            currentPlaylist = {
+                id: playlistData.playlist_id,
+                name: playlistData.playlist_name,
+                version: playlistData.version,
+                item_count: playlistData.item_count
+            };
+
+            // 发送切换完成通知
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'playlist_switched',
+                    device_id: DEVICE_ID,
+                    timestamp: new Date().toISOString(),
+                    data: {
+                        playlist_id: playlistData.playlist_id,
+                        version: playlistData.version
+                    }
+                }));
+            }
+
+            updateCurrentPlaylistUI();
+            updateStatus('sync-status', 'ready', 'ready');
+            updateStatus('last-sync', new Date().toLocaleTimeString('zh-CN'));
+            updateStep(4, 'completed', `已切换到: ${playlistData.playlist_name}`);
+
+            log(`播放列表切换完成: ${playlistData.playlist_name}`, 'playlist');
+        }
+
+        function updateCurrentPlaylistUI() {
+            const container = document.getElementById('current-playlist');
+
+            if (!currentPlaylist) {
+                container.innerHTML = '<p style="color: #666;">暂无播放列表</p>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="playlist-item active">
+                    <div class="status-item">
+                        <span class="status-label">名称</span>
+                        <span class="status-value">${currentPlaylist.name}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">ID</span>
+                        <span class="status-value">${currentPlaylist.id}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">版本</span>
+                        <span class="status-value">${currentPlaylist.version || '-'}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">媒体数量</span>
+                        <span class="status-value">${currentPlaylist.item_count || 0}</span>
+                    </div>
+                    <div class="media-list">
+                        ${Array(currentPlaylist.item_count || 3).fill(0).map((_, i) => `
+                            <div class="media-item">
+                                <div class="media-status cached"></div>
+                                <span>Media_${i + 1}.mp4</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==================== API 调用 ====================
+        async function initPlayer() {
+            log('正在初始化播放器...', 'info');
+            updateStatus('sync-status', 'syncing', 'syncing');
+
+            try {
+                const response = await fetch('/api/player/init', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: DEVICE_ID })
+                });
+
+                const data = await response.json();
+                log(`初始化成功: ${JSON.stringify(data.device)}`, 'info');
+
+                if (data.playlists && data.playlists.length > 0) {
+                    playlists = data.playlists;
+                    currentPlaylist = playlists[0];
+                    updateCurrentPlaylistUI();
+                    updateStep(2, 'completed', `已有 ${playlists.length} 个播放列表`);
+                }
+
+                updateStatus('sync-status', 'ready', 'ready');
+                updateStatus('last-sync', new Date().toLocaleTimeString('zh-CN'));
+
+            } catch (error) {
+                log(`初始化失败: ${error.message}`, 'error');
+                updateStatus('sync-status', 'error', 'error');
+            }
+        }
+
+        async function forceSync() {
+            log('请求强制同步...', 'info');
+            await initPlayer();
+        }
+
+        // ==================== 初始化 ====================
+        window.onload = () => {
+            log('测试页面已加载', 'info');
+            log(`设备 ID: ${DEVICE_ID}`, 'info');
+            log('请点击"连接 WebSocket"开始测试', 'info');
+
+            // 自动连接
+            setTimeout(() => {
+                connectWebSocket();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

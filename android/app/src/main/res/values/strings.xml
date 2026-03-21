@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">CastPlay</string>
+    <string name="device_admin_label">CastPlay Device Admin</string>
+    <string name="device_admin_description">Allows CastPlay to run in Kiosk mode</string>
+    <string name="no_server_connection">无法连接服务器，正在重试...</string>
+    <string name="loading">加载中...</string>
+    <string name="offline_mode">离线模式</string>
+    <string name="network_restored">网络已恢复</string>
+</resources>

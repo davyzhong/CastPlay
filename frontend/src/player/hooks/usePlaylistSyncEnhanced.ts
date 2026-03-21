@@ -542,9 +542,18 @@ export const usePlaylistSyncEnhanced = (
     return syncState.downloadProgress.get(mediaId);
   }, [syncState.downloadProgress]);
 
+  // ==================== WebSocket 重连配置 ====================
+  const MAX_RECONNECT_ATTEMPTS = 10;
+  const INITIAL_RECONNECT_DELAY = 1000; // 1秒
+  const MAX_RECONNECT_DELAY = 30000; // 30秒
+
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const isManualCloseRef = useRef(false);
+
   // ==================== WebSocket 连接 ====================
 
-  useEffect(() => {
+  const connectWebSocket = useCallback(() => {
     if (!deviceId || !isOnline) return;
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -556,6 +565,8 @@ export const usePlaylistSyncEnhanced = (
 
       ws.onopen = () => {
         console.log('WebSocket connected');
+        reconnectAttemptsRef.current = 0; // 重置重连计数
+
         // 发送连接确认
         ws.send(JSON.stringify({
           type: 'connection_ready',
@@ -577,21 +588,82 @@ export const usePlaylistSyncEnhanced = (
         console.error('WebSocket error:', error);
       };
 
-      ws.onclose = () => {
-        console.log('WebSocket disconnected, will reconnect...');
-        // 可在此处实现重连逻辑
+      ws.onclose = (event) => {
+        console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason);
+
+        // 如果是手动关闭，不进行重连
+        if (isManualCloseRef.current) {
+          console.log('Manual close, skipping reconnection');
+          return;
+        }
+
+        // 尝试重连
+        scheduleReconnect();
       };
 
     } catch (error) {
       console.error('WebSocket connection failed:', error);
+      scheduleReconnect();
+    }
+  }, [deviceId, isOnline, handleWebSocketMessage]);
+
+  // ==================== 指数退避重连 ====================
+
+  const scheduleReconnect = useCallback(() => {
+    // 清理之前的定时器
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
 
+    // 检查是否超过最大重试次数
+    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      console.error('Max reconnection attempts reached, giving up');
+      setSyncState(prev => ({
+        ...prev,
+        status: 'error',
+        error: '连接服务器失败，请检查网络后刷新页面',
+      }));
+      return;
+    }
+
+    // 计算延迟时间（指数退避）
+    const delay = Math.min(
+      INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttemptsRef.current),
+      MAX_RECONNECT_DELAY
+    );
+
+    reconnectAttemptsRef.current++;
+    console.log(`Scheduling reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
+
+    reconnectTimeoutRef.current = window.setTimeout(() => {
+      console.log('Attempting to reconnect...');
+      connectWebSocket();
+    }, delay);
+  }, [connectWebSocket]);
+
+  // ==================== 组件挂载时连接 WebSocket ====================
+
+  useEffect(() => {
+    isManualCloseRef.current = false;
+    reconnectAttemptsRef.current = 0;
+    connectWebSocket();
+
     return () => {
+      // 组件卸载时清理 - 设置手动关闭标志防止重连
+      isManualCloseRef.current = true;
+
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+
       if (wsRef.current) {
-        wsRef.current.close();
+        wsRef.current.close(1000, 'Component unmount');
+        wsRef.current = null;
       }
     };
-  }, [deviceId, isOnline, handleWebSocketMessage]);
+  }, [deviceId, isOnline]); // 故意不包含 connectWebSocket 以避免无限循环
 
   // ==================== 初始化时加载播放列表 ====================
 

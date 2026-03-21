@@ -31,6 +31,18 @@ export class ScheduleEvaluator {
   }
 
   /**
+   * 重置评估器状态
+   * 用于组件卸载或重新初始化时清除状态
+   */
+  reset(): void {
+    this.schedules = [];
+    this.defaultPlaylistId = null;
+    this.serverTimeOffset = 0;
+    this.lastEvaluation = null;
+    console.log('[ScheduleEvaluator] State reset');
+  }
+
+  /**
    * 更新调度数据
    */
   updateSchedules(

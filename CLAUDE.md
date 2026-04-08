@@ -45,6 +45,13 @@ pytest tests/ -m "not slow" --maxfail=5  # Quick tests
 pytest tests/ -k "test_name" -v        # Run specific test
 ```
 
+**Test Markers:**
+- `unit` - 单元测试
+- `integration` - 集成测试
+- `slow` - 慢速测试（可用 `-m "not slow"` 跳过）
+- `security` - 安全测试
+- `performance` - 性能测试
+
 ### Code Quality
 
 ```bash
@@ -167,8 +174,15 @@ Located in `mcp/`:
 ## Configuration
 
 - Environment via `.env` file (see `.env.example`)
-- Critical settings: `SECRET_KEY` (production required), `ENVIRONMENT`, `DATABASE_PATH`
 - Development mode: auto-generates secret key, allows CORS from any origin
+
+**Key Environment Variables:**
+- `SECRET_KEY` - JWT 签名密钥（生产环境必须设置）
+- `DATABASE_PATH` - 数据库文件路径（默认：data/castplay.db）
+- `UPLOADS_DIR` - 上传文件目录（默认：data/uploads）
+- `PORT` - 服务端口（默认：8000）
+- `DEBUG` - 调试模式（默认：false）
+- `DEFAULT_ADMIN_USERNAME/PASSWORD` - 默认管理员账号（生产环境必须修改）
 
 ## Code Standards
 
@@ -177,6 +191,12 @@ Located in `mcp/`:
 - Linting: ruff, mypy, pylint
 - Commit style: Conventional commits (`feat:`, `fix:`, `chore:`, etc.)
 - Pre-commit hooks available: `pre-commit install`
+
+## Workflow
+
+**After making code changes:**
+1. Update documentation if needed (`/update-docs` or `/update-codemaps`)
+2. Commit and push changes
 
 ## File Storage
 
@@ -263,11 +283,9 @@ interface AndroidBridge {
 - `LoadingOverlay` - Loading states for configuration operations
 - `ConfigLogger` - Unified logging for configuration operations
 
-## Active Technologies
-- Python 3.10+, TypeScript 5.x + FastAPI, SQLAlchemy, Pydantic, React, Zustand, Ant Design, APScheduler (001-playlist-scheduling)
-- SQLite (via SQLAlchemy ORM) (001-playlist-scheduling)
-- TypeScript 5.2+, Python 3.10+ + React 18, FastAPI, Ant Design 5, Zustand, SQLite (003-player-config-ui)
-- localStorage (web), SharedPreferences/DataStore via JsBridge (Android) (003-player-config-ui)
-
-## Recent Changes
-- 001-playlist-scheduling: Added Python 3.10+, TypeScript 5.x + FastAPI, SQLAlchemy, Pydantic, React, Zustand, Ant Design, APScheduler
+## Tech Stack
+- **Backend:** Python 3.10+, FastAPI, SQLAlchemy, Pydantic, APScheduler
+- **Frontend:** TypeScript 5.2+, React 18, Vite, Zustand, Ant Design 5
+- **Mobile:** Kotlin, Android WebView
+- **Database:** SQLite (via SQLAlchemy ORM)
+- **Storage:** localStorage (web), SharedPreferences (Android)

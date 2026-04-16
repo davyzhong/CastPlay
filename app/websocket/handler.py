@@ -24,8 +24,6 @@ class MessageType(str, Enum):
     PLAYLIST_ASSIGNED = "playlist_assigned"      # 播放列表已分配
     PLAYLIST_UPDATED = "playlist_updated"        # 播放列表内容更新
     PLAYLIST_REMOVED = "playlist_removed"        # 播放列表已移除
-    PLAYLIST_ACTIVATED = "playlist_activated"    # 播放列表已激活
-    PLAYLIST_DEACTIVATED = "playlist_deactivated" # 播放列表已停用
     DEVICE_CONFIG_UPDATED = "device_config_updated" # 设备配置更新
     DEVICE_DISABLED = "device_disabled"          # 设备已禁用
     SCHEDULE_UPDATED = "schedule_updated"        # 定时配置更新
@@ -47,7 +45,7 @@ class PlaylistNotificationData(BaseModel):
     playlist_id: int
     playlist_name: str
     version: str              # 播放列表版本号
-    action: str               # "assign", "update", "remove", "activate"
+    action: str               # "assign", "update", "remove"
     item_count: int = 0        # 媒体项数量
     total_size: int = 0        # 总文件大小（字节）
     priority: str = "normal"   # "high", "normal", "low"
@@ -273,27 +271,6 @@ class ConnectionManager:
         }
         await self.send_to_device(device_id, message)
         logger.info(f"Playlist removed notification sent to {device_id}: playlist {playlist_id}")
-
-    async def notify_playlist_activated(self, device_id: str, playlist_id: int, is_active: bool):
-        """
-        通知设备：播放列表激活状态变更
-
-        Args:
-            device_id: 设备 ID (UUID)
-            playlist_id: 播放列表 ID
-            is_active: 是否激活
-        """
-        message = {
-            "type": MessageType.PLAYLIST_ACTIVATED if is_active else MessageType.PLAYLIST_DEACTIVATED,
-            "device_id": device_id,
-            "timestamp": self._now(),
-            "data": {
-                "playlist_id": playlist_id,
-                "is_active": is_active
-            }
-        }
-        await self.send_to_device(device_id, message)
-        logger.info(f"Playlist {'activated' if is_active else 'deactivated'} notification sent to {device_id}: playlist {playlist_id}")
 
     # ==================== 设备配置通知 ====================
 

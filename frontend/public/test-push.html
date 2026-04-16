@@ -468,11 +468,6 @@
                     handlePlaylistRemoved(message.data);
                     break;
 
-                case 'playlist_activated':
-                case 'playlist_deactivated':
-                    handlePlaylistActivation(message.data);
-                    break;
-
                 case 'force_sync':
                     log('收到强制同步指令', 'ws');
                     initPlayer();
@@ -529,9 +524,7 @@
                 updateCurrentPlaylistUI();
             }
         }
-
-        function handlePlaylistActivation(data) {
-            log(`播放列表激活状态: ID ${data.playlist_id}, 激活: ${data.is_active}`, 'playlist');
+, 激活: ${data.is_active}`, 'playlist');
         }
 
         function handleControlCommand(data) {

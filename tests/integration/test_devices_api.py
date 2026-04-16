@@ -636,8 +636,7 @@ class TestDevicePlaylistsEndpoint:
         # 创建关联
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=test_playlist.id,
-            is_active=1
+            playlist_id=test_playlist.id
         )
         test_db.add(assignment)
         test_db.commit()
@@ -655,7 +654,6 @@ class TestDevicePlaylistsEndpoint:
         assert "assignment_id" in playlist
         assert "playlist_id" in playlist
         assert "playlist_name" in playlist
-        assert "is_active" in playlist
         assert "item_count" in playlist
 
     def test_get_device_playlists_empty(self, client, test_device):
@@ -684,8 +682,7 @@ class TestDevicePlaylistsEndpoint:
         # 创建关联
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=playlist.id,
-            is_active=1
+            playlist_id=playlist.id
         )
         test_db.add(assignment)
         test_db.commit()
@@ -720,13 +717,11 @@ class TestDevicePlaylistsEndpoint:
         # 分配到设备
         assignment1 = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=playlist1.id,
-            is_active=1
+            playlist_id=playlist1.id
         )
         assignment2 = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=playlist2.id,
-            is_active=0
+            playlist_id=playlist2.id
         )
         test_db.add_all([assignment1, assignment2])
         test_db.commit()
@@ -737,6 +732,5 @@ class TestDevicePlaylistsEndpoint:
         data = response.json()
         assert len(data["playlists"]) >= 2
 
-        # 验证激活状态
-        active_playlists = [p for p in data["playlists"] if p["is_active"]]
-        assert len(active_playlists) >= 1
+        # 验证播放列表信息
+        assert len(data["playlists"]) >= 2

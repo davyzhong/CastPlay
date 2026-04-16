@@ -482,7 +482,6 @@ class TestDeviceAssignmentEndpoint:
         data = response.json()
         assert data["device_id"] == test_device.id
         assert data["playlist_id"] == test_playlist.id
-        assert data["is_active"] is True
 
     def test_assign_duplicate(self, client, test_playlist, test_device, auth_headers):
         """测试重复分配（应该失败）"""
@@ -550,53 +549,6 @@ class TestDeviceAssignmentEndpoint:
         """测试未认证取消分配"""
         response = client.delete(
             f"/api/playlists/{device_playlist_assignment.playlist_id}/devices/{device_playlist_assignment.device_id}"
-        )
-
-        assert response.status_code in [401, 403]  # Unauthorized or Forbidden
-
-
-# ============================================================================
-# 激活/停用端点测试
-# ============================================================================
-
-class TestToggleActivationEndpoint:
-    """激活/停用端点测试"""
-
-    def test_activate_playlist(self, client, device_playlist_assignment, auth_headers):
-        """测试激活设备上的播放列表"""
-        response = client.put(
-            f"/api/playlists/{device_playlist_assignment.playlist_id}/devices/{device_playlist_assignment.device_id}/activate",
-            params={"is_active": True},
-            headers=auth_headers
-        )
-
-        assert response.status_code == 200
-        assert "activated" in response.json()["message"].lower()
-
-    def test_deactivate_playlist(self, client, device_playlist_assignment, auth_headers):
-        """测试停用设备上的播放列表"""
-        response = client.put(
-            f"/api/playlists/{device_playlist_assignment.playlist_id}/devices/{device_playlist_assignment.device_id}/activate",
-            params={"is_active": False},
-            headers=auth_headers
-        )
-
-        assert response.status_code == 200
-        assert "deactivated" in response.json()["message"].lower()
-
-    def test_toggle_nonexistent_assignment(self, client, test_playlist, auth_headers):
-        """测试切换不存在的分配"""
-        response = client.put(
-            f"/api/playlists/{test_playlist.id}/devices/99999/activate",
-            headers=auth_headers
-        )
-
-        assert response.status_code == 404
-
-    def test_toggle_without_auth(self, client, device_playlist_assignment):
-        """测试未认证切换"""
-        response = client.put(
-            f"/api/playlists/{device_playlist_assignment.playlist_id}/devices/{device_playlist_assignment.device_id}/activate"
         )
 
         assert response.status_code in [401, 403]  # Unauthorized or Forbidden
@@ -704,8 +656,7 @@ class TestPlaylistStatistics:
         # 创建设备分配
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=test_playlist.id,
-            is_active=1
+            playlist_id=test_playlist.id
         )
         test_db.add(assignment)
         test_db.commit()
@@ -773,8 +724,7 @@ class TestPlaylistStatistics:
         for device in multiple_test_devices[:2]:
             assignment = DevicePlaylist(
                 device_id=device.id,
-                playlist_id=playlist.id,
-                is_active=1
+                playlist_id=playlist.id
             )
             test_db.add(assignment)
 

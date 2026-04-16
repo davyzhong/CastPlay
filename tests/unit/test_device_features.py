@@ -237,8 +237,7 @@ class TestDevicePlaylistManagement:
         # 创建关联
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=test_playlist.id,
-            is_active=1
+            playlist_id=test_playlist.id
         )
         test_db.add(assignment)
         test_db.commit()
@@ -259,7 +258,6 @@ class TestDevicePlaylistManagement:
                 "assignment_id",
                 "playlist_id",
                 "playlist_name",
-                "is_active",
                 "item_count",
                 "assigned_at"
             ]
@@ -276,8 +274,7 @@ class TestDevicePlaylistManagement:
 
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=playlist.id,
-            is_active=1
+            playlist_id=playlist.id
         )
         test_db.add(assignment)
         test_db.commit()
@@ -294,15 +291,14 @@ class TestDevicePlaylistManagement:
         assert found is not None
         assert found["item_count"] > 0
 
-    def test_playlist_activation_status(self, client, test_device, test_playlist, test_db):
-        """测试播放列表激活状态"""
+    def test_get_all_assigned_playlists(self, client, test_device, test_playlist, test_db):
+        """测试返回所有已分配的播放列表"""
         from app.models.playlist import DevicePlaylist
 
-        # 创建未激活的关联
+        # 创建关联
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=test_playlist.id,
-            is_active=0
+            playlist_id=test_playlist.id
         )
         test_db.add(assignment)
         test_db.commit()
@@ -317,7 +313,6 @@ class TestDevicePlaylistManagement:
             None
         )
         assert found is not None
-        assert found["is_active"] is False
 
 
 class TestDeviceAutoNaming:

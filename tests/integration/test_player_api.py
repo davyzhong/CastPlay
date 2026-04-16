@@ -460,8 +460,7 @@ class TestPlayerIntegrationScenarios:
         # 分配到设备
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=empty_playlist.id,
-            is_active=1
+            playlist_id=empty_playlist.id
         )
         test_db.add(assignment)
         test_db.commit()
@@ -490,13 +489,11 @@ class TestPlayerIntegrationScenarios:
         # 分配到设备
         assignment1 = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=playlist1.id,
-            is_active=1
+            playlist_id=playlist1.id
         )
         assignment2 = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=playlist2.id,
-            is_active=1
+            playlist_id=playlist2.id
         )
         test_db.add_all([assignment1, assignment2])
         test_db.commit()
@@ -508,22 +505,21 @@ class TestPlayerIntegrationScenarios:
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data["playlists"]) >= 1
+        assert len(data["playlists"]) >= 2
 
-    def test_player_init_with_inactive_playlist(self, client, test_db, test_device, auth_headers):
-        """测试带有非激活播放列表的播放端初始化"""
+    def test_player_init_returns_all_assigned_playlists(self, client, test_db, test_device, auth_headers):
+        """测试播放端初始化返回所有已分配的播放列表"""
         from app.models.playlist import Playlist, DevicePlaylist
 
         # 创建播放列表
-        playlist = Playlist(name="Inactive Playlist")
+        playlist = Playlist(name="Test Playlist")
         test_db.add(playlist)
         test_db.commit()
 
-        # 分配到设备，但设为非激活
+        # 分配到设备
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=playlist.id,
-            is_active=0
+            playlist_id=playlist.id
         )
         test_db.add(assignment)
         test_db.commit()
@@ -535,9 +531,9 @@ class TestPlayerIntegrationScenarios:
 
         assert response.status_code == 200
         data = response.json()
-        # 非激活的播放列表不应该返回
-        inactive_found = any(
+        # 所有已分配的播放列表都应该返回
+        found_playlist = any(
             p["id"] == playlist.id
             for p in data["playlists"]
         )
-        assert not inactive_found
+        assert found_playlist

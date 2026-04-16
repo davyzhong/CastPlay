@@ -97,7 +97,6 @@ export interface DeviceAssignment {
   device_id: number
   device_name: string
   device_status: string
-  is_active: boolean
   assigned_at: string
 }
 
@@ -106,7 +105,6 @@ export interface DevicePlaylist {
   assignment_id: number
   playlist_id: number
   playlist_name: string
-  is_active: boolean
   item_count: number
   assigned_at: string
 }

@@ -10,7 +10,7 @@ import { useHeartbeat } from './useHeartbeat';
 
 // 播放列表更新信息（与后端 PlaylistNotificationData 保持一致）
 export interface PlaylistUpdateInfo {
-    action: 'assign' | 'update' | 'remove' | 'activate';
+    action: 'assign' | 'update' | 'remove';
     playlist_id: number;
     playlist_name: string;
     version: string;

@@ -166,8 +166,7 @@ class TestWebPlayerInitialization:
         if device:
             assignment = DevicePlaylist(
                 device_id=device.id,
-                playlist_id=playlist.id,
-                is_active=True
+                playlist_id=playlist.id
             )
             test_db.add(assignment)
             test_db.commit()
@@ -255,8 +254,7 @@ class TestWebPlayerPlaylistHandling:
         if device:
             assignment = DevicePlaylist(
                 device_id=device.id,
-                playlist_id=empty_playlist.id,
-                is_active=True
+                playlist_id=empty_playlist.id
             )
             test_db.add(assignment)
             test_db.commit()

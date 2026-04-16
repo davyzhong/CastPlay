@@ -116,41 +116,6 @@ class PlaylistPushTester:
             self.log_result("播放列表更新", False, str(e))
             return False
 
-    async def test_4_playlist_activated(self):
-        """测试4: 发送播放列表激活通知"""
-        print("\n" + "=" * 60)
-        print("测试 4: 播放列表激活/停用通知")
-        print("=" * 60)
-
-        if not ws_manager.is_connected(self.device_id):
-            self.log_result("播放列表激活", False, "设备未连接")
-            return False
-
-        try:
-            # 测试激活
-            await NotificationService.notify_playlist_activated(
-                device_id=self.device_id,
-                playlist_id=self.playlist_id,
-                is_active=True
-            )
-            print("  → 激活通知已发送")
-
-            await asyncio.sleep(0.5)
-
-            # 测试停用
-            await NotificationService.notify_playlist_activated(
-                device_id=self.device_id,
-                playlist_id=self.playlist_id,
-                is_active=False
-            )
-            print("  → 停用通知已发送")
-
-            self.log_result("播放列表激活", True, "激活/停用通知已发送")
-            return True
-        except Exception as e:
-            self.log_result("播放列表激活", False, str(e))
-            return False
-
     async def test_5_playlist_removed(self):
         """测试5: 发送播放列表移除通知"""
         print("\n" + "=" * 60)
@@ -240,7 +205,7 @@ class PlaylistPushTester:
             ("检查设备在线", self.test_1_check_device_online),
             ("播放列表分配", self.test_2_playlist_assigned),
             ("播放列表更新", self.test_3_playlist_updated),
-            ("播放列表激活", self.test_4_playlist_activated),
+            
             ("强制同步", self.test_6_force_sync),
             ("控制命令", self.test_7_control_commands),
             # ("播放列表移除", self.test_5_playlist_removed),  # 可选，会影响后续测试

@@ -20,8 +20,7 @@ class TestPlaylistDetailDeviceStructure:
         # 创建关联
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=test_playlist.id,
-            is_active=1
+            playlist_id=test_playlist.id
         )
         test_db.add(assignment)
         test_db.commit()
@@ -39,7 +38,6 @@ class TestPlaylistDetailDeviceStructure:
             # 验证扁平结构字段
             assert "id" in device  # assignment ID
             assert "device_id" in device  # device database ID
-            assert "is_active" in device
             assert "assigned_at" in device
 
     def test_playlist_detail_no_nested_device_object(
@@ -50,8 +48,7 @@ class TestPlaylistDetailDeviceStructure:
 
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=test_playlist.id,
-            is_active=1
+            playlist_id=test_playlist.id
         )
         test_db.add(assignment)
         test_db.commit()
@@ -74,11 +71,10 @@ class TestPlaylistDetailDeviceStructure:
         from app.models.playlist import DevicePlaylist
 
         # 创建多个关联
-        for i, device in enumerate(multiple_test_devices):
+        for device in multiple_test_devices:
             assignment = DevicePlaylist(
                 device_id=device.id,
-                playlist_id=test_playlist.id,
-                is_active=1 if i == 0 else 0  # 第一个激活
+                playlist_id=test_playlist.id
             )
             test_db.add(assignment)
         test_db.commit()
@@ -89,10 +85,6 @@ class TestPlaylistDetailDeviceStructure:
         data = response.json()
 
         assert len(data["devices"]) == len(multiple_test_devices)
-
-        # 验证激活状态
-        active_devices = [d for d in data["devices"] if d["is_active"]]
-        assert len(active_devices) == 1
 
 
 class TestPlaylistListCounts:
@@ -125,8 +117,7 @@ class TestPlaylistListCounts:
 
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=test_playlist.id,
-            is_active=1
+            playlist_id=test_playlist.id
         )
         test_db.add(assignment)
         test_db.commit()

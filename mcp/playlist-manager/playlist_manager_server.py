@@ -52,9 +52,6 @@ async def list_playlists(
         result = await get_client().get("/api/playlists/", params=params)
         playlists = result.get("items", []) if isinstance(result, dict) else result
 
-        if not include_inactive:
-            playlists = [p for p in playlists if p.get("is_active", True)]
-
         return {
             "success": True,
             "playlists": playlists,
@@ -186,54 +183,6 @@ async def delete_playlist(playlist_id: int) -> dict:
         if e.response.status_code == 404:
             return {"success": False, "error": f"Playlist {playlist_id} not found"}
         return {"success": False, "error": f"Failed to delete playlist: {e.response.status_code}"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@mcp.tool()
-async def activate_playlist(playlist_id: int) -> dict:
-    """
-    Activate a playlist for playback.
-
-    Args:
-        playlist_id: The playlist ID to activate
-
-    Returns:
-        Dictionary with activation result
-    """
-    try:
-        playlist = await get_client().put(f"/api/playlists/{playlist_id}", json_data={"is_active": True})
-        return {
-            "success": True,
-            "playlist_id": playlist_id,
-            "message": f"Playlist {playlist_id} activated"
-        }
-    except httpx.HTTPStatusError as e:
-        return {"success": False, "error": f"Failed to activate playlist: {e.response.status_code}"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@mcp.tool()
-async def deactivate_playlist(playlist_id: int) -> dict:
-    """
-    Deactivate a playlist from playback.
-
-    Args:
-        playlist_id: The playlist ID to deactivate
-
-    Returns:
-        Dictionary with deactivation result
-    """
-    try:
-        playlist = await get_client().put(f"/api/playlists/{playlist_id}", json_data={"is_active": False})
-        return {
-            "success": True,
-            "playlist_id": playlist_id,
-            "message": f"Playlist {playlist_id} deactivated"
-        }
-    except httpx.HTTPStatusError as e:
-        return {"success": False, "error": f"Failed to deactivate playlist: {e.response.status_code}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

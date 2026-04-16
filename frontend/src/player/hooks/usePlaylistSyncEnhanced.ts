@@ -26,7 +26,7 @@ export interface PlaylistUpdateNotification {
   playlist_id: number;
   playlist_name: string;
   version: string;
-  action: 'assign' | 'update' | 'remove' | 'activate' | 'deactivate';
+  action: 'assign' | 'update' | 'remove';
   item_count: number;
   total_size: number;
   priority: 'high' | 'normal' | 'low';
@@ -65,8 +65,6 @@ type WsMessageType =
   | 'playlist_assigned'
   | 'playlist_updated'
   | 'playlist_removed'
-  | 'playlist_activated'
-  | 'playlist_deactivated'
   | 'device_config_updated'
   | 'device_disabled'
   | 'schedule_updated'
@@ -385,13 +383,6 @@ export const usePlaylistSyncEnhanced = (
         break;
       }
 
-      case 'playlist_activated':
-      case 'playlist_deactivated': {
-        const { playlist_id, is_active } = message.data as { playlist_id: number; is_active: boolean };
-        handlePlaylistActivation(playlist_id, is_active);
-        break;
-      }
-
       case 'force_sync': {
         await initPlaylists();
         break;
@@ -477,24 +468,6 @@ export const usePlaylistSyncEnhanced = (
     }
   }, [playlists]);
 
-  // ==================== 处理播放列表激活状态变更 ====================
-
-  const handlePlaylistActivation = useCallback((playlistId: number, isActive: boolean) => {
-    setPlaylists(prev => prev.map(p =>
-      p.id === playlistId ? { ...p, is_active: isActive } : p
-    ));
-
-    // 如果激活的是新列表且当前无激活列表，可能需要切换
-    if (isActive && currentPlaylistRef.current?.id !== playlistId) {
-      const playlist = playlists.find(p => p.id === playlistId);
-      if (playlist) {
-        setCurrentPlaylist({ ...playlist, is_active: true });
-        currentPlaylistRef.current = { ...playlist, is_active: true };
-        localStorage.setItem('last_playlist_id', playlistId.toString());
-      }
-    }
-  }, [playlists]);
-
   // ==================== 处理控制命令 ====================
 
   const handleControlCommand = useCallback((data: { action: string; [key: string]: unknown }) => {
@@ -542,18 +515,9 @@ export const usePlaylistSyncEnhanced = (
     return syncState.downloadProgress.get(mediaId);
   }, [syncState.downloadProgress]);
 
-  // ==================== WebSocket 重连配置 ====================
-  const MAX_RECONNECT_ATTEMPTS = 10;
-  const INITIAL_RECONNECT_DELAY = 1000; // 1秒
-  const MAX_RECONNECT_DELAY = 30000; // 30秒
-
-  const reconnectAttemptsRef = useRef(0);
-  const reconnectTimeoutRef = useRef<number | null>(null);
-  const isManualCloseRef = useRef(false);
-
   // ==================== WebSocket 连接 ====================
 
-  const connectWebSocket = useCallback(() => {
+  useEffect(() => {
     if (!deviceId || !isOnline) return;
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -565,8 +529,6 @@ export const usePlaylistSyncEnhanced = (
 
       ws.onopen = () => {
         console.log('WebSocket connected');
-        reconnectAttemptsRef.current = 0; // 重置重连计数
-
         // 发送连接确认
         ws.send(JSON.stringify({
           type: 'connection_ready',
@@ -588,82 +550,21 @@ export const usePlaylistSyncEnhanced = (
         console.error('WebSocket error:', error);
       };
 
-      ws.onclose = (event) => {
-        console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason);
-
-        // 如果是手动关闭，不进行重连
-        if (isManualCloseRef.current) {
-          console.log('Manual close, skipping reconnection');
-          return;
-        }
-
-        // 尝试重连
-        scheduleReconnect();
+      ws.onclose = () => {
+        console.log('WebSocket disconnected, will reconnect...');
+        // 可在此处实现重连逻辑
       };
 
     } catch (error) {
       console.error('WebSocket connection failed:', error);
-      scheduleReconnect();
     }
-  }, [deviceId, isOnline, handleWebSocketMessage]);
-
-  // ==================== 指数退避重连 ====================
-
-  const scheduleReconnect = useCallback(() => {
-    // 清理之前的定时器
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-
-    // 检查是否超过最大重试次数
-    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-      console.error('Max reconnection attempts reached, giving up');
-      setSyncState(prev => ({
-        ...prev,
-        status: 'error',
-        error: '连接服务器失败，请检查网络后刷新页面',
-      }));
-      return;
-    }
-
-    // 计算延迟时间（指数退避）
-    const delay = Math.min(
-      INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttemptsRef.current),
-      MAX_RECONNECT_DELAY
-    );
-
-    reconnectAttemptsRef.current++;
-    console.log(`Scheduling reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
-
-    reconnectTimeoutRef.current = window.setTimeout(() => {
-      console.log('Attempting to reconnect...');
-      connectWebSocket();
-    }, delay);
-  }, [connectWebSocket]);
-
-  // ==================== 组件挂载时连接 WebSocket ====================
-
-  useEffect(() => {
-    isManualCloseRef.current = false;
-    reconnectAttemptsRef.current = 0;
-    connectWebSocket();
 
     return () => {
-      // 组件卸载时清理 - 设置手动关闭标志防止重连
-      isManualCloseRef.current = true;
-
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-
       if (wsRef.current) {
-        wsRef.current.close(1000, 'Component unmount');
-        wsRef.current = null;
+        wsRef.current.close();
       }
     };
-  }, [deviceId, isOnline]); // 故意不包含 connectWebSocket 以避免无限循环
+  }, [deviceId, isOnline, handleWebSocketMessage]);
 
   // ==================== 初始化时加载播放列表 ====================
 

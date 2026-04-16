@@ -105,9 +105,9 @@ const DashboardPage: React.FC = () => {
 
       // 计算播放列表统计
       let activeAssignments = 0;
-      playlists.forEach((p: Playlist & { devices?: { is_active: boolean }[] }) => {
+      playlists.forEach((p: Playlist) => {
         if (p.devices) {
-          activeAssignments += p.devices.filter((d: { is_active: boolean }) => d.is_active).length;
+          activeAssignments += p.devices.length;
         }
       });
 

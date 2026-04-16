@@ -35,7 +35,7 @@ import {
 } from '@ant-design/icons';
 import type { Device, DeviceSchedule, DevicePlaylist, Playlist } from '../types';
 import { getDeviceList, setDeviceSchedule, getDeviceSchedule, getDevicePlaylists, toggleDeviceDisabled } from '../api/device';
-import { getPlaylistList, assignPlaylistToDevice, unassignPlaylistFromDevice, togglePlaylistActivation } from '../api/playlist';
+import { getPlaylistList, assignPlaylistToDevice, unassignPlaylistFromDevice } from '../api/playlist';
 import { useStore } from '../store';
 
 const { Title, Text } = Typography;
@@ -349,25 +349,6 @@ const handleSetSchedule = async (values: ScheduleFormValues) => {
     }
   };
 
-  const handleTogglePlaylistActive = async (playlistId: number, isActive: boolean) => {
-    if (!selectedDevice) return;
-
-    try {
-      await togglePlaylistActivation(playlistId, selectedDevice.id, isActive);
-      message.success(isActive ? '播放列表已激活' : '播放列表已停用');
-      const response = await getDevicePlaylists(selectedDevice.id);
-      setDevicePlaylists(response.playlists || []);
-      // 同时更新列表页显示
-      setDevicePlaylistsMap(prev => ({
-        ...prev,
-        [selectedDevice.id]: response.playlists || []
-      }));
-    } catch (error: unknown) {
-      console.error('Toggle playlist active error:', error);
-      message.error('操作失败');
-    }
-  };
-
   // 格式化最后在线时间
   const formatLastOnline = (time: string | undefined) => {
     if (!time) return '-';
@@ -538,12 +519,6 @@ const handleSetSchedule = async (values: ScheduleFormValues) => {
                 </Space>
                 <div style={{ fontSize: 11, color: '#666', paddingLeft: 18 }}>
                   {pl.item_count}个媒体
-                  <Tag
-                    color={pl.is_active ? 'success' : 'default'}
-                    style={{ fontSize: 10, padding: '0 4px', marginLeft: 4, lineHeight: '16px' }}
-                  >
-                    {pl.is_active ? '激活' : '未激活'}
-                  </Tag>
                 </div>
               </div>
             ))}
@@ -808,14 +783,6 @@ const handleSetSchedule = async (values: ScheduleFormValues) => {
               <List.Item
                 key={item.assignment_id || item.playlist_id}
                 actions={[
-                  <Switch
-                    key="active"
-                    size="small"
-                    checked={item.is_active}
-                    checkedChildren="激活"
-                    unCheckedChildren="停用"
-                    onChange={(checked) => handleTogglePlaylistActive(item.playlist_id, checked)}
-                  />,
                   <Popconfirm
                     key="remove"
                     title="确定要取消分配吗？"

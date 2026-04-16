@@ -217,6 +217,32 @@ await manager.send_to_device(device_id, data)
 
 **影响**: Android 播放端和前端无需修改，服务器内部实现不同。
 
+### 已移除的接口（v2.1 破坏性变更）
+
+**播放列表激活端点**
+
+```
+DELETE: /api/playlists/{playlist_id}/devices/{device_id}/activate
+```
+
+**变更说明**：
+- 播放列表分配简化：播放列表要么是"已分配"要么是"未分配"
+- 移除了手动激活/停用切换功能
+- 移除了 `playlist_activated` 和 `playlist_deactivated` WebSocket 消息类型
+- 移除了 API 响应中的 `is_active` 字段
+
+**影响**：
+- 客户端代码如果调用了激活端点，需要移除相关调用
+- 原有的"分配但未激活"的播放列表现在视为已激活
+- 数据无需迁移，`DevicePlaylist.is_active` 字段保留用于向后兼容但不再使用
+- API 响应不再返回 `is_active` 字段
+
+**迁移步骤**：
+1. 检查代码中是否有调用 `/api/playlists/{id}/devices/{device_id}/activate` 的地方
+2. 移除激活/停用相关的 UI 按钮和逻辑
+3. 更新客户端代码，假设所有分配的播放列表都是激活的
+4. 如果需要根据时间自动切换播放列表，使用 Schedule API
+
 ---
 
 ## 🔧 常见问题

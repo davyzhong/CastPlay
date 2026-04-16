@@ -63,7 +63,6 @@ class DevicePlaylistResponse(BaseModel):
     id: int
     device_id: int
     playlist_id: int
-    is_active: bool
     assigned_at: Optional[datetime] = None  # 使用 created_at 作为分配时间
 
     class Config:
@@ -76,7 +75,6 @@ class DevicePlaylistResponse(BaseModel):
             id=obj.id,
             device_id=obj.device_id,
             playlist_id=obj.playlist_id,
-            is_active=obj.is_active,
             assigned_at=obj.created_at
         )
 

@@ -134,6 +134,20 @@ def register_device(
             existing.mac_address = mac_address
         if device_data.device_name and device_data.device_name != "Default Device":
             existing.device_name = device_data.device_name
+        elif device_data.device_name == "Default Device":
+            # 客户端发送 "Default Device" 时，根据 device_type 生成正确的名称
+            device_type = (device_data.device_type or "web_browser").lower()
+            is_android = device_type.startswith("android")
+            prefix = "Android" if is_android else "Web"
+            # 如果当前名称前缀与设备类型不匹配，则更新
+            if (is_android and not existing.device_name.startswith("Android-")) or \
+               (not is_android and not existing.device_name.startswith("Web-")):
+                existing.device_name = f"{prefix}-{existing.registration_code}"
+                logger.info(f"Device name updated: {existing.device_name} (ID: {existing.device_id}, type: {device_data.device_type})")
+        # 更新设备类型（如果提供了且与当前不同）
+        if device_data.device_type and existing.device_type != device_data.device_type:
+            existing.device_type = device_data.device_type
+            logger.info(f"Device type updated: {existing.device_type} (ID: {existing.device_id})")
         if device_data.timezone and device_data.timezone != "Asia/Shanghai":
             existing.timezone = device_data.timezone
 
@@ -156,6 +170,20 @@ def register_device(
         prefix = "Android" if is_android else "Web"
         device_name = f"{prefix}-{registration_code}"
 
+    # 查找 Default 播放列表（如果没有则创建）
+    from app.models.playlist import Playlist
+    default_playlist = db.query(Playlist).filter(Playlist.name == "Default").first()
+    if not default_playlist:
+        # 创建默认播放列表
+        default_playlist = Playlist(
+            name="Default",
+            description="默认播放列表 - 所有新设备自动关联到此播放列表",
+            is_system=False
+        )
+        db.add(default_playlist)
+        db.commit()
+        logger.info("Created Default playlist for new devices")
+
     # 创建新设备
     new_device = Device(
         device_id=device_id,
@@ -166,13 +194,24 @@ def register_device(
         ip_address=client_ip,
         registration_code=registration_code,
         last_online=datetime.utcnow(),
-        status="online"
+        status="online",
+        current_playlist_id=default_playlist.id  # 关联到 Default 播放列表
     )
     db.add(new_device)
     db.commit()
     db.refresh(new_device)
 
-    logger.info(f"New device registered: {new_device.device_name} (ID: {device_id}, 注册码: {registration_code})")
+    # 在 device_playlists 表中创建关联记录（用于 /api/player/init 接口查询）
+    from app.models.playlist import DevicePlaylist
+    device_playlist = DevicePlaylist(
+        device_id=new_device.id,
+        playlist_id=default_playlist.id,
+        is_active=True
+    )
+    db.add(device_playlist)
+    db.commit()
+
+    logger.info(f"New device registered: {new_device.device_name} (ID: {device_id}, 注册码：{registration_code}, playlist: {default_playlist.name})")
     response.status_code = status.HTTP_201_CREATED
     return new_device
 
@@ -598,7 +637,6 @@ def get_device_playlists(
                 "assignment_id": dp.id,
                 "playlist_id": p.id,
                 "playlist_name": p.name,
-                "is_active": bool(dp.is_active),
                 "item_count": item_counts.get(p.id, 0),
                 "assigned_at": dp.created_at.isoformat() if dp.created_at else None
             }

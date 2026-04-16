@@ -29,7 +29,7 @@ interface DownloadStatus {
 
 // 与 usePlaylistChangeDetection 中的类型保持一致
 interface PlaylistUpdateInfo {
-    action: 'assign' | 'update' | 'remove' | 'activate';
+    action: 'assign' | 'update' | 'remove';
     playlist_id: number;
     playlist_name: string;
     version: string;

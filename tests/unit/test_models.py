@@ -345,18 +345,17 @@ class TestDevicePlaylistModel:
         """测试设备播放列表分配"""
         assignment = DevicePlaylist(
             device_id=test_device.id,
-            playlist_id=test_playlist.id,
-            is_active=1
+            playlist_id=test_playlist.id
         )
         db_session.add(assignment)
         db_session.commit()
 
         assert assignment.device_id == test_device.id
         assert assignment.playlist_id == test_playlist.id
-        assert assignment.is_active == 1
+        # is_active field exists for backward compatibility but is no longer used
 
     def test_device_playlist_inactive(self, db_session, test_device, test_playlist):
-        """测试停用的设备播放列表分配"""
+        """测试停用的设备播放列表分配（is_active 字段保留用于向后兼容）"""
         assignment = DevicePlaylist(
             device_id=test_device.id,
             playlist_id=test_playlist.id,
@@ -365,7 +364,8 @@ class TestDevicePlaylistModel:
         db_session.add(assignment)
         db_session.commit()
 
-        assert assignment.is_active == 0
+        # is_active field exists but is deprecated
+        assert hasattr(assignment, 'is_active')
 
 
 # ============================================================================

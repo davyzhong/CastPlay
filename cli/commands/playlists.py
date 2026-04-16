@@ -240,49 +240,6 @@ def unassign_playlist(
         console.print(f"[red]错误: {e.detail}[/red]")
         raise typer.Exit(1)
 
-
-def activate_playlist(
-    playlist_id: int = typer.Argument(..., help="播放列表 ID"),
-    device_id: int = typer.Argument(..., help="设备 ID")
-):
-    """
-    激活设备上的播放列表
-
-    示例:
-        castplay playlists activate 1 2
-    """
-    try:
-        result = api_client.activate_playlist(playlist_id, device_id, is_active=True)
-        console.print(f"[green]✓ 播放列表已激活[/green]")
-        console.print(f"  播放列表 ID: {playlist_id}")
-        console.print(f"  设备 ID: {device_id}")
-
-    except APIError as e:
-        console.print(f"[red]错误: {e.detail}[/red]")
-        raise typer.Exit(1)
-
-
-def deactivate_playlist(
-    playlist_id: int = typer.Argument(..., help="播放列表 ID"),
-    device_id: int = typer.Argument(..., help="设备 ID")
-):
-    """
-    停用设备上的播放列表
-
-    示例:
-        castplay playlists deactivate 1 2
-    """
-    try:
-        result = api_client.activate_playlist(playlist_id, device_id, is_active=False)
-        console.print(f"[green]✓ 播放列表已停用[/green]")
-        console.print(f"  播放列表 ID: {playlist_id}")
-        console.print(f"  设备 ID: {device_id}")
-
-    except APIError as e:
-        console.print(f"[red]错误: {e.detail}[/red]")
-        raise typer.Exit(1)
-
-
 # ==================== 播放列表项管理 ====================
 
 def list_items(

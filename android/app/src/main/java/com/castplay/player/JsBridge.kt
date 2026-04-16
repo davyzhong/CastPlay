@@ -151,8 +151,7 @@ class JsBridge(private val context: Context) {
      */
     @JavascriptInterface
     fun getServerUrl(): String {
-        // 开发环境使用端口 8000
-        return "http://10.0.2.2:8000"
+        return BuildConfig.SERVER_URL
     }
 
     // ==================== 播放列表下载接口 ====================

@@ -195,15 +195,7 @@ class TestPlaylistCreationToPlayFlow:
         detail_data = detail_response.json()
         assert len(detail_data["devices"]) == 2
 
-        # 停用其中一个设备
-        toggle_response = client.put(
-            f"/api/playlists/{playlist_id}/devices/{devices[0]['id']}/activate",
-            params={"is_active": False},
-            headers=auth_headers
-        )
-        assert toggle_response.status_code == 200
-
-        # 取消分配
+        # 取消分配其中一个设备
         unassign_response = client.delete(
             f"/api/playlists/{playlist_id}/devices/{devices[1]['id']}",
             headers=auth_headers

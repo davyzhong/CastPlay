@@ -183,10 +183,10 @@ http://localhost:8000/player.html
 - [ ] `playlist_assigned` - 播放列表分配
 - [ ] `playlist_updated` - 播放列表更新
 - [ ] `playlist_removed` - 播放列表移除
-- [ ] `playlist_activated` - 播放列表激活
-- [ ] `playlist_deactivated` - 播放列表停用
 - [ ] `force_sync` - 强制同步
 - [ ] `control` - 控制命令
+- [ ] `device_config_updated` - 设备配置更新
+- [ ] `device_disabled` - 设备禁用
 
 ### 下载功能测试
 - [ ] 下载进度正确显示

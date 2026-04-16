@@ -174,14 +174,6 @@ class APIClient:
         """取消播放列表分配"""
         return self._request("DELETE", f"/api/playlists/{playlist_id}/devices/{device_id}")
 
-    def activate_playlist(self, playlist_id: int, device_id: int, is_active: bool = True) -> Dict[str, Any]:
-        """激活/停用设备上的播放列表"""
-        return self._request(
-            "PUT",
-            f"/api/playlists/{playlist_id}/devices/{device_id}/activate",
-            json_data={"is_active": is_active}
-        )
-
     # ==================== 播放列表项管理 ====================
 
     def add_playlist_item(

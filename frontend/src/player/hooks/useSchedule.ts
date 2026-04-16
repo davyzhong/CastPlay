@@ -5,9 +5,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { scheduleEvaluator, ScheduleData, ScheduleEvaluationResult } from '../services/ScheduleEvaluator';
 
-// 常量定义
-const MAX_WAIT_TIME_MS = 60 * 60 * 1000; // 1小时（毫秒），防止定时器过长
-
 interface UseScheduleOptions {
   /** 设备 UUID */
   deviceId: string | null;
@@ -139,8 +136,9 @@ export function useSchedule(options: UseScheduleOptions): UseScheduleReturn {
 
     const msUntilSwitch = scheduleEvaluator.getMsUntilNextSwitch();
     if (msUntilSwitch !== null && msUntilSwitch > 0) {
-      // 限制最大等待时间，防止定时器过长
-      const waitTime = Math.min(msUntilSwitch, MAX_WAIT_TIME_MS);
+      // 限制最大等待时间（1小时），防止定时器过长
+      const maxWait = 3600000;
+      const waitTime = Math.min(msUntilSwitch, maxWait);
 
       switchTimerRef.current = setTimeout(() => {
         console.log('[useSchedule] Switch timer triggered');

@@ -112,7 +112,7 @@ async def test_playlist_manager_mcp():
 
     from playlist_manager_server import (
         list_playlists, get_playlist, create_playlist, update_playlist,
-        delete_playlist, activate_playlist, deactivate_playlist,
+        delete_playlist,
         get_playlist_items, add_media_to_playlist, add_media_batch,
         remove_media_from_playlist, update_item_duration, reorder_playlist_items,
         assign_to_device, unassign_from_device, get_assigned_devices,
@@ -171,14 +171,7 @@ async def test_playlist_manager_mcp():
     print_result("get_assigned_devices", result)
     results.append(("get_assigned_devices", result.get("success", False)))
 
-    # 9-10. Activate/Deactivate
-    result = await activate_playlist(test_playlist_id)
-    print_result("activate_playlist", result)
-    results.append(("activate_playlist", result.get("success", False)))
-
-    result = await deactivate_playlist(test_playlist_id)
-    print_result("deactivate_playlist", result)
-    results.append(("deactivate_playlist", result.get("success", False)))
+    # 9. Activate/Deactivate tests removed (feature deprecated)
 
     # 11. Delete test playlist (only if we created it)
     if result.get("success") and test_playlist_id != playlist_id:

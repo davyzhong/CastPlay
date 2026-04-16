@@ -29,7 +29,25 @@ interface UseServerConfigResult {
 
 export function useServerConfig(): UseServerConfigResult {
   const [config, setConfig] = useState<ServerConfig | null>(() => {
-    return configStorage.get<ServerConfig>(STORAGE_KEYS.SERVER_CONFIG);
+    // 首次加载时检查配置
+    const stored = configStorage.get<ServerConfig>(STORAGE_KEYS.SERVER_CONFIG);
+
+    // Web 环境开发模式：如果没有配置，使用默认配置
+    if (!stored && !window.AndroidBridge) {
+      const defaultConfig: ServerConfig = {
+        address: 'localhost',
+        port: 8001,
+        protocol: 'http',
+        configuredAt: new Date().toISOString(),
+        lastConnectionStatus: 'success',
+        lastConnectionAt: new Date().toISOString(),
+      };
+      console.log('[useServerConfig] Using default config for web development:', defaultConfig);
+      configStorage.set(STORAGE_KEYS.SERVER_CONFIG, defaultConfig);
+      return defaultConfig;
+    }
+
+    return stored;
   });
 
   const [isTesting, setIsTesting] = useState(false);

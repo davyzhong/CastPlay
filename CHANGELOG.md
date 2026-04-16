@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrate CLI config to Pydantic v2 `ConfigDict` syntax
 - Standardize all MCP server versions to 2.0.0
 - Replace deprecated `datetime.utcnow()` with `datetime.now(timezone.utc)`
+- **Simplify playlist assignment model**: Playlists are now either "assigned" or "not assigned" to devices (no activate/deactivate toggle)
 
 ### Fixed
 - Replace hardcoded user paths with placeholder paths in MCP README
@@ -38,6 +39,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Global state mutation in MCP API client (replaced with contextvars)
+- **BREAKING**: Playlist activation endpoints (`/api/playlists/{id}/devices/{device_id}/activate`)
+- **BREAKING**: WebSocket message types `playlist_activated` and `playlist_deactivated`
+- **BREAKING**: `is_active` field usage in `DevicePlaylist` model (field retained for backward compatibility, always `True`)
+
+### Breaking Changes
+- **Playlist Assignment Simplification**: The playlist activation feature has been removed. Playlists assigned to devices are now always considered "active". This simplifies the data model and API.
+  - Removed: `/api/playlists/{playlist_id}/devices/{device_id}/activate` endpoint
+  - Removed: `playlist_activated` and `playlist_deactivated` WebSocket messages
+  - Changed: DevicePlaylist.is_active is always `True` for assigned playlists
+  - Migration: Existing inactive assignments will be treated as active; no data migration needed
 
 ## [2.0.0] - 2026-03-18
 

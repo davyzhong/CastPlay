@@ -819,16 +819,17 @@ const PlaylistListPage: React.FC = () => {
     setIsPlaying(true);
   };
 
-  // 预览播放下一个
+  // 预览播放下一个（循环播放）
   const handlePreviewNext = useCallback(() => {
     if (!selectedPlaylist) return;
     if (previewIndex < selectedPlaylist.items.length - 1) {
+      // 还有下一个，播放下一个
       setPreviewIndex(previewIndex + 1);
     } else {
-      setIsPlaying(false);
-      message.info('播放列表播放完毕');
+      // 已播放到最后，循环回到第一个继续播放
+      setPreviewIndex(0);
     }
-  }, [previewIndex, selectedPlaylist, message]);
+  }, [previewIndex, selectedPlaylist]);
 
   // 自动播放下一个（仅图片和PPT使用定时器，视频使用 onEnded）
   useEffect(() => {
@@ -1009,10 +1010,10 @@ const PlaylistListPage: React.FC = () => {
                     {device.device_name}
                   </span>
                   <Tag
-                    color={device.is_active ? 'success' : 'default'}
+                    color="success"
                     style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', margin: 0 }}
                   >
-                    {device.is_active ? '激活' : '未激活'}
+                    已分配
                   </Tag>
                 </Space>
               </div>
@@ -1441,12 +1442,12 @@ const PlaylistListPage: React.FC = () => {
                           )
                         },
                         {
-                          title: '激活状态',
-                          dataIndex: 'is_active',
+                          title: '已分配',
+                          key: 'assigned',
                           width: 100,
-                          render: (isActive: boolean) => (
-                            <Tag color={isActive ? 'blue' : 'default'}>
-                              {isActive ? '激活' : '未激活'}
+                          render: () => (
+                            <Tag color="success">
+                              已分配
                             </Tag>
                           )
                         },
@@ -1516,7 +1517,12 @@ const PlaylistListPage: React.FC = () => {
 
       {/* 播放列表预览模态框 */}
       <Modal
-        title={`播放列表预览 (${previewIndex + 1}/${selectedPlaylist?.items.length || 0})`}
+        title={
+          <Space>
+            <span>播放列表预览 ({previewIndex + 1}/{selectedPlaylist?.items.length || 0})</span>
+            <Tag color="blue" style={{ marginLeft: 8 }}>循环播放</Tag>
+          </Space>
+        }
         open={playlistPreviewVisible}
         onCancel={() => {
           setPlaylistPreviewVisible(false);
@@ -1664,11 +1670,11 @@ const PlaylistListPage: React.FC = () => {
                       },
                       {
                         title: '状态',
-                        dataIndex: 'is_active',
+                        key: 'status',
                         width: 100,
-                        render: (isActive: boolean) => (
-                          <Tag color={isActive ? 'success' : 'default'}>
-                            {isActive ? '激活' : '未激活'}
+                        render: () => (
+                          <Tag color="success">
+                            已分配
                           </Tag>
                         ),
                       },

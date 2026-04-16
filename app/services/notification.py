@@ -107,21 +107,6 @@ class NotificationService:
         """
         await connection_manager.notify_playlist_removed(device_id, playlist_id)
 
-    @staticmethod
-    async def notify_playlist_activated(device_id: str, playlist_id: int, is_active: bool):
-        """
-        通知设备：播放列表激活状态变更
-
-        触发时机：
-        - 管理员激活/停用播放列表
-
-        Args:
-            device_id: 设备 UUID
-            playlist_id: 播放列表 ID
-            is_active: 是否激活
-        """
-        await connection_manager.notify_playlist_activated(device_id, playlist_id, is_active)
-
     # ==================== 设备配置通知 ====================
 
     @staticmethod

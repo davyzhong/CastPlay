@@ -18,7 +18,7 @@ const PlayerPage: React.FC = () => {
   const { isOnline } = useOfflineMode();
 
   // 播放列表同步（包含平滑切换支持）
-  const { currentPlaylist, pendingUpdate, applyPendingUpdate } = usePlaylistSync(
+  const { currentPlaylist, pendingUpdate, applyPendingUpdate, resetIndexOnPlaylistChange } = usePlaylistSync(
     deviceInfo?.device_id || null,
     isOnline
   );
@@ -28,6 +28,13 @@ const PlayerPage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // 当播放列表切换时，重置索引
+  useEffect(() => {
+    if (resetIndexOnPlaylistChange) {
+      setCurrentIndex(0);
+    }
+  }, [resetIndexOnPlaylistChange]);
 
   // 当前播放项
   const items = currentPlaylist?.items || [];

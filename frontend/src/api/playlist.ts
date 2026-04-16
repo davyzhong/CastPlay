@@ -83,16 +83,6 @@ export const assignPlaylistToDevice = (playlistId: number, deviceId: number) =>
 export const unassignPlaylistFromDevice = (playlistId: number, deviceId: number) =>
   api.delete<void>(`/playlists/${playlistId}/devices/${deviceId}`);
 
-// 激活/停用设备上的播放列表
-export const togglePlaylistActivation = (
-  playlistId: number,
-  deviceId: number,
-  isActive: boolean
-) =>
-  api.put<void>(`/playlists/${playlistId}/devices/${deviceId}/activate`, {
-    is_active: isActive,
-  });
-
 // 批量添加媒体到播放列表
 export const addItemsToPlaylistBatch = (playlistId: number, params: BatchAddItemsParams) =>
   api.post<BatchAddItemsResponse>(`/playlists/${playlistId}/items/batch/`, params);

@@ -6,7 +6,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { playerApi } from '../utils/apiClient';
 import type { PlayerDeviceInfo } from './types';
 
-// 模拟 MAC 地址生成
+// 模拟 MAC 地址生成（固定格式用于 Web 端）
 const generateMockMac = (): string => {
   const hexDigits = '0123456789ABCDEF';
   const parts: string[] = [];

@@ -17,6 +17,7 @@ export interface UsePlaylistSyncReturn {
   pendingUpdate: boolean;
   applyPendingUpdate: () => void;
   setCurrentPlaylist: (playlist: PlayerPlaylist) => void;
+  resetIndexOnPlaylistChange: boolean;
 }
 
 export const usePlaylistSync = (
@@ -27,8 +28,10 @@ export const usePlaylistSync = (
   const [currentPlaylist, setCurrentPlaylist] = useState<PlayerPlaylist | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetIndexOnPlaylistChange, setResetIndexOnPlaylistChange] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const pendingSwitchRef = useRef<number | null>(null);  // 待切换的播放列表 ID
+  const previousPlaylistIdRef = useRef<number | null>(null);  // 记录上一次的播放列表 ID
 
   // 初始化播放列表
   const initPlaylists = useCallback(async () => {
@@ -54,13 +57,19 @@ export const usePlaylistSync = (
         if (pendingSwitchRef.current) {
           const targetPlaylist = fetchedPlaylists.find(p => p.id === pendingSwitchRef.current);
           if (targetPlaylist) {
+            // 检查是否发生了播放列表切换
+            if (currentPlaylist && targetPlaylist.id !== currentPlaylist.id) {
+              setResetIndexOnPlaylistChange(true);
+            }
             setCurrentPlaylist(targetPlaylist);
             localStorage.setItem('last_playlist_id', targetPlaylist.id.toString());
+            previousPlaylistIdRef.current = targetPlaylist.id;
             console.log('[usePlaylistSync] Switched to newly assigned playlist:', targetPlaylist.name);
           } else {
             // 如果找不到指定的播放列表，使用第一个
             setCurrentPlaylist(fetchedPlaylists[0]);
             localStorage.setItem('last_playlist_id', fetchedPlaylists[0].id.toString());
+            previousPlaylistIdRef.current = fetchedPlaylists[0].id;
           }
           pendingSwitchRef.current = null;
         } else {
@@ -70,10 +79,18 @@ export const usePlaylistSync = (
             ? fetchedPlaylists.find(p => p.id === parseInt(lastPlaylistId))
             : null;
 
-          setCurrentPlaylist(lastPlaylist || fetchedPlaylists[0]);
+          const selectedPlaylist = lastPlaylist || fetchedPlaylists[0];
+
+          // 检查是否发生了播放列表切换（比如刷新后重新加载）
+          if (currentPlaylist && selectedPlaylist.id !== currentPlaylist.id) {
+            setResetIndexOnPlaylistChange(true);
+          }
+
+          setCurrentPlaylist(selectedPlaylist);
           if (lastPlaylist) {
             localStorage.setItem('last_playlist_id', lastPlaylist.id.toString());
           }
+          previousPlaylistIdRef.current = selectedPlaylist.id;
         }
       }
     } catch (err) {
@@ -257,6 +274,16 @@ export const usePlaylistSync = (
     }
   }, [deviceId, isOnline, initPlaylists]);
 
+  // 在下一个渲染周期重置 resetIndexOnPlaylistChange 标志
+  useEffect(() => {
+    if (resetIndexOnPlaylistChange) {
+      const timer = setTimeout(() => {
+        setResetIndexOnPlaylistChange(false);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [resetIndexOnPlaylistChange]);
+
   return {
     playlists,
     currentPlaylist,
@@ -268,5 +295,6 @@ export const usePlaylistSync = (
     pendingUpdate: false, // TODO: 实现平滑切换功能
     applyPendingUpdate: () => {}, // TODO: 实现平滑切换功能
     setCurrentPlaylist,
+    resetIndexOnPlaylistChange,
   };
 };

@@ -68,8 +68,6 @@ const CONFIG = {
     cacheName: 'playlist-media-cache',
     dbName: 'PlaylistDownloadDB',
     dbVersion: 1,
-    progressThrottleMs: 100,      // 进度更新节流间隔（毫秒）
-    progressThrottlePercent: 1,   // 进度变化百分比阈值
 };
 
 /**
@@ -216,45 +214,9 @@ export class PlaylistDownloadManager {
     private runningCount = 0;
     private currentState: PlaylistDownloadState | null = null;
     private callbacks: DownloadProgressCallback = {};
-    private lastProgressUpdate: Map<number, { time: number; progress: number }> = new Map(); // 节流追踪
 
     constructor() {
         this.storage = new DownloadStateStorage();
-    }
-
-    /**
-     * 检查是否应该发送进度更新（节流）
-     */
-    private shouldSendProgressUpdate(mediaId: number, newProgress: number): boolean {
-        const now = Date.now();
-        const last = this.lastProgressUpdate.get(mediaId);
-
-        if (!last) {
-            return true;
-        }
-
-        const timeSinceLastUpdate = now - last.time;
-        const progressDiff = Math.abs(newProgress - last.progress);
-
-        // 满足以下任一条件时发送更新：
-        // 1. 距离上次更新超过阈值
-        // 2. 进度变化超过阈值
-        // 3. 任务完成（progress = 100）
-        if (timeSinceLastUpdate >= CONFIG.progressThrottleMs ||
-            progressDiff >= CONFIG.progressThrottlePercent ||
-            newProgress >= 100) {
-            this.lastProgressUpdate.set(mediaId, { time: now, progress: newProgress });
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * 清除任务的节流追踪
-     */
-    private clearProgressTracking(mediaId: number): void {
-        this.lastProgressUpdate.delete(mediaId);
     }
 
     /**
@@ -443,10 +405,8 @@ export class PlaylistDownloadManager {
                     task.progress = Math.round((loadedBytes / task.totalBytes) * 100);
                 }
 
-                // 回调进度（带节流）
-                if (this.shouldSendProgressUpdate(mediaId, task.progress)) {
-                    this.callbacks.onTaskProgress?.(mediaId, task);
-                }
+                // 回调进度
+                this.callbacks.onTaskProgress?.(mediaId, task);
             }
 
             // 合并 chunks
@@ -502,9 +462,6 @@ export class PlaylistDownloadManager {
         const task = this.currentState.tasks.get(mediaId);
         if (!task) return;
 
-        // 清除节流追踪
-        this.clearProgressTracking(mediaId);
-
         this.currentState.completedFiles++;
         this.updateOverallProgress();
 
@@ -541,9 +498,6 @@ export class PlaylistDownloadManager {
             this.downloadQueue.push(mediaId);
         } else {
             // 重试次数用尽
-            // 清除节流追踪
-            this.clearProgressTracking(mediaId);
-
             task.status = 'failed';
             this.currentState.failedFiles++;
 
@@ -651,6 +605,22 @@ export class PlaylistDownloadManager {
      */
     async clearPlaylistCache(playlistId: number): Promise<void> {
         await this.storage.clearPlaylist(playlistId);
+    }
+
+    /**
+     * 计算字符串的简单哈希（用于快速比较）
+     * @deprecated Use MD5 hash comparison instead when available
+     * @internal This method is kept for potential future use
+     */
+    // @ts-ignore - Kept for potential future use
+    private _simpleHash(str: string): string {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return hash.toString(16);
     }
 
     /**

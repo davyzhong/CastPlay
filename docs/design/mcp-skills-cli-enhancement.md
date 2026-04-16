@@ -125,8 +125,6 @@ tools = [
     "create_playlist",        # 创建播放列表
     "update_playlist",        # 更新播放列表
     "delete_playlist",        # 删除播放列表
-    "activate_playlist",      # 激活播放列表
-    "deactivate_playlist",    # 停用播放列表
 
     # 播放列表内容管理
     "add_media_to_playlist",  # 添加媒体到播放列表
@@ -135,7 +133,7 @@ tools = [
     "set_item_duration",      # 设置媒体播放时长
 
     # 设备分配
-    "assign_playlist_to_device",   # 分配播放列表到设备
+    "assign_playlist_to_device",   # 分配播放列表到设备（自动激活）
     "unassign_playlist_from_device", # 取消分配
 
     # 媒体管理

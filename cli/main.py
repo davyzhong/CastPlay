@@ -262,26 +262,6 @@ def playlists_unassign(
     unassign_playlist(playlist_id=playlist_id, device_id=device_id)
 
 
-@playlists_app.command("activate")
-def playlists_activate(
-    playlist_id: int = typer.Argument(..., help="播放列表 ID"),
-    device_id: int = typer.Argument(..., help="设备 ID")
-):
-    """激活设备上的播放列表"""
-    from cli.commands.playlists import activate_playlist
-    activate_playlist(playlist_id=playlist_id, device_id=device_id)
-
-
-@playlists_app.command("deactivate")
-def playlists_deactivate(
-    playlist_id: int = typer.Argument(..., help="播放列表 ID"),
-    device_id: int = typer.Argument(..., help="设备 ID")
-):
-    """停用设备上的播放列表"""
-    from cli.commands.playlists import deactivate_playlist
-    deactivate_playlist(playlist_id=playlist_id, device_id=device_id)
-
-
 @playlists_app.command("items")
 def playlists_items(
     playlist_id: int = typer.Argument(..., help="播放列表 ID"),

@@ -2,7 +2,7 @@
  * 调度管理页面
  * 管理设备的播放列表调度规则
  */
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Table,
   Button,
@@ -46,15 +46,6 @@ import { getDeviceList } from '../api/device';
 import { getPlaylistList } from '../api/playlist';
 
 const { Title, Text } = Typography;
-
-// Memoized day tag component
-const DayTag = memo(function DayTag({ day, isActive }: { day: string; isActive: boolean }) {
-  return (
-    <Tag color={isActive ? 'blue' : 'default'} style={{ minWidth: 32, textAlign: 'center' }}>
-      {day}
-    </Tag>
-  );
-});
 
 // 星期选择器选项
 const DAY_OPTIONS = [
@@ -242,20 +233,26 @@ const SchedulePage: React.FC = () => {
     }
   };
 
-  // 渲染星期显示（使用 memoized 组件）
-  const renderDays = useCallback((daysOfWeek: number) => {
+  // 渲染星期显示
+  const renderDays = (daysOfWeek: number) => {
     const days = getDaysDisplay(daysOfWeek);
     return (
       <Space size={2} wrap>
         {DAY_NAMES.map((day) => (
-          <DayTag key={day} day={day} isActive={days.includes(day)} />
+          <Tag
+            key={day}
+            color={days.includes(day) ? 'blue' : 'default'}
+            style={{ minWidth: 32, textAlign: 'center' }}
+          >
+            {day}
+          </Tag>
         ))}
       </Space>
     );
-  }, []);
+  };
 
-  // 表格列定义（memoized）
-  const columns = useMemo<ColumnsType<PlaylistSchedule>>(() => [
+  // 表格列定义
+  const columns: ColumnsType<PlaylistSchedule> = [
     {
       title: 'ID',
       dataIndex: 'id',
@@ -370,7 +367,7 @@ const SchedulePage: React.FC = () => {
         </Space>
       ),
     },
-  ], [renderDays, handleToggleEnabled, openModal, handleDelete]);
+  ];
 
   return (
     <div>

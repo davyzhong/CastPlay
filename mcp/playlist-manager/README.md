@@ -17,7 +17,6 @@ pip install -e .
 - `create_playlist` - Create new playlist
 - `update_playlist` - Update playlist info
 - `delete_playlist` - Delete playlist
-- `activate_playlist` / `deactivate_playlist` - Toggle active state
 
 ### Playlist Items
 - `get_playlist_items` - Get items in playlist
@@ -28,7 +27,7 @@ pip install -e .
 - `reorder_playlist_items` - Reorder items
 
 ### Device Assignment
-- `assign_to_device` - Assign playlist to device
+- `assign_to_device` - Assign playlist to device (always active)
 - `unassign_from_device` - Remove from device
 - `get_assigned_devices` - Get devices with this playlist
 

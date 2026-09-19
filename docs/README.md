@@ -71,6 +71,12 @@ docs/
 | [PHASE4_TEST_REPORT.md](./reports/PHASE4_TEST_REPORT.md) | Phase 4 测试报告 |
 | [COMPLETE_REVIEW_AND_TEST_PLAN.md](./reports/COMPLETE_REVIEW_AND_TEST_PLAN.md) | 完整测试计划 |
 
+### 其他文档
+
+| 文档 | 说明 |
+|------|------|
+| [OPTIMIZATION.md](../OPTIMIZATION.md) | 项目优化建议（代码审查结果，供 production 化参考） |
+
 ## 🔗 快速链接
 
 - [返回项目主页](../README.md)

@@ -132,6 +132,10 @@ castplay/
 - 📖 [Web 播放器模拟器](./docs/features/web_player_simulator.md)
 - 📖 [播放列表推送测试](./docs/testing/playlist_push_guide.md)
 
+### 优化建议
+
+- 📖 [优化建议文档](./docs/OPTIMIZATION.md) - 代码审查结果，供 production 化参考
+
 ## 🧪 测试
 
 ### 运行测试

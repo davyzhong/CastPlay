@@ -1,44 +1,18 @@
 ---
 name: CastPlay All-in-One
-description: Single-container digital signage management — FastAPI backend + React admin + Android player, no Redis/Celery/PostgreSQL required. Tuned for fleets under 50 screens.
+description: 单容器数字标牌管理系统 — FastAPI 后端 + React 管理端 + Android 播放端，无需 Redis/Celery/PostgreSQL。针对 50 块屏以下的场景做了专项优化。
 license: MIT
 homepage: https://github.com/davyzhong/CastPlay
-platforms:
-  - Linux / macOS / Windows (server)
-  - Web (admin + player)
-  - Android 8.0+ (player client)
-language: Python 3.10+ / TypeScript (React) / Kotlin (Android)
-model: gpt-4 / claude-sonnet / gemini-2.5
-intent: code-generation / question-answering / agent-tool
-capabilities:
-  - install
-  - quickstart
-  - deploy
-  - api-reference
-  - docker
-  - troubleshoot
-tags:
-  - digital-signage
-  - fastapi
-  - react
-  - typescript
-  - android
-  - kotlin
-  - websocket
-  - ppt-to-video
-  - docker
-  - small-fleet
-  - self-hosted
-  - kiosk
+language: zh-Hans
 ---
 
 <div align="center">
 
 # 🖥️ CastPlay All-in-One
 
-**Single-container digital signage that boots in 10 seconds — manage screens, upload media, push playlists from one web console.**
+**单容器数字标牌 — 10 秒拉起。一个 Web 控制台，管设备、传素材、推播放列表。**
 
-`Upload media` → `Build playlist` → `Push to devices` → `Screens reflect changes within 2 s`
+`上传素材` → `编排播放列表` → `推送到设备` → `2 秒内屏幕同步更新`
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-2.0.0-success)](https://github.com/davyzhong/CastPlay/releases)
@@ -49,32 +23,32 @@ tags:
 [![Player](https://img.shields.io/badge/player-Android%20WebView-3DDC84)](android/)
 [![Security](https://img.shields.io/badge/security-policy-lightgrey)](SECURITY.md)
 
-**Languages**: [English](./README.md) · [中文](./README.zh.md)
+**[中文](./README.md)** · [English](./README.en.md)
 
-[Quick Start](#-quick-start) · [Install](#-install) · [Architecture](#-architecture) · [API](#-api-surface) · [Android Player](#-android-player) · [Comparison](#-comparison) · [Contributing](#-contributing)
+[快速开始](#-快速开始) · [安装](#-安装) · [架构](#-架构) · [API](#-api-接口) · [Android 播放端](#-android-播放端) · [同类对比](#-同类对比) · [贡献](#-贡献)
 
 </div>
 
 ---
 
-> Run a sign network from one process — admin web, REST + WebSocket API, multi-format media (image / video / PPT), and a kiosk-mode Android client — without standing up Redis, Celery, or PostgreSQL.
+> 一个进程跑一整套：管理端 + REST + WebSocket、多格式素材（含 PPT）、Kiosk 模式 Android 客户端。无需 Redis、无需 Celery、无需独立数据库。
 
 ---
 
-## ✨ Why CastPlay
+## ✨ 为什么选 CastPlay
 
-- **🚀 Single container, zero external deps** — `docker run castplay` and you have admin + API + WebSocket up. No Redis, no Celery, no separate database server.
-- **🖼️ Multi-format media, including PPT** — drop in `.pptx` and CastPlay converts it to a video on the server side (LibreOffice + ffmpeg) while keeping every original slide animation.
-- **📡 Live push to every screen** — playlists and schedule changes are dispatched over WebSocket; clients reflect changes within ≈ 2 s without polling.
-- **📱 Kiosk-locked Android player** — `MainActivity.kt` is a WebView host with `DevicePolicyManager` kiosk mode, so the device stays on your content.
-- **📅 Schedule + timezone aware** — daily on/off windows per device, multiple timezones, automatic fallback to a default playlist.
-- **🔍 Tuned for fleets under 50** — SQLite-backed, APScheduler-driven, 3 worker threads. Doesn't sprawl the way a Redis/Celery/PG stack does at this scale.
+- **🚀 单容器、零外部依赖** — `docker run castplay` 把管理端 + API + WebSocket 全部拉起。无需 Redis、Celery、单独的数据库服务。
+- **🖼️ 多格式素材，含 PPT** — 拖入 `.pptx`，服务端通过 LibreOffice + ffmpeg 转码为视频，原幻灯片动画保留。
+- **📡 实时推送到每一块屏** — 播放列表和定时配置通过 WebSocket 派发，客户端 ≈ 2 秒内生效，无需轮询。
+- **📱 Kiosk 锁定 Android 播放端** — `MainActivity.kt` 是带 `DevicePolicyManager` 锁定模式的 WebView，设备始终只能看你推的内容。
+- **📅 定时 + 多时区** — 每台设备独立的每日开关机窗口，多时区支持，自动回退到默认播放列表。
+- **🔍 为 50 块屏以下优化** — SQLite 持久化、APScheduler 调度、3 个 worker 线程。这个规模再上 Redis/Celery/PG 是过度设计。
 
 ---
 
-## 🚀 Quick Start
+## 🚀 快速开始
 
-### 30 seconds — try it with Docker
+### 30 秒 — 用 Docker 试用
 
 ```bash
 docker run -d \
@@ -82,94 +56,93 @@ docker run -d \
   -p 8000:8000 \
   -v castplay-data:/app/data \
   ghcr.io/davyzhong/castplay:latest
-# Or build locally:
+# 或本地构建：
 # docker build -t castplay:latest . && docker compose up -d
 ```
 
-Open <http://localhost:8000/> for the admin console, <http://localhost:8000/player.html> for the web player preview.
+打开 <http://localhost:8000/> 进入管理后台，<http://localhost:8000/player.html> 进入 Web 播放端预览。
 
-### 60 seconds — from source (no Docker)
+### 60 秒 — 从源码（不用 Docker）
 
 ```bash
-# 1. Clone
+# 1. 克隆
 git clone https://github.com/davyzhong/CastPlay.git
 cd CastPlay
 
-# 2. Install system prerequisites (Ubuntu/Debian names)
+# 2. 安装系统依赖（Ubuntu/Debian 包名）
 sudo apt-get update && sudo apt-get install -y libreoffice ffmpeg
 
-# 3. Backend
+# 3. 后端
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python scripts/init_db.py
 
-# 4. Frontend (for local development)
+# 4. 前端（本地开发时；预编译资源已合入仓库）
 cd frontend && npm install && npm run build && cd ..
-# (Pre-built assets are committed; you can skip the build for a quick look.)
 
-# 5. Run
+# 5. 跑起来
 python scripts/run.py
-# or: make dev
+# 或：make dev
 ```
 
-- **Admin console** → <http://localhost:8000/>
-- **Player simulator** → <http://localhost:8000/player.html>
-- **OpenAPI docs** → <http://localhost:8000/docs>
+- **管理后台** → <http://localhost:8000/>
+- **Web 播放端** → <http://localhost:8000/player.html>
+- **OpenAPI 文档** → <http://localhost:8000/docs>
 
-### Default credentials
+### 默认账号
 
-The bootstrap seeds an admin on first run:
+首次启动会自动 seed：
 
 ```
 username: admin
-password: changeme    # rotate in production via .env
+password: changeme    # 生产环境请通过 .env 覆盖
 ```
 
-> See [`docs/deployment/guide.md`](docs/deployment/guide.md) for the hardening checklist.
+> 加固清单见 [`docs/deployment/guide.md`](docs/deployment/guide.md)。
 
 ---
 
-## 📸 Visual Tour
+## 📸 它跑起来长什么样
 
-> ⚠️ Real screenshots are queued as `[TODO]` placeholders. Capture them from your running instance and commit into `docs/screenshots/` — placeholders resolve automatically.
+> ⚠️ 真实截图用 `[TODO]` 占位。跑起来后截屏放进 `docs/screenshots/`，占位会自动替换。
 
-### Admin console
+### 管理后台
 
 <p align="center">
-  <a href="docs/screenshots/dashboard.png"><img src="docs/screenshots/dashboard.png" width="320" alt="CastPlay admin dashboard: fleet status cards (online / offline / total devices), recent uploads, last push timestamps."></a>
-  <a href="docs/screenshots/playlists.png"><img src="docs/screenshots/playlists.png" width="320" alt="Playlist editor: media tiles in a drag-and-drop order rail, per-item duration slider, device assignment dropdown."></a>
+  <a href="docs/screenshots/dashboard.png"><img src="docs/screenshots/dashboard.png" width="320" alt="CastPlay 管理后台仪表盘：设备在线/离线/总数卡片、最近上传、最后推送时间戳"></a>
+  <a href="docs/screenshots/playlists.png"><img src="docs/screenshots/playlists.png" width="320" alt="播放列表编辑器：素材磁贴在拖拽顺序栏里，每项独立时长滑块，设备分配下拉"></a>
 </p>
 <p align="center"><sub><em>[TODO: dashboard.png] · [TODO: playlists.png]</em></sub></p>
 
-### Media library + Android player
+### 媒体库 + Android 播放端
 
 <p align="center">
-  <a href="docs/screenshots/media.png"><img src="docs/screenshots/media.png" width="320" alt="Media library: grid of uploaded images, videos, and converted PPT thumbnails with status badges."></a>
-  <a href="docs/screenshots/android-player.png"><img src="docs/screenshots/android-player.png" width="320" alt="Android player on a 10-inch display showing a fullscreen image followed by a video, with no system chrome."></a>
+  <a href="docs/screenshots/media.png"><img src="docs/screenshots/media.png" width="320" alt="媒体库：上传的图片、视频、转换后的 PPT 缩略图网格，带状态徽标"></a>
+  <a href="docs/screenshots/android-player.png"><img src="docs/screenshots/android-player.png" width="320" alt="Android 播放端在 10 寸屏上全屏显示图片轮播 + 视频，无系统 chrome"></a>
 </p>
 <p align="center"><sub><em>[TODO: media.png] · [TODO: android-player.png]</em></sub></p>
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ 架构
 
 ```mermaid
 flowchart TB
-    subgraph Browser[Admin browser]
-        Admin[Admin console<br/>React 18 + Ant Design]
-        PlayerWeb[Web player simulator<br/>player.html]
+    subgraph Browser[管理浏览器]
+        Admin[管理后台<br/>React 18 + Ant Design]
+        PlayerWeb[Web 播放端<br/>player.html]
     end
-    subgraph Server[CastPlay server — single process]
+    subgraph Server[CastPlay 服务端 — 单进程]
         API[REST API<br/>FastAPI]
         WS[WebSocket<br/>/ws/{device_id}]
-        Sched[Scheduler<br/>APScheduler · 3 workers]
-        PptSvc[PPT conversion<br/>LibreOffice + ffmpeg]
+        Sched[调度器<br/>APScheduler · 3 worker]
+        PptSvc[PPT 转码<br/>LibreOffice + ffmpeg]
         DB[(SQLite<br/>SQLAlchemy ORM)]
-        Files[Local FS<br/>uploads / converted / thumbnails]
+        Files[本地存储<br/>uploads / converted / thumbnails]
     end
-    subgraph Devices[Player clients]
-        Web[Browser-based player]
-        Android[Android WebView<br/>Kiosk mode · CacheManager]
+    subgraph Devices[播放端]
+        Web[浏览器播放端]
+        Android[Android WebView<br/>Kiosk 模式 · CacheManager]
     end
     Admin -->|REST + WebSocket| API
     PlayerWeb -->|REST + WebSocket| API
@@ -182,230 +155,230 @@ flowchart TB
     WS --> Devices
 ```
 
-**Push path**: admin → REST `POST /api/playlists/{id}/devices/{deviceId}` → WebSocket fan-out → connected clients receive the diff and rebuild their playlist.
+**推送路径**：管理端 → `POST /api/playlists/{id}/devices/{deviceId}` → WebSocket 扇出 → 连接的客户端收到 diff 并重建本地播放列表。
 
 ---
 
-## 📦 Features
+## 📦 功能
 
-### 🖼️ Media management
+### 🖼️ 素材管理
 
-- 🧩 **Multi-format ingest** — JPG/PNG/GIF images, MP4/AVI/MOV videos, and PPT/PPTX decks in one queue.
-- 🎞️ **PPT → video pipeline** — LibreOffice converts the deck, Poppler renders each page, ffmpeg stitches the result into an MP4.
-- 🔁 **Retry per file** — failed conversions expose a single-click retry button in the admin UI (`POST /api/media/{id}/retry`).
-- 🔍 **Content validation** — extension check *and* magic-number check; mismatches are rejected before they hit disk.
-- 🖼️ **Thumbnail generation** — Pillow renders previews for images and the first slide of PPT decks.
+- 🧩 **多格式支持** — JPG/PNG/GIF 图片、MP4/AVI/MOV 视频、PPT/PPTX 幻灯片。
+- 🎞️ **PPT → 视频管道** — LibreOffice 转 PDF、Poppler 拆页、ffmpeg 串成 MP4。
+- 🔁 **单文件重试** — 失败的转码在管理端有一键重试按钮（`POST /api/media/{id}/retry`）。
+- 🔍 **内容校验** — 扩展名 + Magic Number 双校验，不匹配的拒绝写入磁盘。
+- 🖼️ **缩略图生成** — Pillow 为图片与 PPT 首页生成预览图。
 
-### 📋 Playlists & devices
+### 📋 播放列表与设备
 
-- 🎯 **Drag-and-drop reordering** — `@dnd-kit` on the admin side; ordering is persisted via `PUT /api/playlists/{id}/items/reorder`.
-- 📡 **Push in ≈ 2 s** — changes fan out over WebSocket; devices never have to poll.
-- 🎚️ **Per-item duration** — set how long each tile plays; defaults to 8 s if unset.
-- 🎞️ **Web player simulator** — preview an entire playlist in the browser before assigning it (`/player.html`).
-- 📅 **Schedule-aware** — daily on/off windows per device, multi-timezone support, automatic fallback to a default playlist.
+- 🎯 **拖拽排序** — 管理端用 `@dnd-kit`，排序通过 `PUT /api/playlists/{id}/items/reorder` 持久化。
+- 📡 **≈ 2 秒同步** — 改动通过 WebSocket 推下去，设备无需轮询。
+- 🎚️ **单条独立时长** — 每段播放多久单独配，默认 8 秒。
+- 🎞️ **Web 播放端模拟器** — 分配之前在浏览器里整段预览（`/player.html`）。
+- 📅 **定时感知** — 每设备每日开关机窗口、多时区、自动回退到默认播放列表。
 
-### 🛡️ Operations
+### 🛡️ 运维
 
-- 🖥️ **Device registration** — MAC-address-keyed registry with `registration_code` for token auth in production.
-- 🔐 **JWT auth + bcrypt** — token rotation via `/api/auth/refresh`; rotate `SECRET_KEY` from `.env`.
-- 🧹 **Self-cleaning storage** — Android `CacheManager.kt` evicts non-essential files before storage fills up.
-- 🚦 **3-worker scheduler** — bounded concurrency for PPT conversions plus schedule evaluation per tick.
-- 🔁 **Auto-reconnect** — devices recover from network drops; WebSocket heartbeats keep liveness truthful.
+- 🖥️ **设备注册** — 以 MAC 地址为键的注册表，`registration_code` 作为生产环境 token 凭据。
+- 🔐 **JWT + bcrypt** — 通过 `/api/auth/refresh` 轮换 token，`.env` 里轮换 `SECRET_KEY`。
+- 🧹 **自清理存储** — Android `CacheManager.kt` 在存储用满前主动回收。
+- 🚦 **3-worker 调度器** — PPT 转码 + 定时评估的并发上限。
+- 🔁 **自动重连** — 设备网络断连后自动恢复，WebSocket 心跳保活。
 
-### 📱 Players
+### 📱 播放端
 
-- 🌐 **Browser player** — `frontend/player.html` runs the same code the Android WebView ships.
-- 🤖 **Android player** — `MainActivity.kt` is a WebView host with `DevicePolicyManager` kiosk mode and `CacheManager.kt` for offline-first media.
+- 🌐 **浏览器播放端** — `frontend/player.html` 与 Android WebView 跑同一份代码。
+- 🤖 **Android 播放端** — `MainActivity.kt` 是带 `DevicePolicyManager` 锁定模式 + `CacheManager.kt` 离线优先策略的 WebView 宿主。
 
 ---
 
-## 🔧 Install
+## 🔧 安装
 
-### 1. System prerequisites
+### 1. 系统前置
 
-| Tool | Why | Verified version |
+| 工具 | 用途 | 验证版本 |
 |---|---|---|
-| Python | 3.10+ | 3.10 / 3.11 / 3.12 |
-| Node.js | admin dev mode | 18+ |
+| Python | 后端 | 3.10+ |
+| Node.js | 前端开发模式 | 18+ |
 | LibreOffice | PPT → PDF | 7+ |
-| ffmpeg | media stitching | 4.4+ |
-| Docker (optional) | one-shot deploy | 24+ |
+| ffmpeg | 媒体拼接 | 4.4+ |
+| Docker（可选） | 单次部署 | 24+ |
 
-### 2. Install paths
+### 2. 安装路径
 
-#### Docker (recommended)
+#### Docker（推荐）
 
 ```bash
-docker compose up -d             # uses docker-compose.yml
-# or
+docker compose up -d             # 用 docker-compose.yml
+# 或
 docker build -t castplay . && docker run -d -p 8000:8000 -v castplay-data:/app/data castplay
 ```
 
-#### Pip + npm (developer mode)
+#### Pip + npm（开发者模式）
 
 ```bash
-# Backend
+# 后端
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python scripts/init_db.py
 python scripts/run.py
 
-# Frontend (optional — prebuilt assets ship in repo)
+# 前端（可选 — 仓库内已带预编译资源）
 cd frontend && npm install && npm run dev
 ```
 
-#### Make (developer convenience)
+#### Make（开发者快捷方式）
 
 ```bash
 make install          # pip + npm install
-make dev              # backend + frontend in parallel
+make dev              # 后端 + 前端并行
 make test             # pytest
 make lint             # black + isort + mypy + pylint
-make docker-build     # build container image
+make docker-build     # 构建镜像
 make docker-run       # docker compose up
 ```
 
-### 3. Configuration
+### 3. 配置
 
-CastPlay reads from environment variables (`.env` or container env):
+CastPlay 读取环境变量（`.env` 文件或容器环境变量）：
 
 ```bash
-DATABASE_PATH=/app/data/castplay.db   # SQLite path
-SECRET_KEY=...                        # JWT signing secret
-DEBUG=false                           # disable verbose logging in prod
-NUM_WORKERS=3                         # APScheduler thread pool size
-ENVIRONMENT=production                # tighten auth checks when "production"
+DATABASE_PATH=/app/data/castplay.db   # SQLite 路径
+SECRET_KEY=...                        # JWT 签名密钥
+DEBUG=false                           # 生产环境关掉详细日志
+NUM_WORKERS=3                         # APScheduler 线程池大小
+ENVIRONMENT=production                # 设为 production 时收紧鉴权
 ```
 
-> Full reference: [`docs/deployment/guide.md`](docs/deployment/guide.md) and `.env.example`.
+> 完整参考：[`docs/deployment/guide.md`](docs/deployment/guide.md)、`.env.example`。
 
 ---
 
-## 🌐 API surface
+## 🌐 API 接口
 
-REST routes are mounted under `/api/`. The OpenAPI explorer lives at `/docs` (Swagger UI) and `/redoc`.
+REST 路由统一挂载在 `/api/`。OpenAPI 浏览器见 `/docs`（Swagger UI）和 `/redoc`。
 
-| Group | Endpoints (highlights) | Notes |
+| 分组 | 端点（节选） | 备注 |
 |---|---|---|
 | **Auth** | `POST /auth/token`, `POST /auth/refresh`, `GET /auth/me` | JWT bearer |
-| **Devices** | `POST /devices/register`, `GET /devices`, `PUT /devices/{id}/disable`, `* /schedule` | MAC-keyed registration |
-| **Media** | `POST /media/upload`, `GET /media`, `DELETE /media/{id}`, `POST /media/{id}/retry` | multipart upload + thumbnails |
-| **Playlists** | `POST /playlists`, `* /items`, `PUT /items/reorder`, `POST /playlists/{id}/devices/{deviceId}` | drag-and-drop ordering persisted |
-| **Schedules** | `GET/PUT /devices/{id}/schedule` | per-device daily on/off windows |
-| **Player** | `GET /playlists/{deviceId}`, `GET /config/{deviceId}`, `POST /status/{deviceId}` | read-side for clients |
-| **WebSocket** | `WS /ws/{deviceId}` | playlist diffs + heartbeat |
+| **Devices** | `POST /devices/register`, `GET /devices`, `PUT /devices/{id}/disable`, `* /schedule` | MAC 键注册 |
+| **Media** | `POST /media/upload`, `GET /media`, `DELETE /media/{id}`, `POST /media/{id}/retry` | multipart 上传 + 缩略图 |
+| **Playlists** | `POST /playlists`, `* /items`, `PUT /items/reorder`, `POST /playlists/{id}/devices/{deviceId}` | 拖拽排序落库 |
+| **Schedules** | `GET/PUT /devices/{id}/schedule` | 每设备每日开关机窗口 |
+| **Player** | `GET /playlists/{deviceId}`, `GET /config/{deviceId}`, `POST /status/{deviceId}` | 客户端读侧 |
+| **WebSocket** | `WS /ws/{deviceId}` | 列表 diff + 心跳 |
 
-> Full schema: <http://localhost:8000/docs> after first launch.
+> 完整 schema：启动后访问 <http://localhost:8000/docs>。
 
 ---
 
-## 📱 Android Player
+## 📱 Android 播放端
 
-The Android player is a thin Kotlin shell around the same web player used in the browser:
+Android 播放端是同一份 Web 播放器代码的 Kotlin 外壳：
 
-- **WebView host** — [`MainActivity.kt`](android/app/src/main/java/com/castplay/player/MainActivity.kt) loads the web player with a runtime-injected `deviceId`.
-- **Kiosk mode** — `MyDeviceAdminReceiver.kt` + `DevicePolicyManager` lock the device to the player; `BootReceiver.kt` restarts on power-up.
-- **Offline cache** — `CacheManager.kt` downloads the assigned playlist's media ahead of time and verifies MD5, with an exponential-backoff retry budget of 3.
-- **JsBridge** — exposes MAC, IP, registration code, download progress, and network status to the WebView.
+- **WebView 宿主** — [`MainActivity.kt`](android/app/src/main/java/com/castplay/player/MainActivity.kt) 加载 Web 播放器，并注入运行时 `deviceId`。
+- **Kiosk 模式** — `MyDeviceAdminReceiver.kt` + `DevicePolicyManager` 锁定设备；`BootReceiver.kt` 在开机时重启播放器。
+- **离线缓存** — `CacheManager.kt` 提前下载所分配播放列表的素材，校验 MD5，失败按指数退避最多重试 3 次。
+- **JsBridge** — 向 WebView 暴露 MAC、IP、注册码、下载进度、网络状态。
 
-Build:
+构建：
 
 ```bash
-# Default backend URL (edit android/app/build.gradle.kts to override)
+# 默认后端地址（要改请编辑 android/app/build.gradle.kts）
 ./build-android.sh
 
-# Or point at your own server:
+# 或指向自己的服务：
 ./build-android.sh http://192.168.1.100:8000
 ```
 
-Output: `android/app/build/outputs/apk/debug/app-debug.apk` (~20–30 MB).
+产物：`android/app/build/outputs/apk/debug/app-debug.apk`（约 20–30 MB）。
 
-> Detailed Android walkthrough: [`docs/android/deployment_guide.md`](docs/android/deployment_guide.md).
+> 详细 Android 流程：[`docs/android/deployment_guide.md`](docs/android/deployment_guide.md)。
 
 ---
 
-## 🆚 Comparison
+## 🆚 同类对比
 
-| Metric | CastPlay 2.0 | CastPlay v1 (legacy) | A commercial CMS |
+| 指标 | CastPlay 2.0 | CastPlay v1（旧版） | 商业 CMS |
 |---|---|---|---|
-| External dependencies (Redis/Celery/PG) | **none** | required | required |
-| Time to first deploy (clean VM) | **5 min** | 30 min | 30+ min |
-| Cold-start time | **≈ 10 s** | ≈ 2 min | ≈ 30 s |
-| Python source files | **36** | 79 | n/a |
-| LOC vs v1 | **−34 %** | baseline | n/a |
-| Fleet sweet spot | **< 50 screens** | small-mid | mid-large |
-| License | **MIT** | per-seat | subscription |
-| WebSocket push (no polling) | ✅ | ✅ | ✅ |
+| 外部依赖（Redis/Celery/PG） | **无** | 需要 | 需要 |
+| 干净 VM 首次部署耗时 | **5 分钟** | 30 分钟 | 30+ 分钟 |
+| 冷启动耗时 | **≈ 10 秒** | ≈ 2 分钟 | ≈ 30 秒 |
+| Python 源文件数 | **36** | 79 | n/a |
+| 相对 v1 代码量 | **−34 %** | 基准 | n/a |
+| 适配规模 | **< 50 块屏** | 小-中 | 中-大 |
+| 许可证 | **MIT** | 按席位 | 订阅 |
+| WebSocket 推送（无需轮询） | ✅ | ✅ | ✅ |
 
 ---
 
 ## 🗓️ Roadmap
 
-- [x] **v2.0** — bootstrap architecture; zero external deps; 3-worker scheduler; drag-and-drop playlist ordering; WebSocket push; Android kiosk player.
-- [ ] **v2.1** — Optional Postgres + Redis adapter for fleets > 50 (legacy compatibility layer).
-- [ ] **v2.2** — Multi-user roles (admin / editor / viewer) and per-device permission scopes.
-- [ ] **v2.3** — Tiles for weather, RSS, and live data widgets in playlists.
-- [ ] **v2.4** — tvOS player for Apple TV screens.
+- [x] **v2.0** — bootstrap 架构；零外部依赖；3-worker 调度器；拖拽排序播放列表；WebSocket 推送；Android Kiosk 播放端。
+- [ ] **v2.1** — 可选 Postgres + Redis 适配器（适配 50 块屏以上，与旧版兼容）。
+- [ ] **v2.2** — 多用户角色（管理员 / 编辑 / 查看者）与按设备权限粒度。
+- [ ] **v2.3** — 播放列表加入天气、RSS、实时数据小组件。
+- [ ] **v2.4** — Apple TV 上的 tvOS 播放端。
 
-> See [`docs/reports/PROJECT_REVIEW_REPORT.md`](docs/reports/PROJECT_REVIEW_REPORT.md) for the most recent code review, and [`OPTIMIZATION.md`](OPTIMIZATION.md) for follow-up ideas captured during that review.
+> 最近一次代码评审见 [`docs/reports/PROJECT_REVIEW_REPORT.md`](docs/reports/PROJECT_REVIEW_REPORT.md)，评审衍生项见 [`OPTIMIZATION.md`](OPTIMIZATION.md)。
 
 ---
 
-## 🧪 Testing
+## 🧪 测试
 
 ```bash
-# All tests
+# 全部测试
 make test                            # = pytest tests/ -v
 
-# Grouped runs
+# 分组跑
 make test-unit                       # pytest -m unit
 make test-integration                # pytest -m integration
-make test-e2e                        # frontend end-to-end
-make test-performance                # Locust 100 users / 60 s
+make test-e2e                        # 前端 E2E
+make test-performance                # Locust 100 用户 / 60 秒
 
-# Coverage report
+# 覆盖率
 make test-coverage                   # htmlcov/index.html + coverage.xml
 ```
 
-Continuous integration expectations live in [`docs/testing/`](docs/testing/).
+CI 期望见 [`docs/testing/`](docs/testing/)。
 
 ---
 
-## 🤝 Contributing
+## 🤝 贡献
 
-Pull requests welcome — start by reading [`CLAUDE.md`](CLAUDE.md) for the build / test conventions. High-leverage contributions:
+欢迎 PR。请先读 [`CLAUDE.md`](CLAUDE.md) 了解构建 / 测试约定。高杠杆贡献：
 
-- **Bug reports** — include the OS, CastPlay version, `docker compose ps` output, and a snippet from `logs/`.
-- **Translations** — `frontend/src/locales/` ships `zh-CN` + `en-US`; add another locale and ping a maintainer.
-- **API patches** — write a test under `tests/integration/` first; the OpenAPI spec at `/docs` will be regenerated from the code.
-- **Android player fixes** — bring up an emulator via [`docs/android/emulator_setup.md`](docs/android/emulator_setup.md).
+- **Bug 报告** — 附 OS、CastPlay 版本、`docker compose ps` 输出、`logs/` 节选。
+- **翻译** — `frontend/src/locales/` 现带 `zh-CN` + `en-US`；新增一个 locale 后 ping 维护者。
+- **API 修补** — 先在 `tests/integration/` 写测试；OpenAPI spec 在 `/docs` 会从代码重新生成。
+- **Android 修复** — 按 [`docs/android/emulator_setup.md`](docs/android/emulator_setup.md) 起模拟器。
 
-This project follows the spirit of the [Contributor Covenant v2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
-
----
-
-## 🔒 Security
-
-Found a vulnerability? **Do not** open a public issue. See [`SECURITY.md`](SECURITY.md) for the supported-versions table, disclosure window, and the private contact channel.
-
-CastPlay's threat posture:
-
-- **JWT bearer auth** — rotate `SECRET_KEY` from `.env`; tokens are short-lived with a refresh path.
-- **`registration_code` token** — production mode (set `ENVIRONMENT=production`) requires the registration code on every WebSocket connect (codes `4001`/`4003`/`4004` reject unauthorized clients).
-- **WebSocket origin allowlist** — production mode scopes accepted origins to the configured admin host.
-- **Hardened defaults** — `DEBUG=false`, `NUM_WORKERS=3`, no analytics, no third-party CDN.
-- **Content validation** — file uploads are extension-checked *and* magic-number-checked before they touch disk.
+本项目遵循 [Contributor Covenant v2.1](https://www.contributor-covenant.org/zh-cn/version/2/1/code_of_conduct/) 精神。
 
 ---
 
-## ⚖️ Legal
+## 🔒 安全
 
-This project is provided under the [MIT License](LICENSE). It does not ship any third-party sample media — supply your own.
+发现漏洞请私下披露 — **不要发公开 GitHub issue**。详见 [`SECURITY.md`](SECURITY.md)，含支持版本表、披露窗口、私下联系渠道。
+
+CastPlay 的威胁姿态：
+
+- **JWT bearer 鉴权** — 在 `.env` 轮换 `SECRET_KEY`；token 短期 + refresh 路径。
+- **`registration_code` token** — 生产模式（设 `ENVIRONMENT=production`）下，每次 WebSocket 连接都必须带上注册码，code `4001`/`4003`/`4004` 拒绝未授权客户端。
+- **WebSocket origin 白名单** — 生产模式仅接受配置中的管理端 host 来源。
+- **硬默认** — `DEBUG=false`、`NUM_WORKERS=3`、无埋点、无第三方 CDN。
+- **内容校验** — 上传先看扩展名再看 magic number，通过后才落盘。
+
+---
+
+## ⚖️ 法律
+
+本项目按 [MIT License](LICENSE) 开源；不附带任何第三方样本素材，请自带。
 
 ---
 
 <div align="center">
 
-<sub>📌 CastPlay is maintained by <a href="https://github.com/davyzhong">qiming</a> · <a href="https://github.com/davyzhong/CastPlay/issues">🐛 Report a bug</a> · <a href="https://github.com/davyzhong/CastPlay/discussions">💬 Discuss</a></sub>
+<sub>📌 CastPlay 由 <a href="https://github.com/davyzhong">qiming</a> 维护 · <a href="https://github.com/davyzhong/CastPlay/issues">🐛 报告 Bug</a> · <a href="https://github.com/davyzhong/CastPlay/discussions">💬 讨论</a></sub>
 
 </div>

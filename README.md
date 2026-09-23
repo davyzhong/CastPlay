@@ -10,17 +10,19 @@ language: zh-Hans
 
 # 🖥️ CastPlay All-in-One
 
+![GitHub Stars](https://img.shields.io/github/stars/davyzhong/CastPlay)
+
 **单容器数字标牌 — 10 秒拉起。一个 Web 控制台，管设备、传素材、推播放列表。**
 
 `上传素材` → `编排播放列表` → `推送到设备` → `2 秒内屏幕同步更新`
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.0-success)](https://github.com/davyzhong/CastPlay/releases)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python)](https://www.python.org)
-[![Docker](https://img.shields.io/badge/docker-ready-blue?logo=docker)](Dockerfile)
-[![Backend](https://img.shields.io/badge/backend-FastAPI%20%2B%20SQLAlchemy-009688)](https://fastapi.tiangolo.com)
+[![Version 版本](https://img.shields.io/badge/version-2.0.0-success)](https://github.com/davyzhong/CastPlay/releases)
+[![Python 版本](https://img.shields.io/badge/python-3.10%2B-blue?logo=python)](https://www.python.org)
+[![Docker 容器](https://img.shields.io/badge/docker-ready-blue?logo=docker)](Dockerfile)
+[![Backend 后端服务](https://img.shields.io/badge/backend-FastAPI%20%2B%20SQLAlchemy-009688)](https://fastapi.tiangolo.com)
 [![Frontend](https://img.shields.io/badge/admin-React%2018%20%2B%20Ant%20Design-61dafb)](https://react.dev)
-[![Player](https://img.shields.io/badge/player-Android%20WebView-3DDC84)](android/)
+[![Player 播放端](https://img.shields.io/badge/player-Android%20WebView-3DDC84)](android/)
 [![Security](https://img.shields.io/badge/security-policy-lightgrey)](SECURITY.md)
 
 **[中文](./README.md)** · [English](./README.en.md)

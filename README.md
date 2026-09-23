@@ -138,7 +138,7 @@ flowchart TB
     end
     subgraph Server[CastPlay 服务端 — 单进程]
         API[REST API<br/>FastAPI]
-        WS[WebSocket<br/>/ws/{device_id}]
+        WS["WebSocket<br/>/ws/{device_id}"]
         Sched[调度器<br/>APScheduler · 3 worker]
         PptSvc[PPT 转码<br/>LibreOffice + ffmpeg]
         DB[(SQLite<br/>SQLAlchemy ORM)]
@@ -297,7 +297,7 @@ Android 播放端是同一份 Web 播放器代码的 Kotlin 外壳：
 
 产物：`android/app/build/outputs/apk/debug/app-debug.apk`（约 20–30 MB）。
 
-> 详细 Android 流程：[`docs/android/deployment_guide.md`](docs/android/deployment_guide.md)。
+> 详细 Android 流程：docs/android/deployment_guide.md（待补）。
 
 ---
 
@@ -324,7 +324,7 @@ Android 播放端是同一份 Web 播放器代码的 Kotlin 外壳：
 - [ ] **v2.3** — 播放列表加入天气、RSS、实时数据小组件。
 - [ ] **v2.4** — Apple TV 上的 tvOS 播放端。
 
-> 最近一次代码评审见 [`docs/reports/PROJECT_REVIEW_REPORT.md`](docs/reports/PROJECT_REVIEW_REPORT.md)，评审衍生项见 [`OPTIMIZATION.md`](OPTIMIZATION.md)。
+> 最近一次代码评审见 [`docs/reports/PROJECT_REVIEW_REPORT.md`](docs/reports/PROJECT_REVIEW_REPORT.md)，评审衍生项见 OPTIMIZATION.md（待补）。
 
 ---
 

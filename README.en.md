@@ -1,3 +1,5 @@
+> ⚠️ 本翻译最后更新于 2026-09-21，主 README 于 2026-09-23 有多项修复未同步至此；最新内容以 [主文档](./README.md) 为准。
+
 ---
 name: CastPlay All-in-One
 description: Single-container digital signage management — FastAPI backend + React admin + Android player, no Redis/Celery/PostgreSQL required. Tuned for fleets under 50 screens.

@@ -100,5 +100,3 @@ android_manual_test.png
 web-test-result.png
 -X
 
-# Python lock files (use requirements.txt instead)
-uv.lock

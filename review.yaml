@@ -1,0 +1,95 @@
+# CastPlay README 的 agent-reviewed 规则评审
+#
+# 评审对象：./README.md（395 行）
+# 评审时间：2026-09-27
+# 项目类型：service（FastAPI + React 管理端 + Android Kiosk 播放端）
+# 用法：pnpm readme-craft check . --type service --type cli --review review.yaml
+#
+# 说明：本项目为内部投放工具，无外部公开客户可引用，T11 按 N/A 处理。
+
+specVersion: 3.0.0-alpha.0
+
+reviews:
+  # T01 视觉锤
+  - id: T01
+    score: 3
+    reason: >-
+      居中标题、一句话价值链（管理端 + REST + WebSocket + 多格式素材 + Kiosk）
+      与截图区块标题齐备，信息密度高。
+      扣 2 分：首屏无实际可看的视觉——「它跑起来长什么样」章节的 4 张截图全部是
+      `[TODO]` 占位（README 第 111、119、127 行明确标注），且占位图不构成 hero 视觉。
+      作为管理端 + 播放端产品，缺少界面截图对判断可用性影响明显。
+    evidence: [logo-tagline]
+
+  # T02 三秒价值主张
+  - id: T02
+    score: 5
+    reason: >-
+      首屏「一个进程跑一整套：管理端 + REST + WebSocket、多格式素材（含 PPT）、
+      Kiosk 模式 Android 客户端。无需 Redis、无需 Celery、无需独立数据库」一句话
+      同时给出做什么、给谁用、独特优势（零外部依赖），且用对比式表述
+      （无需 X）快速建立差异化认知。
+    evidence: [value-proposition]
+
+  # T04 安装路径
+  - id: T04
+    score: 5
+    reason: >-
+      安装章节结构完整：先列系统前置（Python/Node/LibreOffice/ffmpeg/Docker 及版本要求
+      与用途），再分 Docker 与本机两条路径给出可复制命令，并说明各路径适用场景。
+      覆盖正式支持的所有平台形态，无未验证的安装承诺。
+    evidence: [executable-command, supported-platforms]
+
+  # T05 Quickstart
+  - id: T05
+    score: 4
+    reason: >-
+      快速开始与安装章节衔接紧密，Docker 路径提供单命令启动（docker run castplay），
+      读者可在数分钟内看到管理端。
+      扣 1 分：无在线 Demo 或一键试用入口，首访需完整走一遍本地环境准备。
+    evidence: [quickstart-steps]
+
+  # T07 卖点编号
+  - id: T07
+    score: 5
+    reason: >-
+      「为什么选 CastPlay」6 条卖点，每条均为「粗体关键词 + 具体机制 + 可验证细节」：
+      单容器零外部依赖（列出被省略的组件）、PPT 转码（说明用 LibreOffice+ffmpeg
+      并保留动画）、实时推送（约 2 秒生效，对比无需轮询）、Kiosk 锁定（指出实现类
+      DevicePolicyManager）、多时区定时、以及明确的适用规模边界（50 块屏以下，
+      并解释为何不上 Redis/Celery/PG）。第 6 条主动划定不适用场景尤其可信。
+    evidence: [numbered-selling-points, quantified-benefit]
+
+  # T08 Feature 分组
+  - id: T08
+    score: 4
+    reason: >-
+      功能章节与管理端/播放端/API/架构等维度分组一致，另有独立的 Android 播放端
+      与 API 接口章节，检索路径清晰。
+      扣 1 分：功能分组缺少成熟度标注（哪些已可用、哪些是 roadmap），
+      读者需翻到 Roadmap 章节才能判断。
+    evidence: [feature-groups]
+
+  # T11 引用/背书
+  - id: T11
+    status: na
+    reason: >-
+      内部投放工具，无可公开引用的外部客户或公开案例。按 N/A 处理，
+      不以虚构 logo 或 quote 补分。
+
+  # T14 包容性语言
+  - id: T14
+    score: 5
+    reason: >-
+      全文使用「你」「屏幕」「设备」等第二人称与中性称谓，无 he/she 默认指代、
+      无性别化或地域化表述；技术名词均附中文说明与括号解释。
+    evidence: [inclusive-language-review]
+
+  # T17 默认语言策略
+  - id: T17
+    score: 5
+    reason: >-
+      首屏第 28 行提供语言切换入口 [中文](./README.md) · [English](./README.en.md)，
+      且 README.en.md 为已落盘的真实文件（不只是占位链接），
+      默认中文与项目当前工作语言一致，策略完整且可立即验证。
+    evidence: [default-language-rationale]

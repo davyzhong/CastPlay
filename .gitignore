@@ -100,3 +100,6 @@ android_manual_test.png
 web-test-result.png
 -X
 
+
+# Node 依赖
+node_modules/

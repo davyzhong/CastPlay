@@ -297,7 +297,7 @@ Android 播放端是同一份 Web 播放器代码的 Kotlin 外壳：
 
 产物：`android/app/build/outputs/apk/debug/app-debug.apk`（约 20–30 MB）。
 
-> 详细 Android 流程：docs/android/deployment_guide.md（待补）。
+> 详细 Android 部署流程文档尚未编写；当前以本文「构建 APK」小节为准。
 
 ---
 
@@ -324,7 +324,7 @@ Android 播放端是同一份 Web 播放器代码的 Kotlin 外壳：
 - [ ] **v2.3** — 播放列表加入天气、RSS、实时数据小组件。
 - [ ] **v2.4** — Apple TV 上的 tvOS 播放端。
 
-> 最近一次代码评审见 [`docs/reports/PROJECT_REVIEW_REPORT.md`](docs/reports/PROJECT_REVIEW_REPORT.md)，评审衍生项见 OPTIMIZATION.md（待补）。
+> 最近一次代码评审见 [`docs/reports/PROJECT_REVIEW_REPORT.md`](docs/reports/PROJECT_REVIEW_REPORT.md)。
 
 ---
 
@@ -374,6 +374,13 @@ CastPlay 的威胁姿态：
 - **内容校验** — 上传先看扩展名再看 magic number，通过后才落盘。
 
 ---
+
+## 🙏 致谢
+
+- **方法论**：本 README 的结构与自检口径遵循 [readme-craft](https://github.com/davyzhong/readme-craft) ——
+  19 条铁律 + 13 条反模式，规则以 `rules.yaml` 为单一事实源，可用 `npx github:davyzhong/readme-craft check .` 复验。
+- **贡献**：欢迎通过 Issue 与 PR 参与，具体流程见下方贡献章节。
+- **赞助**：本项目暂无商业赞助。若希望支持维护，请优先贡献 Issue、PR 或文档改进。
 
 ## ⚖️ 法律
 
